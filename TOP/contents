@@ -1,0 +1,7 @@
+This directory contains top-level files in DiFX that either have
+no place on launchpad or else conflict.
+
+AUTHORS
+ChangeLog
+README
+setup.py

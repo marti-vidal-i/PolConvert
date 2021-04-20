@@ -1,0 +1,7 @@
+- Always use the crosspol autocorr buffer and NOT write the crosspol autocorrs into the SWIN file.
+
+- Spw-dependent flagging from calappphase.
+
+- XY0amb.APP not packaged whtn Avoid_ALMA_Polcal = False
+- Gpol2.APP either.
+- 2166 (plotcal of Gpol2).

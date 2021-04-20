@@ -1,0 +1,159 @@
+[CalTable.cpp:163]: (style) The scope of the variable 'ant' can be reduced.
+[CalTable.cpp:164]: (style) The scope of the variable 'tidx' can be reduced.
+[CalTable.cpp:164]: (style) The scope of the variable 'chan' can be reduced.
+[CalTable.cpp:164]: (style) The scope of the variable 'index' can be reduced.
+[CalTable.cpp:165]: (style) The scope of the variable 'auxI2' can be reduced.
+[CalTable.cpp:166]: (style) The scope of the variable 'frchan' can be reduced.
+[CalTable.cpp:167]: (style) The scope of the variable 'firstflag' can be reduced.
+[CalTable.cpp:440]: (style) The scope of the variable 'Nts' can be reduced.
+[CalTable.cpp:516]: (style) The scope of the variable 'auxD' can be reduced.
+[CalTable.cpp:519]: (style) The scope of the variable 'auxF0' can be reduced.
+[CalTable.cpp:519]: (style) The scope of the variable 'auxF1' can be reduced.
+[CalTable.cpp:519]: (style) The scope of the variable 'auxF2' can be reduced.
+[CalTable.cpp:519]: (style) The scope of the variable 'auxF3' can be reduced.
+[CalTable.cpp:519]: (style) The scope of the variable 'auxT0' can be reduced.
+[CalTable.cpp:519]: (style) The scope of the variable 'auxT1' can be reduced.
+[CalTable.cpp:519]: (style) The scope of the variable 'auxT2' can be reduced.
+[CalTable.cpp:519]: (style) The scope of the variable 'auxT3' can be reduced.
+[CalTable.cpp:36]: (warning) Member variable 'CalTable::success' is not initialized in the constructor.
+[CalTable.cpp:36]: (warning) Member variable 'CalTable::BuffPhase' is not initialized in the constructor.
+[CalTable.cpp:36]: (warning) Member variable 'CalTable::BuffAmp' is not initialized in the constructor.
+[CalTable.cpp:36]: (warning) Member variable 'CalTable::deltaNu0' is not initialized in the constructor.
+[CalTable.cpp:36]: (warning) Member variable 'CalTable::deltaNu' is not initialized in the constructor.
+[CalTable.h:30]: (style) 'class CalTable' does not have a copy constructor which is recommended since the class contains a pointer to allocated memory.
+[DataIO.cpp:76]: (style) The scope of the variable 'V2' can be reduced.
+[DataIO.cpp:76]: (style) The scope of the variable 'Bx' can be reduced.
+[DataIO.cpp:76]: (style) The scope of the variable 'By' can be reduced.
+[DataIO.cpp:77]: (style) The scope of the variable 'CH' can be reduced.
+[DataIO.cpp:77]: (style) The scope of the variable 'SH' can be reduced.
+[DataIO.cpp:77]: (style) The scope of the variable 'CT1' can be reduced.
+[DataIO.cpp:77]: (style) The scope of the variable 'CT2' can be reduced.
+[DataIO.cpp:77]: (style) The scope of the variable 'HAng' can be reduced.
+[DataIO.cpp:77]: (style) The scope of the variable 'H1' can be reduced.
+[DataIO.cpp:77]: (style) The scope of the variable 'H2' can be reduced.
+[DataIO.cpp:78]: (style) The scope of the variable 'ibas' can be reduced.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::Freqs' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::Geometry' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::Freqvals' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::doRange' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::JDTimes' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::Basels' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::Freqids' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::an1' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::an2' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::linAnts' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::ParAng' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::NLinAnt' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::NIFs' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::Nband' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::status' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::Nants' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::Nfreqs' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::currFreq' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::NLinVis' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::Nvis' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::currVis' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::indexes' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::success' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::currConj' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::conjugate' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::is1' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::is2' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::is1orig' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::is2orig' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::Flux' is not initialized in the constructor.
+[DataIO.cpp:44]: (warning) Member variable 'DataIO::day0' is not initialized in the constructor.
+[DataIOFITS.cpp:165]: (style) The scope of the variable 'il' can be reduced.
+[DataIOFITS.cpp:313]: (style) The scope of the variable 'SOURCE2' can be reduced.
+[DataIOFITS.cpp:316]: (style) The scope of the variable 'VV0' can be reduced.
+[DataIOFITS.cpp:317]: (style) The scope of the variable 'WW0' can be reduced.
+[DataIOFITS.cpp:318]: (style) The scope of the variable 'UU1' can be reduced.
+[DataIOFITS.cpp:319]: (style) The scope of the variable 'VV1' can be reduced.
+[DataIOFITS.cpp:320]: (style) The scope of the variable 'WW1' can be reduced.
+[DataIOFITS.cpp:321]: (style) The scope of the variable 'UU2' can be reduced.
+[DataIOFITS.cpp:322]: (style) The scope of the variable 'VV2' can be reduced.
+[DataIOFITS.cpp:323]: (style) The scope of the variable 'WW2' can be reduced.
+[DataIOFITS.cpp:532]: (style) The scope of the variable 'currT' can be reduced.
+[DataIOFITS.cpp:783]: (style) The scope of the variable 'curridx' can be reduced.
+[DataIOFITS.cpp:866]: (style) The scope of the variable 'i3' can be reduced.
+[DataIOFITS.cpp:899]: (style) The scope of the variable 'a11' can be reduced.
+[DataIOFITS.cpp:899]: (style) The scope of the variable 'a12' can be reduced.
+[DataIOFITS.cpp:899]: (style) The scope of the variable 'a21' can be reduced.
+[DataIOFITS.cpp:899]: (style) The scope of the variable 'a22' can be reduced.
+[DataIOFITS.cpp:899]: (style) The scope of the variable 'ca11' can be reduced.
+[DataIOFITS.cpp:899]: (style) The scope of the variable 'ca12' can be reduced.
+[DataIOFITS.cpp:899]: (style) The scope of the variable 'ca21' can be reduced.
+[DataIOFITS.cpp:899]: (style) The scope of the variable 'ca22' can be reduced.
+[DataIOSWIN.cpp:159]: (style) The scope of the variable 'begin' can be reduced.
+[DataIOSWIN.cpp:159]: (style) The scope of the variable 'end' can be reduced.
+[DataIOSWIN.cpp:701]: (style) Unused variable: k
+[DataIOSWIN.cpp:332]: (error) Common realloc mistake: 'Records' nulled but not freed upon failure
+[DataIOSWIN.cpp:334]: (error) Common realloc mistake: 'is1orig' nulled but not freed upon failure
+[DataIOSWIN.cpp:336]: (error) Common realloc mistake: 'is2orig' nulled but not freed upon failure
+[_PolConvert.cpp:255]: (style) The scope of the variable 'I3' can be reduced.
+[_PolConvert.cpp:256]: (style) The scope of the variable 'RR' can be reduced.
+[_PolConvert.cpp:1067]: (style) Label 'FINISH' is not used.
+[_PolConvert.cpp:598]: (style) Unused variable: absGainRatio
+[_PolConvert.cpp:464]: (error) Memory leak: PrioriGains
+[_PolConvert.cpp:464]: (error) Memory leak: kind
+[_PolConvert.cpp:464]: (error) Memory leak: isLinear
+[_PolConvert.cpp:464]: (error) Memory leak: ngainTabs
+[_PolConvert.cpp:464]: (error) Memory leak: nsumArr
+[_PolConvert.cpp:464]: (error) Memory leak: ntimeArr
+[_PolConvert.cpp:464]: (error) Memory leak: nchanArr
+[_PolConvert.cpp:464]: (error) Memory leak: freqsArr
+[_PolConvert.cpp:464]: (error) Memory leak: timesArr
+[_PolConvert.cpp:464]: (error) Memory leak: gainsArrR1
+[_PolConvert.cpp:464]: (error) Memory leak: gainsArrI1
+[_PolConvert.cpp:464]: (error) Memory leak: gainsArrR2
+[_PolConvert.cpp:464]: (error) Memory leak: gainsArrI2
+[_PolConvert.cpp:464]: (error) Memory leak: gainflag
+[_PolConvert.cpp:464]: (error) Memory leak: nchanDt
+[_PolConvert.cpp:464]: (error) Memory leak: ndttimeArr
+[_PolConvert.cpp:464]: (error) Memory leak: dtfreqsArr
+[_PolConvert.cpp:464]: (error) Memory leak: dttimesArr
+[_PolConvert.cpp:464]: (error) Memory leak: dtermsArrR1
+[_PolConvert.cpp:464]: (error) Memory leak: dtermsArrI1
+[_PolConvert.cpp:464]: (error) Memory leak: dtermsArrR2
+[_PolConvert.cpp:464]: (error) Memory leak: dtermsArrI2
+[_PolConvert.cpp:464]: (error) Memory leak: dtflag
+[_PolConvert.cpp:464]: (error) Memory leak: XYSWAP
+[_PolConvert.cpp:464]: (error) Memory leak: allgains
+[_PolConvert.cpp:464]: (error) Memory leak: alldterms
+[_PolGainSolve.cpp:788]: (style) The scope of the variable 'j' can be reduced.
+[_PolGainSolve.cpp:833]: (style) The scope of the variable 'af2' can be reduced.
+[_PolGainSolve.cpp:1051]: (style) The scope of the variable 'Peak00' can be reduced.
+[_PolGainSolve.cpp:1052]: (style) The scope of the variable 'Peak11' can be reduced.
+[_PolGainSolve.cpp:1053]: (style) The scope of the variable 'AbsP' can be reduced.
+[_PolGainSolve.cpp:1054]: (style) The scope of the variable 'row' can be reduced.
+[_PolGainSolve.cpp:1579]: (style) The scope of the variable 'foundit' can be reduced.
+[_PolGainSolve.cpp:1647]: (style) The scope of the variable 'currIF' can be reduced.
+[_PolGainSolve.cpp:857]: (error) Memory leak: T0
+[_PolGainSolve.cpp:857]: (error) Memory leak: T1
+[_PolGainSolve.cpp:1558]: (error) Memory leak: Tm
+[_PolGainSolve.cpp:1558]: (error) Memory leak: DerAux1
+[_PolGainSolve.cpp:1558]: (error) Memory leak: DerAux2
+[_PolGainSolve.cpp:305]: (error) Common realloc mistake: 'Nchan' nulled but not freed upon failure
+[_PolGainSolve.cpp:306]: (error) Common realloc mistake: 'Frequencies' nulled but not freed upon failure
+[_PolGainSolve.cpp:307]: (error) Common realloc mistake: 'NVis' nulled but not freed upon failure
+[_PolGainSolve.cpp:308]: (error) Common realloc mistake: 'NCVis' nulled but not freed upon failure
+[_PolGainSolve.cpp:309]: (error) Common realloc mistake: 'NLVis' nulled but not freed upon failure
+[_PolGainSolve.cpp:310]: (error) Common realloc mistake: 'IFNum' nulled but not freed upon failure
+[_PolGainSolve.cpp:319]: (error) Common realloc mistake: 'Ant1' nulled but not freed upon failure
+[_PolGainSolve.cpp:320]: (error) Common realloc mistake: 'Ant2' nulled but not freed upon failure
+[_PolGainSolve.cpp:321]: (error) Common realloc mistake: 'Times' nulled but not freed upon failure
+[_PolGainSolve.cpp:857]: (error) Memory leak: aroundPeak00
+[_PolGainSolve.cpp:857]: (error) Memory leak: aroundPeak11
+[_PolGainSolve.cpp:1592]: (error) Memory leak: doIF
+[_PolGainSolve.cpp:1592]: (error) Memory leak: antFit
+[CalTable.cpp:308]: (style) The function 'getFreqRange' is never used.
+[CalTable.cpp:332]: (style) The function 'getGains' is never used.
+[CalTable.cpp:303]: (style) The function 'getNEntries' is never used.
+[CalTable.cpp:301]: (style) The function 'getNant' is never used.
+[CalTable.cpp:304]: (style) The function 'getTimeRange' is never used.
+[CalTable.cpp:325]: (style) The function 'getTimes' is never used.
+[_PolConvert.cpp:95]: (style) The function 'init_PolConvert' is never used.
+[_PolGainSolve.cpp:79]: (style) The function 'init_PolGainSolve' is never used.
+[_getAntInfo.cpp:66]: (style) The function 'init_getAntInfo' is never used.
+[CalTable.cpp:306]: (style) The function 'setChanged' is never used.
+(information) Cppcheck cannot find all the include files (use --check-config for details)
