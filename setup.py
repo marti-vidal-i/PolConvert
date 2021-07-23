@@ -14,8 +14,15 @@ print(printM)
 # IT NEEDS FFTW AND GSL:
 DO_SOLVE = True
 
+## CHANGE IF NEEDED:
+cfitsio='/usr/include/cfitsio'
 
-# it is not clear if include_dirs is needed or not
+
+
+
+
+
+
 
 
 sourcefiles1 = ['CalTable.cpp', 'DataIO.cpp', 'DataIOFITS.cpp',
@@ -46,17 +53,12 @@ c_ext4 = Extension("_XPCal",sources=sourcefiles4,
 
 
 if DO_SOLVE:
-  # gsl depends on cblas on some machines
-  # however, cblas needs to be installed so configure tests
-  # are needed.  Commenting this out until I have time to fix this.
-  # libraries=['gsl','cblas','fftw3']
   c_ext2 = Extension("_PolGainSolve", sources=sourcefiles2,
                   libraries=['fftw3'],
                   include_dirs=[np.get_include()],
                   extra_compile_args=["-Wno-deprecated","-O3","-std=c++11"],
                   extra_link_args=["-Xlinker", "-export-dynamic"])
 
-cfitsio='/usr/include/cfitsio'
 setup(
     ext_modules=[c_ext1], include_dirs=[cfitsio,'./'],
 )
