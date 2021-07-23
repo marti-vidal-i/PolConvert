@@ -1,12 +1,14 @@
 from distutils.core import setup, Extension
 import numpy as np
 
-print ''
-print '#######################################################################'
-print '# Compiling with numpy version', np.__version__
-print '#',                              np.__file__
-print '#######################################################################'
-print ''
+printM  = '\n'
+printM += '#######################################################################\n'
+printM += '# Compiling with numpy version %s \n'%(np.__version__)
+printM += '#                              %s\n'%(np.__file__)
+printM += '#######################################################################\n'
+printM += '\n'
+
+print(printM)
 
 # COMPILE THE GLOBAL CROSS-POLARIZATION FRINGE FITTING.
 # IT NEEDS FFTW AND GSL:
@@ -49,7 +51,7 @@ if DO_SOLVE:
   # are needed.  Commenting this out until I have time to fix this.
   # libraries=['gsl','cblas','fftw3']
   c_ext2 = Extension("_PolGainSolve", sources=sourcefiles2,
-                  libraries=['gsl','fftw3'],
+                  libraries=['fftw3'],
                   include_dirs=[np.get_include()],
                   extra_compile_args=["-Wno-deprecated","-O3"],
                   extra_link_args=["-Xlinker", "-export-dynamic"])

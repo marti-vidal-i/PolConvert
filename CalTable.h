@@ -30,6 +30,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>
    its gains in frequency and time. */
 class CalTable {
   public:
+     CalTable(int kind, FILE *logF);
      CalTable(int kind, double **R1,double **I1,double **R2,double **I2, double *freqs, double **times, int Na, long *Nt, long Nc, bool **flag, bool islinear, FILE *logF, bool verbose);
      ~CalTable();
      int getNant();

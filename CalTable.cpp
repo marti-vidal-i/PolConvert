@@ -34,6 +34,20 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>
 CalTable::~CalTable() {};
 
 
+CalTable::CalTable(int kind, FILE *logF){
+  Nants=-1;Nchan=1;logFile = logF;
+  isDelay = kind==1;
+  isDterm = kind==2;
+  isTsys = kind==3;
+  JDRange[0] = 0.; JDRange[1]=1.e20;
+  gainChanged = true;
+  Freqs = new double[1]; Freqs[0] = 1.0;
+  Time = new double*[1];
+  Time[0] = new double[1]; Time[0][0] = 1.0;
+  Verbose = false;
+};
+
+
 CalTable::CalTable(int kind, double **R1, double **P1,double **R2,double **P2, 
                    double *freqs, double **times, int Na, long *Nt, long Nc, 
                    bool **flag, bool islinear, FILE *logF, bool verbose)
@@ -368,9 +382,9 @@ return;
 
 
 // Simple self-explanatory methods:
-int CalTable::getNant() {return Nants;};
+int CalTable::getNant() {if(Nants<0){return 1;} else {return Nants;};};
 long CalTable::getNchan() {long ret=Nchan; return ret;};
-long CalTable::getNEntries(int ant) {return Ntimes[ant];};
+long CalTable::getNEntries(int ant) {if(Nants<0){return 1;} else {return Ntimes[ant];};};
 void CalTable::getTimeRange(double *JD) {JD[0] = JDRange[0];JD[1]=JDRange[1];};
 void CalTable::setChanged(bool ch){gainChanged = ch;};
 
@@ -400,6 +414,7 @@ void CalTable::getTimes(int ant, double *times) {
 // Similar to above (i.e., the Table gains are protected):
 void CalTable::getGains(int ant, long timeidx, double *gain[4])
 {
+  if(Nants<0){return;};
   long i;
   for (i=0; i< Nchan; i++) {
    gain[0][i] = GainAmp[0][ant][i][timeidx];
@@ -416,6 +431,8 @@ void CalTable::getGains(int ant, long timeidx, double *gain[4])
    of channels in that array (mschan). */
 void CalTable::setMapping(long mschan, double *freqs) 
 {
+
+  if(Nants<0){return;};
 
   gainChanged = true;
   currTime = -1.0;
@@ -501,6 +518,8 @@ bool CalTable::setInterpolationTime(double itime) {
   if (Verbose){printf("Set interpolation at time %.3f for %i antennas \n",itime,Nants);fflush(stdout);};
 
   if (itime == currTime) {gainChanged = false; return gainChanged;};
+
+  if(Nants<0){gainChanged = currTime>0.0; currTime=itime; return gainChanged;};
 
   long i; //, auxI;
   long ti0 = 0;
@@ -589,6 +608,8 @@ void CalTable::applyInterpolation(int iant, int mode, std::complex<float> *gain[
 
   double auxF0, auxF1, auxF2, auxF3, auxT0, auxT1, auxT2, auxT3;
   if (Verbose){printf("Apply interpolation for antenna %i\n",iant);fflush(stdout);};
+
+  if(Nants<0){return;};
 
   ti0 = pret0[iant];
   ti1 = pret1[iant];
@@ -709,13 +730,20 @@ void CalTable::applyInterpolation(int iant, int mode, std::complex<float> *gain[
 bool CalTable::getInterpolation(int iant, int ichan, std::complex<float> gain[2]){
 
   success = true;
-  gain[0] = 1.0 ; gain[1] = 1.0 ;
-  if(iant>=Nants || ichan > Nchan){success = false;} else {
+  
+  if(Nants<0){
+    if(isDterm){gain[0]=0.0; gain[1]=0.0;} else {gain[0]=1.0;gain[1]=1.0;};
+    return success;
+  };
+
+  if(iant>=Nants || ichan > Nchan){
+    success = false;
+    gain[0] = 1.0 ; gain[1] = 1.0; 
+  } else {
     gain[0] = bufferGain[0][iant][ichan];
     gain[1] = bufferGain[1][iant][ichan];
     success = true;
   };
-
 
   return success;
 

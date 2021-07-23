@@ -30,6 +30,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>
 class Weighter {
   public:
     Weighter(int nPhase, long *nASDMtimes, long nASDMEntries, int *ASDMant, double **ASDMtimes, int *refants, double *time0, double *time1, double *BadTimes, int NBadTimes, FILE *logF);
+    Weighter(FILE *logF);
     ~Weighter();
 
     bool isPhased(double JDtime);

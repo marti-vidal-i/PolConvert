@@ -362,7 +362,7 @@ static PyObject *XPCal(PyObject *self, PyObject *args)
 		auxTempStr.str(auxTempStr.str()+' '+auxStr);
 		NTone += auxNTone;
 	 }else{
-	 	printf("T is %.7f and Tbuf is %.7f\n",T,Tbuf);
+	 	//printf("T is %.7f and Tbuf is %.7f\n",T,Tbuf);
 		start = 2;
 	 	// NTone is for both pols. So the actual number of tones is half of it:
          	NToneHf = NTone*TPI/2;

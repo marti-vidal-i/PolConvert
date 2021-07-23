@@ -33,6 +33,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>
 
 Weighter::~Weighter(){};
 
+
+Weighter::Weighter(FILE *logF) {
+ logFile = logF;
+ nants = -1;
+};
+
+
 Weighter::Weighter(int nPhase, long *nASDMtimes, long nASDMentries, int *ASDMant, double **ASDMtimes, int *refants, double *time0, double *time1, double* BadTimes, int NBadTimes, FILE *logF) {
 
 
@@ -60,6 +67,8 @@ bool Weighter::isPhased(double JDTime){
   int i;
   bool Phased = true;
 
+  if(nants<0){return Phased;};
+
   for (i=0; i<NbadTimes; i++){
     if(JDTime>=badTimes[2*i] && JDTime<=badTimes[2*i+1]){
       sprintf(message,"Bad time %i: %.8f |  %.8f %.8f!\n",i,JDTime,badTimes[2*i],badTimes[2*i+1]);
@@ -80,6 +89,8 @@ bool Weighter::getWeight(int iant, double JDtime){
   int j;
 
   bool inside;
+  inside=true;
+  if(nants<0){return inside;};
 
   for (j=0; j<nants; j++){
     if (ants[j] == iant){break;};
@@ -110,6 +121,7 @@ int Weighter::getRefAnt(double JDtime){
 
   long i;
 
+  if(nants<0){return 0;};
 
   if (JDtime == currTime){return currRefAnt;};
 

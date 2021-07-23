@@ -25,7 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>
 
 // compiler warning that we use a deprecated NumPy API
 // #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-// #define NO_IMPORT_ARRAY
+//#define NO_IMPORT_ARRAY
 #if PY_MAJOR_VERSION >= 3
 #define NPY_NO_DEPRECATED_API 0x0
 #endif
@@ -41,8 +41,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>
 #include <complex>
 #include <dirent.h>
 #include <fftw3.h>
-#include <gsl/gsl_errno.h>
-#include <gsl/gsl_linalg.h>
+//#include <gsl/gsl_errno.h>
+//#include <gsl/gsl_linalg.h>
 
 
 
@@ -64,12 +64,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>
 #define PyString_AS_STRING(x) PyUnicode_AS_STRING(x)
 #define _PyLong_FromSsize_t(x) PyLong_FromSsize_t(x)
 // For PyArray_FromDimsAndData -> PyArray_SimpleNewFromData
-#define INTEGER long
-#define INTEGERCAST  (const npy_intp*)
-#else
+//#define INTEGER long
+//#define INTEGERCAST  (const npy_intp*)
+//#else
 // For PyArray_FromDimsAndData -> PyArray_SimpleNewFromData
-#define INTEGER int
-#define INTEGERCAST (long int *)
+//#define INTEGER int
+//#define INTEGERCAST (long int *)
 #endif
 // and after some hacking
 #if PY_MAJOR_VERSION >= 3
@@ -102,6 +102,8 @@ static char GetNScan_docstring[] =
     "Returns the number of scans for the given IF.";
 static char SetFit_docstring[] =
     "Allocates memory for the GCPFF.";
+static char GetNchan_docstring[] =
+    "Returns the number of channels for the given IF.";
 
 
 
@@ -110,11 +112,15 @@ static PyObject *PolGainSolve(PyObject *self, PyObject *args);
 static PyObject *ReadData(PyObject *self, PyObject *args);
 static PyObject *GetChi2(PyObject *self, PyObject *args);
 static PyObject *GetIFs(PyObject *self, PyObject *args);
+static PyObject *GetNchan(PyObject *self, PyObject *args);
 static PyObject *DoGFF(PyObject *self, PyObject *args);
 static PyObject *SetFringeRates(PyObject *self, PyObject *args);
 static PyObject *GetNScan(PyObject *self, PyObject *args);
 static PyObject *FreeData(PyObject *self, PyObject *args);
 static PyObject *SetFit(PyObject *self, PyObject *args);
+
+bool solveSystem(int Neq, double *Hessian, double *Residuals, double *Solution);
+
 
 /* Module specification */
 static PyMethodDef module_methods[] = {
@@ -125,6 +131,7 @@ static PyMethodDef module_methods[] = {
     {"DoGFF", DoGFF, METH_VARARGS, DoGFF_docstring},
     {"SetFringeRates", SetFringeRates, METH_VARARGS, SetFringeRates_docstring},
     {"GetNScan",GetNScan, METH_VARARGS, GetNScan_docstring},
+    {"GetNchan",GetNchan, METH_VARARGS, GetNchan_docstring},
     {"FreeData", FreeData, METH_VARARGS, FreeData_docstring},
     {"SetFit", SetFit, METH_VARARGS, SetFit_docstring},
     {NULL, NULL, 0, NULL} /* terminated by list of NULLs, apparently */
@@ -137,15 +144,15 @@ static PyMethodDef module_methods[] = {
 // normally abort() is called on problems, which breaks CASA.
 // here we report and save the error condition which can be
 // noticed for a cleaner exit.
-int gsl_death_by = GSL_SUCCESS;
-static void gsl_death(const char * reason, const char * file,
-    int line, int gsl_errno) {
-    // stderr does not end up synchronized with stdout
-    printf("GSL Death by '%s' in file %s at line %d: GSL Error %d\n",
-        reason, file, line, gsl_errno);
-    fflush(stdout); std::cout << std::flush;
-    gsl_death_by = gsl_errno;
-}
+//int gsl_death_by = GSL_SUCCESS;
+//static void gsl_death(const char * reason, const char * file,
+//    int line, int gsl_errno) {
+//    // stderr does not end up synchronized with stdout
+//    printf("GSL Death by '%s' in file %s at line %d: GSL Error %d\n",
+//        reason, file, line, gsl_errno);
+//    fflush(stdout); std::cout << std::flush;
+//    gsl_death_by = gsl_errno;
+//}
  
 static long chisqcount = 0;
 //static long twincounter = 0;
@@ -167,15 +174,15 @@ static struct PyModuleDef pc_module_def = {
 PyMODINIT_FUNC PyInit__PolGainSolve(void)
 {
     PyObject *m = PyModule_Create(&pc_module_def);
-    import_array();
-    (void)gsl_set_error_handler(gsl_death);
+  //  import_array();
+  //  (void)gsl_set_error_handler(gsl_death);
     return(m);
 }
 #else
 PyMODINIT_FUNC init_PolGainSolve(void)
 {
     PyObject *m = Py_InitModule3("_PolGainSolve", module_methods, module_docstring);import_array();
-    (void)gsl_set_error_handler(gsl_death);
+  //  (void)gsl_set_error_handler(gsl_death);
     if (m == NULL)
         return;
 
@@ -212,7 +219,7 @@ PyMODINIT_FUNC init_PolGainSolve(void)
    double RelWeight = 1.0;
    double T0, T1, DT;
    int **Ant1, **Ant2, **BasNum, **Scan;
-   double **Times, **ScanDur, *CovMat, *IndVec, *SolVec;
+   double **Times, **ScanDur, **Weights, *CovMat, *IndVec, *SolVec;
    cplx64f **PA1, **PA2, **auxC00, **auxC01, **auxC10, **auxC11;
    cplx64f ***RR, ***RL, ***LR, ***LL, **CrossSpec00, **CrossSpec11;
 
@@ -220,9 +227,9 @@ PyMODINIT_FUNC init_PolGainSolve(void)
    bool doCov;
    double Stokes[4];
 
-   gsl_matrix_view m; 
-   gsl_vector_view x, v;
-   gsl_permutation *perm;
+ //  gsl_matrix_view m; 
+ //  gsl_vector_view x, v;
+ //  gsl_permutation *perm;
 
    bool AddCrossHand = true;
    bool AddParHand = true;
@@ -238,9 +245,117 @@ PyMODINIT_FUNC init_PolGainSolve(void)
 
 
 
-static PyObject *GetNScan(PyObject *self, PyObject *args){
-  int cIF;
+
+
+
+
+bool solveSystem(int Neq, double *HessianOrig, double *ResidualsOrig, double *Solution){
+
+    bool isSingular;
+    int i,j,k;
+    double *buffer = new double[Neq+1];
+    double f;
+
+    double *Hessian = new double[Neq*Neq];
+    double *Residuals = new double[Neq];
+    memcpy((void *)Hessian, (void *)HessianOrig, sizeof(double)*Neq*Neq);
+    memcpy((void *)Residuals, (void *)ResidualsOrig, sizeof(double)*Neq);
+
+    for(i=0;i<Neq;i++){Solution[i]=0.0;};
+  
+    isSingular = false;
+
+     /* performing Gaussian elimination */
+    for(i=0;i<Neq-1;i++){
+// PIVOTING:
+      for(j=i+1;j<Neq;j++){
+        if(abs(Hessian[i*Neq + i]) < abs(Hessian[j*Neq + i])){
+          for(k=0;k<Neq;k++){
+            buffer[k] = Hessian[i*Neq + k];
+            Hessian[i*Neq + k] = Hessian[j*Neq + k];
+            Hessian[j*Neq + k] = buffer[k];
+          };
+          buffer[Neq] = Residuals[i]; 
+          Residuals[i] = Residuals[j]; 
+          Residuals[j] = buffer[Neq]; 
+        };
+      };
+
+      if(Hessian[i*Neq + i]==0.0){isSingular=true; return isSingular;};
+
+      for(j=i+1;j<Neq;j++){
+        f=Hessian[j*Neq + i]/Hessian[i*Neq + i];
+        for(k=0;k<Neq;k++){
+          Hessian[j*Neq + k]=Hessian[j*Neq + k]-f*Hessian[i*Neq + k];
+        };
+        Residuals[j] = Residuals[j]-f*Residuals[i];
+      };
+    };
+
+    /* Backward substitution for discovering values of unknowns */
+    for(i=Neq-1;i>=0;i--){                     
+      Solution[i]=Residuals[i];
+      for(j=i+1;j<Neq;j++){
+        if(i!=j){
+          Solution[i]=Solution[i]-Hessian[i*Neq + j]*Solution[j];
+        };          
+      };
+      Solution[i]=Solution[i]/Hessian[i*Neq + i];  
+    };
+    
+  delete Hessian;
+  delete Residuals;
+
+  return isSingular;
+
+};
+
+
+
+
+
+static PyObject *GetNchan(PyObject *self, PyObject *args){
+  int cIF, k, j;
   PyObject *ret;
+
+// append after first call
+  if (!logFile) logFile = fopen("PolConvert.GainSolve.log","a");
+  fprintf(logFile,"into GetNchan...\n"); fflush(logFile);
+
+  if (!PyArg_ParseTuple(args, "i",&cIF)){
+     sprintf(message,"Failed GetNchan! Check inputs!\n"); 
+     fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);  
+     ret = Py_BuildValue("i",-1);
+     return ret;
+  };
+
+   k=-1;
+   for (j=0; j<NIF; j++){
+     if(IFNum[j] == cIF){k=j;break;};
+   };
+
+  if(k<0){
+    sprintf(message,"GetNchan: IF %d not found\n", cIF);
+    fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
+    PyObject *ret = Py_BuildValue("i",-2);
+    return ret;
+  };
+
+
+
+  fprintf(logFile,"... and got %d\n", Nchan[k]); fflush(logFile);
+  ret = Py_BuildValue("i",Nchan[k]);
+  return ret;
+
+};
+
+
+
+
+static PyObject *GetNScan(PyObject *self, PyObject *args){
+  int cIF, k, j;
+  PyObject *ret;
+
 
 // append after first call
   if (!logFile) logFile = fopen("PolConvert.GainSolve.log","a");
@@ -253,8 +368,23 @@ static PyObject *GetNScan(PyObject *self, PyObject *args){
      return ret;
   };
 
-  fprintf(logFile,"... and got %d\n", NScan[cIF]); fflush(logFile);
-  ret = Py_BuildValue("i",NScan[cIF]);
+
+   k=-1;
+   for (j=0; j<NIF; j++){
+     if(IFNum[j] == cIF){k=j;break;};
+   };
+
+  if(k<0){
+    sprintf(message,"GetNScan: IF %d not found\n", cIF);
+    fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
+    PyObject *ret = Py_BuildValue("i",-2);
+    return ret;
+  };
+
+
+
+  fprintf(logFile,"... and got %d\n", NScan[k]); fflush(logFile);
+  ret = Py_BuildValue("i",NScan[k]);
   return ret;
 
 };
@@ -353,6 +483,7 @@ static PyObject *PolGainSolve(PyObject *self, PyObject *args){
       };
       if (isCal1 && isCal2){
         BasNum[i][j] = k;
+        printf("Baseline %i-%i will have assigned number %i\n",i+1,j+1,k);
         for(l=0;l<Nlin; l++){if(i==Lant[l]-1 || j==Lant[l]-1){LinBasNum[NLinBas]=k; NLinBas += 1; break; };};
         k += 1;
       };
@@ -407,6 +538,8 @@ static PyObject *PolGainSolve(PyObject *self, PyObject *args){
   Scan = (int**) malloc(MAXIF*sizeof(int*));
   NScan = (int*) malloc(MAXIF*sizeof(int));
   Times = (double**) malloc(MAXIF*sizeof(double*));
+  Weights = (double**) malloc(MAXIF*sizeof(double*));
+
   ScanDur = (double**) malloc(MAXIF*sizeof(double*));
   PA1 = (cplx64f**) malloc(MAXIF*sizeof(cplx64f*));
   PA2 = (cplx64f**) malloc(MAXIF*sizeof(cplx64f*));
@@ -446,7 +579,7 @@ static PyObject *FreeData(PyObject *self, PyObject *args) {
     };
     free(Ant1[i]);free(Ant2[i]);free(Scan[i]);free(Times[i]);
     free(PA1[i]);free(PA2[i]);free(RR[i]);free(RL[i]);
-    free(LR[i]);free(LL[i]);free(ScanDur[i]);
+    free(LR[i]);free(LL[i]);free(ScanDur[i]);free(Weights[i]);
     delete Frequencies[i];
   };
 
@@ -531,6 +664,7 @@ static PyObject *ReadData(PyObject *self, PyObject *args) {
     Scan = (int**) realloc(Scan,MAXIF*sizeof(int*));
     NScan = (int*) realloc(NScan,MAXIF*sizeof(int));
     Times = (double**) realloc(Times,MAXIF*sizeof(double*));
+    Weights = (double**) realloc(Weights,MAXIF*sizeof(double*));
     ScanDur = (double**) realloc(ScanDur,MAXIF*sizeof(double*));
     PA1 = (cplx64f**) realloc(PA1,MAXIF*sizeof(cplx64f*));
     PA2 = (cplx64f**) realloc(PA2,MAXIF*sizeof(cplx64f*));
@@ -540,9 +674,9 @@ static PyObject *ReadData(PyObject *self, PyObject *args) {
     LL = (cplx64f***) realloc(LL,MAXIF*sizeof(cplx64f**));
     Rates = (double ***) realloc(Rates,MAXIF*sizeof(double**));
     for(i=0;i<4;i++){Delays[i] = (double ***) realloc(Delays[i],MAXIF*sizeof(double**));};
-    if(!Ant1 || !Ant2 || !Times || !PA1 || !PA2 || !RR || !LR || !RL || !LL){
+    if(!Ant1 || !Ant2 || !Times || !Weights || !PA1 || !PA2 || !RR || !LR || !RL || !LL){
       Ant1=nullptr; Ant2=nullptr; Times=nullptr; PA1=nullptr; PA2=nullptr; 
-      RR=nullptr; LR=nullptr; RL=nullptr; LL=nullptr; ScanDur=nullptr;
+      RR=nullptr; LR=nullptr; RL=nullptr; LL=nullptr; ScanDur=nullptr; Weights=nullptr;
       fprintf(logFile,"(return -3)"); fflush(logFile);
       PyObject *ret = Py_BuildValue("i",-3);
       return ret;
@@ -661,6 +795,7 @@ static PyObject *ReadData(PyObject *self, PyObject *args) {
   Ant2[NIF-1] = (int*) malloc(j*sizeof(int));
   Scan[NIF-1] = (int*) malloc(j*sizeof(int)); 
   Times[NIF-1] = (double*) malloc(j*sizeof(double));
+  Weights[NIF-1] = (double*) malloc(j*sizeof(double));
   PA1[NIF-1] = (cplx64f*) malloc(j*sizeof(cplx64f)); 
   PA2[NIF-1] = (cplx64f*) malloc(j*sizeof(cplx64f)); 
   RR[NIF-1] = (cplx64f**) malloc(j*sizeof(cplx64f*)); 
@@ -948,10 +1083,11 @@ static PyObject *ReadData(PyObject *self, PyObject *args) {
 static PyObject *GetIFs(PyObject *self, PyObject *args) {  
 int i,j,k;
 
+  PyObject *FreqsObj;
 
   if (!logFile) logFile = fopen("PolConvert.GainSolve.log","a");
 
-  if (!PyArg_ParseTuple(args, "i", &i)){
+  if (!PyArg_ParseTuple(args, "iO", &i,&FreqsObj)){
      sprintf(message,"Failed GetIFs! Check inputs!\n"); 
      fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);  
      fclose(logFile);
@@ -959,7 +1095,7 @@ int i,j,k;
     return ret;
   };
 
-  sprintf(message,"Locating IFNum as %d (aka IF %d)\n", i, i+1);
+  sprintf(message,"Locating IFNum as %d \n", i);
   fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
 
   k=-1;
@@ -974,22 +1110,26 @@ int i,j,k;
     return ret;
   };
 
-  long dims[1];
-  dims[0] = (long) Nchan[k];
-  double *copyFreq = new double[Nchan[k]];
+//  long dims[1];
+//  dims[0] = (long) Nchan[k];
+//  npy_intp dims = Nchan[k];
+  double *copyFreq =  (double *)PyArray_DATA(FreqsObj); // new double[Nchan[k]];
 
   for (j=0; j<Nchan[k]; j++){
     copyFreq[j] = Frequencies[k][j];
   };
+//  printf("Holadola: %d\n",Nchan[k]);fflush(stdout);
 
-  PyArrayObject *out_Freq = (PyArrayObject *)PyArray_SimpleNewFromData(1, dims, NPY_FLOAT64, copyFreq);
-  PyArray_ENABLEFLAGS(out_Freq, NPY_ARRAY_OWNDATA);
+//  PyObject *out_Freq = PyArray_SimpleNewFromData(1, &dims, NPY_FLOAT, (void *)copyFreq);
+//  PyArray_ENABLEFLAGS(out_Freq, NPY_ARRAY_OWNDATA);
 
+ // printf("Holadola 5\n");fflush(stdout);
   sprintf(message,"IF %d with %d chans\n", i, Nchan[k]);
   fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
   std::cout << std::flush;
+  PyObject *ret = Py_BuildValue("i",0);
 
-  return PyArray_Return(out_Freq);
+  return ret;
 };
 
 
@@ -1109,15 +1249,15 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
 // One element per polarization product:
   double ***BLRates = new double **[4];
   double ***BLDelays = new double **[4];
-  double ***Weights = new double **[4];
+  double ***BLWeights = new double **[4];
   for (i=0;i<4;i++){
     BLRates[i] = new double *[NIF];
     BLDelays[i] = new double *[NIF];
-    Weights[i] = new double *[NIF];
+    BLWeights[i] = new double *[NIF];
     for (j=0; j<NIF;j++){
       BLRates[i][j] = new double[NBas];
       BLDelays[i][j] = new double[NBas];
-      Weights[i][j] = new double[NBas];
+      BLWeights[i][j] = new double[NBas];
     };
   };
 
@@ -1153,7 +1293,8 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
       BufferC[i] = reinterpret_cast<std::complex<double> *>(BufferVis[i]);
     };
 
-    double Peak[4] = {0.,0.,0.,0.}; 
+    int *inMatrix, NinMatrix;
+    double Peak[4] = {0.,0.,0.,0.};
     double rmsFringe[4] = {0.,0.,0.,0.}; 
     double avgFringe[4] = {0.,0.,0.,0.}; 
     double AbsP;
@@ -1170,7 +1311,8 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
 
     for(j=0; j<NBas; j++){   // baseline loop
       for (i=0; i<NIF; i++){  // IF loop
-
+        inMatrix = new int[NVis[i]];
+        NinMatrix = 0;
         isFirst = true;
         showMe = false;
 
@@ -1186,6 +1328,8 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
           a2 = Ant2[i][k];
           BNum = BasNum[a1-1][a2-1];
           if (BNum==j && Scan[i][k]==cScan){
+            inMatrix[NinMatrix]=k;
+            NinMatrix += 1;
             if(isFirst){
               T0[j] = Times[i][k];
               T1[j] = Times[i][k];
@@ -1336,8 +1480,16 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
 
   // Then, compute the SNR for each polarization:
           for(m=0;m<4;m++){
-            Weights[m][i][j] = Peak[m]/pow(rmsFringe[m]/(Dnpix-9.) - pow(avgFringe[m]/(Dnpix-9.),2.),0.5);
+            BLWeights[m][i][j] = Peak[m]/pow(rmsFringe[m]/(Dnpix-9.) - pow(avgFringe[m]/(Dnpix-9.),2.),0.5);
           };
+        
+  // Set Weight of visibilities:
+          for(l=0;l<NinMatrix;l++){
+             k = inMatrix[l];
+             Weights[i][k] = 0.0;
+             for(m=0;m<4;m++){Weights[i][k] += BLWeights[m][i][j];};
+             Weights[i][k] /= 4.0;
+          };  
 
 //////////////////
 ////////////////////
@@ -1374,7 +1526,7 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
           } else {   // Comes from if(NcurrVis > 2)
 
             for(m=0;m<4;m++){
-              BLRates[m][i][j]=0.0;BLDelays[m][i][j]=0.0;Weights[m][i][j]=0.0;
+              BLRates[m][i][j]=0.0;BLDelays[m][i][j]=0.0;BLWeights[m][i][j]=0.0;
             };
             sprintf(message,"WARNING! BASELINE %i HAS NO DATA IN IF %i!\n",j,i+1);
             fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);  
@@ -1401,10 +1553,15 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
           if (showMe){
             for(m=0;m<4;m++){
               sprintf(message,"POL %i (BL %i): PEAK OF %.3e AT INDEX %i-%i (RATE %.3e Hz, DELAY: %.3e s); SNR: %.3e\n",
-                   m,j,Peak[m],time[m][1],nu[m][1],BLRates[m][i][j],BLDelays[m][i][j],Weights[m][i][j]);
+                   m,j,Peak[m],time[m][1],nu[m][1],BLRates[m][i][j],BLDelays[m][i][j],BLWeights[m][i][j]);
               fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);  
             };
           };
+
+
+
+        delete[] inMatrix;
+
 
         };  // end IF loop
 ////////////////////
@@ -1468,32 +1625,32 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
               };
             };
 
-            if (BNum>0 && Weights[0][i][BNum]>0.0 && Weights[1][i][BNum]>0.0){
+            if (BNum>0 && BLWeights[0][i][BNum]>0.0 && BLWeights[1][i][BNum]>0.0){
 
               if (af1>=0){
                 for(m=0;m<4;m++){
-                  RateResVec[af1] += Weights[m][i][BNum]*BLRates[m][i][BNum];
-                  DelResVec[m][af1] += Weights[m][i][BNum]*BLDelays[m][i][BNum];
-                  Hessian[af1*NantFit+af1] += Weights[m][i][BNum];
-                  HessianDel[m][af1*NantFit+af1] += Weights[m][i][BNum];
+                  RateResVec[af1] += BLWeights[m][i][BNum]*BLRates[m][i][BNum];
+                  DelResVec[m][af1] += BLWeights[m][i][BNum]*BLDelays[m][i][BNum];
+                  Hessian[af1*NantFit+af1] += BLWeights[m][i][BNum];
+                  HessianDel[m][af1*NantFit+af1] += BLWeights[m][i][BNum];
                 };
               };
 
               if (af2>=0){
                 for(m=0;m<4;m++){
-                  RateResVec[af2] -= Weights[m][i][BNum]*BLRates[m][i][BNum];
-                  DelResVec[m][af2] -= Weights[m][i][BNum]*BLDelays[m][i][BNum];
-                  Hessian[af2*NantFit+af2] += Weights[m][i][BNum];
-                  HessianDel[m][af2*NantFit+af2] += Weights[m][i][BNum];
+                  RateResVec[af2] -= BLWeights[m][i][BNum]*BLRates[m][i][BNum];
+                  DelResVec[m][af2] -= BLWeights[m][i][BNum]*BLDelays[m][i][BNum];
+                  Hessian[af2*NantFit+af2] += BLWeights[m][i][BNum];
+                  HessianDel[m][af2*NantFit+af2] += BLWeights[m][i][BNum];
                 };
               };
 
               if (af1>=0 && af2>=0){
                 for(m=0;m<4;m++){
-                  Hessian[af1*NantFit+af2] += Weights[m][i][BNum];
-                  Hessian[af2*NantFit+af1] += Weights[m][i][BNum];
-                  HessianDel[m][af1*NantFit+af2] += Weights[m][i][BNum];
-                  HessianDel[m][af2*NantFit+af1] += Weights[m][i][BNum];
+                  Hessian[af1*NantFit+af2] += BLWeights[m][i][BNum];
+                  Hessian[af2*NantFit+af1] += BLWeights[m][i][BNum];
+                  HessianDel[m][af1*NantFit+af2] += BLWeights[m][i][BNum];
+                  HessianDel[m][af2*NantFit+af1] += BLWeights[m][i][BNum];
                 };
               };
             };
@@ -1509,10 +1666,10 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
       for (i=0; i<NIF; i++){
 
         for(m=0;m<4;m++){
-          Hessian[0] += Weights[m][i][BNum];
-          HessianDel[m][0] += Weights[m][i][BNum];
-          RateResVec[0] += Weights[m][i][BNum]*BLRates[m][i][BNum];
-          DelResVec[m][0] += Weights[m][i][BNum]*BLDelays[m][i][BNum];
+          Hessian[0] += BLWeights[m][i][BNum];
+          HessianDel[m][0] += BLWeights[m][i][BNum];
+          RateResVec[0] += BLWeights[m][i][BNum]*BLRates[m][i][BNum];
+          DelResVec[m][0] += BLWeights[m][i][BNum]*BLDelays[m][i][BNum];
         };
 
         for (j=0; j<NCalAnt; j++){
@@ -1530,8 +1687,6 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
         };
       };
     };
-
-
 
     printf("\n\nHessian Globalization Matrix:\n\n");
     bool isSingular;
@@ -1559,66 +1714,23 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
 
 // The Hessian's inverse can be reused for rates, delays and phases!
 
-    gsl_matrix_view mm = gsl_matrix_view_array (Hessian, NantFit, NantFit);
-    gsl_matrix_view mmd[4]; 
-    for(m=0;m<4;m++){mmd[m] = gsl_matrix_view_array (HessianDel[m], NantFit, NantFit);};
-    gsl_vector *xx = gsl_vector_calloc(NantFit);
-    gsl_vector *dd[4];
-    for(m=0;m<4;m++){dd[m] = gsl_vector_calloc(NantFit);};
-    gsl_vector_view RateInd = gsl_vector_view_array(RateResVec,NantFit);
-    gsl_vector_view *DelInd = new gsl_vector_view[4];
-    for(m=0;m<4;m++){DelInd[m] = gsl_vector_view_array(DelResVec[m],NantFit);};
+  //  gsl_matrix_view mm = gsl_matrix_view_array (Hessian, NantFit, NantFit);
+  //  gsl_matrix_view mmd[4]; 
+  //  for(m=0;m<4;m++){mmd[m] = gsl_matrix_view_array (HessianDel[m], NantFit, NantFit);};
+  //  gsl_vector *xx = gsl_vector_calloc(NantFit);
+  //  gsl_vector *dd[4];
+  //  for(m=0;m<4;m++){dd[m] = gsl_vector_calloc(NantFit);};
+  //  gsl_vector_view RateInd = gsl_vector_view_array(RateResVec,NantFit);
+  //  gsl_vector_view *DelInd = new gsl_vector_view[4];
+  //  for(m=0;m<4;m++){DelInd[m] = gsl_vector_view_array(DelResVec[m],NantFit);};
+    double *SolRat = new double[NantFit];
+    double **SolDel = new double*[4];
+    for (i=0; i<4; i++){SolDel[i] = new double[NantFit];};
 
-    int s;
-    gsl_permutation *permm = gsl_permutation_alloc (NantFit);
-    gsl_permutation *permmDel[4];
-
-    for (m=0;m<4;m++){permmDel[m] = gsl_permutation_alloc (NantFit);};
-
-    printf("doing gsl_linalg_LU_decomp...\n");
-    gsl_linalg_LU_decomp (&mm.matrix, permm, &s);
-    if (gsl_death_by != GSL_SUCCESS) {
-      printf("premature exit 11\n");
-      fflush(stdout); std::cout << std::flush;
-      PyObject *ret = Py_BuildValue("i",-11);
-      return ret;
-    };
-
-    for (m=0;m<4;m++){
-      gsl_linalg_LU_decomp (&mmd[m].matrix, permmDel[m], &s);
-      if (gsl_death_by != GSL_SUCCESS) {
-        printf("premature exit 11\n");
-        fflush(stdout); std::cout << std::flush;
-        PyObject *ret = Py_BuildValue("i",-11);
-        return ret;
-      };
-    };
-    printf("...done (%d)\n", gsl_death_by);
-
-
-
-    if(!isSingular){
-      printf("Globalizing solutions\n");
-      gsl_linalg_LU_solve (&mm.matrix, permm, &RateInd.vector, xx);
-      for (m=0;m<4;m++){
-        gsl_linalg_LU_solve (&mmd[m].matrix, permmDel[m], &DelInd[m].vector, dd[m]);
-      };
-    };
-
-    gsl_permutation_free(permm);
-    if (gsl_death_by != GSL_SUCCESS) {
-      printf("premature exit 12\n");
-      fflush(stdout); std::cout << std::flush;
-      PyObject *ret = Py_BuildValue("i",-12);
-      return ret;
-    };
-    for (m=0;m<4;m++){
-      gsl_permutation_free(permmDel[m]);
-      if (gsl_death_by != GSL_SUCCESS) {
-        printf("premature exit 12\n");
-        fflush(stdout); std::cout << std::flush;
-        PyObject *ret = Py_BuildValue("i",-12);
-        return ret;
+    isSingular = solveSystem(NantFit,Hessian,RateResVec,SolRat);
+    if (!isSingular){
+      for(i=0;i<4;i++){
+        isSingular = solveSystem(NantFit,HessianDel[i],DelResVec[i],SolDel[i]);
       };
     };
 
@@ -1626,8 +1738,6 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
 
     if (NantFit>1){
 
-    //shut down any nans:
-    int nancounter = 0;
     for (i=0; i<NCalAnt; i++){
       Rates[0][i][cScan] = 0.0;
 
@@ -1638,23 +1748,13 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
         };
        if (af1 >=0){
          if(applyRate>0){
-           if (!std::isnormal(gsl_vector_get(xx,af1))){
-             gsl_vector_set(xx,af1,0.0); nancounter++;
-           };
-	   Rates[0][i][cScan] = -gsl_vector_get(xx,af1);
+	   Rates[0][i][cScan] = -SolRat[af1]; //gsl_vector_get(xx,af1);
            for(j=0;j<4;j++){
-             if (!std::isnormal(gsl_vector_get(dd[j],af1))){
-               gsl_vector_set(dd[j],af1,0.0); nancounter++;
-             };
-             Delays[j][0][i][cScan] = -gsl_vector_get(dd[j],af1);
+             Delays[j][0][i][cScan] = -SolDel[j][af1]; //gsl_vector_get(dd[j],af1);
            };
          };
        };
     };
-
-
-    sprintf(message,"%d nans were zeroed\n", nancounter);
-    fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);  
 
     for (i=0; i<NIF; i++){
       for (j=0; j<NCalAnt; j++){
@@ -1693,18 +1793,18 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
     for (i=0; i<NIF;i++){
       delete[] BLRates[m][i];
       delete[] BLDelays[m][i];
-      delete[] Weights[m][i];
+      delete[] BLWeights[m][i];
     };
     delete[] BLRates[m];
     delete[] BLDelays[m];
-    delete[] Weights[m];
+    delete[] BLWeights[m];
     delete[] HessianDel[m];
     delete[] DelResVec[m];
     delete[] aroundPeak[m];
   };
   delete[] BLRates;
   delete[] BLDelays;
-  delete[] Weights;
+  delete[] BLWeights;
   delete[] aroundPeak;
   delete[] Hessian;
   delete[] HessianDel;
@@ -1833,10 +1933,10 @@ static PyObject *SetFit(PyObject *self, PyObject *args) {
   CovMat = new double[Npar*Npar];
   IndVec = new double[Npar];
   SolVec = new double[Npar];
-  m = gsl_matrix_view_array (CovMat, Npar, Npar);
-  v = gsl_vector_view_array (IndVec, Npar);
-  x = gsl_vector_view_array (SolVec, Npar);
-  perm = gsl_permutation_alloc (Npar);
+//  m = gsl_matrix_view_array (CovMat, Npar, Npar);
+//  v = gsl_vector_view_array (IndVec, Npar);
+//  x = gsl_vector_view_array (SolVec, Npar);
+//  perm = gsl_permutation_alloc (Npar);
 
 //////////////////////
   StokesSolve = solveQU;
@@ -1950,7 +2050,7 @@ static PyObject *GetChi2(PyObject *self, PyObject *args) {
 
 // Memory to store the current gain ratios:
   CrossG = (double *) PyArray_DATA(pars);
-  int s;
+
 
 
 
@@ -2434,14 +2534,14 @@ static PyObject *GetChi2(PyObject *self, PyObject *args) {
 // UPDATE THE CHI SQUARE
      if(AddCrossHand){
        auxD1 = std::abs(auxC01[BNum][0])/Itot; auxD2 = std::abs(auxC10[BNum][0])/Itot; 
-       Chi2 += (auxD1*auxD1 + auxD2*auxD2)*CrossHandWgt*BasWgt[BNum];   
+       Chi2 += (auxD1*auxD1 + auxD2*auxD2)*CrossHandWgt*BasWgt[BNum]*Weights[currIF][k];   
   //  if (chisqcount==1){sprintf(message,"  %.3e %.3e %.3e",auxD1,auxD2,Chi2); fprintf(auxFile,"%s",message);};
      };
      if (RelWeight>0.0){
        if (abs(auxC11[BNum][0])>0.0){
          auxC1 = Error - (Stokes[0]+Stokes[3])/(Stokes[0]-Stokes[3]);
          auxD1 = auxC1.real()*auxC1.real() + auxC1.imag()*auxC1.imag();
-         Chi2 += auxD1*ParHandWgt*BasWgt[BNum];
+         Chi2 += auxD1*ParHandWgt*BasWgt[BNum]*Weights[currIF][k];
   //  if (chisqcount==1){sprintf(message,"  %.3e %.3e %.3e",auxC1.real(),auxC1.imag(),Chi2); fprintf(auxFile,"%s",message);};
        };
      };
@@ -2500,6 +2600,8 @@ for(i=0;i<Npar;i++){
   CovMat[i*Npar+i] += Lambda*(Largest);
 };
 
+
+/*
 gsl_death_by = GSL_SUCCESS;
 if (useCov){
   gsl_linalg_LU_decomp (&m.matrix, perm, &s);
@@ -2511,6 +2613,9 @@ if (gsl_death_by != GSL_SUCCESS) {
     PyObject *ret = Py_BuildValue("d",-13);
     return ret;
 };
+*/
+
+
 
 for(i=0;i<Npar;i++){
   TheorImpr += DirDer[i]*SolVec[i]*SolVec[i] - 2.*IndVec[i]*SolVec[i];

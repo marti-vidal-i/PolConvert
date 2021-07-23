@@ -1,3 +1,6 @@
+v1.9.0
+- Added new standalone interface (i.e., free of CASA!!!).
+
 v1.8.2
 - Improved GFF for rate estimates (now, it is done on all corr. products).
 - Parallactic angle can now be corrected in converted antennas.

@@ -123,17 +123,26 @@ static char module_docstring[] =
     "This module provides an interface for PolConvert.";
 static char PolConvert_docstring[] =
     "Converts mixed-polarization visibilities into pure circular-polarization basis";
+static char setPCMode_docstring[] =
+    "Sets the running mode to ALMA (0) or to non-ALMA (1).";
+
+
 
 /* Available functions */
 static PyObject *PolConvert(PyObject *self, PyObject *args);
+static PyObject *setPCMode(PyObject *self, PyObject *args);
 
 
 /* Module specification */
 static PyMethodDef module_methods[] = {
     {"PolConvert", PolConvert, METH_VARARGS, PolConvert_docstring},
+    {"setPCMode", setPCMode, METH_VARARGS, setPCMode_docstring},
     {NULL, NULL, 0, NULL}   /* terminated by list of NULLs, apparently */
 };
 
+
+
+bool PCMode;
 
 /* Initialize the module */
 #if PY_MAJOR_VERSION >= 3
@@ -145,20 +154,56 @@ static struct PyModuleDef pc_module_def = {
     module_methods,         /* m_methods */
     NULL,NULL,NULL,NULL     /* m_reload, m_traverse, m_clear, m_free */
 };
+
 PyMODINIT_FUNC PyInit__PolConvert(void)
 {
+    PCMode = true;
     PyObject *m = PyModule_Create(&pc_module_def);
     return(m);
 }
+
+
 #else
+
+
 PyMODINIT_FUNC init_PolConvert(void)
 {
+    PCMode = true;
     PyObject *m = Py_InitModule3("_PolConvert", module_methods, module_docstring);
     if (m == NULL)
         return;
 
 }
 #endif
+
+
+
+
+static PyObject *setPCMode(PyObject *self, PyObject *args){
+  PyObject *ret;
+  int whichMode;
+  if (!PyArg_ParseTuple(args, "i",&whichMode)){      
+      printf("FAILED PolConvert! Unable to parse arguments!\n");
+      fflush(stdout);
+      ret = Py_BuildValue("i",-1);
+      return ret;
+  };
+
+  if(whichMode==1){
+    PCMode=false;
+    printf("PolConvert interface will change to non-ALMA.\n");
+    fflush(stdout);
+  };
+  ret = Py_BuildValue("i",0);
+  return ret;
+
+
+};
+
+
+
+
+
 
 //////////////////////////////////
 // MAIN FUNCTION: 
@@ -186,6 +231,8 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
  
 
 
+
+  if(PCMode){
 //                           0 0 0 0 0 1 1 1 1 1 2 2 2 2 2 3 33
 //                           0 2 4 6 8 0 2 4 6 8 0 2 4 6 8 0 23
   if (!PyArg_ParseTuple(args, "iOiiOOOOOOOOOOOOOOOOidiiOOOOOOiOOii",
@@ -200,6 +247,23 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
       ret = Py_BuildValue("i",-1);
       return ret;
   };
+
+  } else {
+  if (!PyArg_ParseTuple(args, "iOiOOOOOOidiiOOOOOOiOii",
+    &nALMA, &plIF, &plAnt, &doIF, &SWAP, &IDI, &antnum, 
+    &plotRange, &Range, &doTest, &doSolve, &doConj, &doNorm, &XYaddObj, 
+    &metadata, &soucoordObj, &antcoordObj, &antmountObj, &isLinearObj,
+    &calField, &ACorrPy, &doParI, &verbose)) { 
+      printf("FAILED PolConvert! Unable to parse arguments!\n");
+      fflush(stdout);
+      ret = Py_BuildValue("i",-1);
+      return ret;
+  };
+
+  };
+
+
+
   doParang = (doParI!=0);
   printf("Parsed arguments\n");
 
@@ -258,10 +322,14 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
   };
 
 
-
+  double *BadTimes;
+  int NBadTimes;
+  if(PCMode){
 // Time ranges with unphased signal:
-  double *BadTimes = (double *)PyArray_DATA(timeranges);
-  int NBadTimes = (int) PyArray_DIM(timeranges,0);
+    BadTimes = (double *)PyArray_DATA(timeranges);
+    NBadTimes = (int) PyArray_DIM(timeranges,0);
+  };
+
 
 // If SWIN, read the frequency channels from the metadata: 
   int *SWINnchan = nullptr; 
@@ -298,8 +366,11 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
 
 
 // READ PRIORI GAINS:
-  int NPGain = PyList_Size(XYaddObj);
-  int NPIF = PyList_Size(PyList_GetItem(XYaddObj,0));
+
+  int NPGain, NPIF;
+
+  NPGain = PyList_Size(XYaddObj);
+  NPIF = PyList_Size(PyList_GetItem(XYaddObj,0));
   cplx32f ***PrioriGains = new cplx32f**[NPGain];
   for (i=0;i<NPGain;i++){
     PrioriGains[i] = new cplx32f*[NPIF];
@@ -367,24 +438,37 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
 
 
 // Read info for linear-polarization antennas:
-  double *time0 = (double *)PyArray_DATA(PyList_GetItem(asdmTimes,0));
-  double *time1 = (double *)PyArray_DATA(PyList_GetItem(asdmTimes,1));
-  long nASDMEntries = ((long *) PyArray_DIMS(PyList_GetItem(asdmTimes,0)))[0];  
+  double *time0, *time1;
+  long nASDMEntries;
+  int *ASDMant, *ALMARef;
+  double **ASDMtimes;
+  long *nASDMtimes;
+  Weighter *ALMAWeight;
 
+  if(PCMode){
+    time0 = (double *)PyArray_DATA(PyList_GetItem(asdmTimes,0));
+    time1 = (double *)PyArray_DATA(PyList_GetItem(asdmTimes,1));
+    nASDMEntries = ((long *) PyArray_DIMS(PyList_GetItem(asdmTimes,0)))[0];  
 
 ///////////
 // Useful to determine which ALMA antennas are phased up at each time:
-  int *ASDMant = new int[nPhase];
-  int *ALMARef; 
-  double **ASDMtimes = new double*[nPhase];
-  long *nASDMtimes = new long[nPhase];
+
+
+  ASDMant = new int[nPhase];
+  ASDMtimes = new double*[nPhase];
+  nASDMtimes = new long[nPhase];
   ALMARef = (int *)PyArray_DATA(refAnts);
   for (ii=0; ii<nPhase; ii++){
     nASDMtimes[ii] = (long)PyInt_AsLong(PyList_GetItem(nphtimes,ii));
     ASDMant[ii] = (int)PyInt_AsLong(PyList_GetItem(allphants,ii));
     ASDMtimes[ii] = (double *)PyArray_DATA(PyList_GetItem(phanttimes,ii));
   };
-  Weighter *ALMAWeight = new Weighter(nPhase,nASDMtimes,nASDMEntries,ASDMant,ASDMtimes,ALMARef,time0,time1,BadTimes, NBadTimes, logFile);
+  ALMAWeight = new Weighter(nPhase,nASDMtimes,nASDMEntries,ASDMant,ASDMtimes,ALMARef,time0,time1,BadTimes, NBadTimes, logFile);
+
+  } else {
+  ALMAWeight = new Weighter(logFile);
+  };
+
 
 ///////////
 
@@ -419,25 +503,32 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
 
   for (i=0;i<nALMA;i++){
     isLinear[i] = (bool *)PyArray_DATA(PyList_GetItem(isLinearObj,i));
-    XYSWAP[i] = (bool)PyInt_AsLong(PyList_GetItem(SWAP,i));
-    ngainTabs[i] = (int)PyInt_AsLong(PyList_GetItem(ngain,i));
-    kind[i] = new int[ngainTabs[i]];
-    nsumArr[i] = (int)PyInt_AsLong(PyList_GetItem(nsum,i));
     almanums[i] = (int)PyInt_AsLong(PyList_GetItem(antnum,i));
+
+    XYSWAP[i] = (bool)PyInt_AsLong(PyList_GetItem(SWAP,i));
     if(XYSWAP[i]){
        sprintf(message,"\nWill swap X/Y channels for antenna #%i.\n",
            almanums[i]);
        fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
     };
-    ntimeArr[i] = new long*[ngainTabs[i]];
-    nchanArr[i] = new long[ngainTabs[i]];
-    timesArr[i] = new double**[ngainTabs[i]];
-    gainsArrR1[i] = new double**[ngainTabs[i]];
-    gainsArrI1[i] = new double**[ngainTabs[i]];
-    gainsArrR2[i] = new double**[ngainTabs[i]];
-    gainsArrI2[i] = new double**[ngainTabs[i]];
-    gainflag[i] = new bool**[ngainTabs[i]];
-    freqsArr[i] = new double*[ngainTabs[i]];
+
+    if(PCMode){
+      ngainTabs[i] = (int)PyInt_AsLong(PyList_GetItem(ngain,i));
+      kind[i] = new int[ngainTabs[i]];
+      nsumArr[i] = (int)PyInt_AsLong(PyList_GetItem(nsum,i));
+      ntimeArr[i] = new long*[ngainTabs[i]];
+      nchanArr[i] = new long[ngainTabs[i]];
+      timesArr[i] = new double**[ngainTabs[i]];
+      gainsArrR1[i] = new double**[ngainTabs[i]];
+      gainsArrI1[i] = new double**[ngainTabs[i]];
+      gainsArrR2[i] = new double**[ngainTabs[i]];
+      gainsArrI2[i] = new double**[ngainTabs[i]];
+      gainflag[i] = new bool**[ngainTabs[i]];
+      freqsArr[i] = new double*[ngainTabs[i]];
+    } else {
+      ngainTabs[i] = 1;
+      nsumArr[i] = 1;
+    };
   };
 //////////////////////////////////////////////
 
@@ -445,6 +536,9 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
 
 //////////////////////////////////////////////
 // READ CALIBRATION TABLES:
+
+if(PCMode){
+
   for (i=0;i<nALMA;i++){
     nchanDt[i] = PyArray_DIM(PyList_GetItem(PyList_GetItem(dterms,i),0),0);
     dtfreqsArr[i] = (double *)PyArray_DATA(PyList_GetItem(PyList_GetItem(dterms,i),0));
@@ -500,8 +594,9 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
               PyList_GetItem(PyList_GetItem(tempPy,k+1),5));
       };
     };
-
   };
+
+};
 
 
 
@@ -512,18 +607,23 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
 // CREATE CALIBRATION INSTANCES:   
   for (i=0; i<nALMA; i++){
     allgains[i] = new CalTable*[ngainTabs[i]];
-    alldterms[i] = new CalTable(2,dtermsArrR1[i],dtermsArrI1[i],
+   
+    if(PCMode){
+       alldterms[i] = new CalTable(2,dtermsArrR1[i],dtermsArrI1[i],
            dtermsArrR2[i],dtermsArrI2[i],dtfreqsArr[i],dttimesArr[i],
            nsumArr[i],ndttimeArr[i], nchanDt[i],dtflag[i],true,logFile,verbose);
-    for (j=0; j<ngainTabs[i];j++){
-      allgains[i][j] = new CalTable(kind[i][j],gainsArrR1[i][j],
+       for (j=0; j<ngainTabs[i];j++){
+         allgains[i][j] = new CalTable(kind[i][j],gainsArrR1[i][j],
            gainsArrI1[i][j],gainsArrR2[i][j],gainsArrI2[i][j],freqsArr[i][j],
            timesArr[i][j],nsumArr[i],ntimeArr[i][j], nchanArr[i][j],
            gainflag[i][j],isLinear[i][j],logFile,verbose);
-//////////////////////////////////////////////
+       };
+    } else {
+      alldterms[i] = new CalTable(2,logFile);
+      allgains[i][0] = new CalTable(0,logFile);
+    };
 
-     };
-   };
+  };
 
 
 
@@ -607,6 +707,8 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
 
   double DifXFreqs[maxnchan];
 
+
+
 // Gains:
   std::complex<float> ***AnG[nALMA], ***AnDt[nALMA];
   bool *Weight[nALMA];
@@ -619,6 +721,8 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
 
 // Ktotal will be the calibration+conversion matrix (i.e., just multiply V by it, to get final V):
   std::complex<float> *Ktotal[nALMA][2][2];
+
+
 
   for (ij=0; ij<nALMA; ij++) {
     auxI = nsumArr[ij];
@@ -842,6 +946,9 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
            };
 
 
+
+
+
 //////////////////////////////////////////////////////
 // Set the interpolation time and compute gains:
            currNant = nsumArr[currAntIdx] ;
@@ -853,7 +960,7 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
            };
            allflagged = true;
 
-           if (currNant>1){
+           if (currNant>1 && PCMode){
              Phased = ALMAWeight->isPhased(currT);
              if (Phased){
                for (ij=0; ij<currNant; ij++) {
@@ -873,7 +980,7 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
              gainRatio[ij] = PrioriGains[currAntIdx][im][ij]; 
            };
 
-           if(allflagged && currT != lastTFailed){
+           if(PCMode && allflagged && currT != lastTFailed){
              double dayFrac = (currT/86400. - DifXData->getDay0()+2400000.5);
              int day = (int) dayFrac ;
              int hour = (int) (dayFrac*24.);
@@ -894,7 +1001,7 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
 
 
            //indent level within time range
-           if (!allflagged){
+           if (PCMode && !allflagged){
 
              if(verbose){printf(" Computing gains\n");fflush(stdout);};
 
@@ -964,20 +1071,22 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
 
 
 // FORCE RE-COMPUTATION (TO SET UNITY MATRIX) IF ALL ANTENNAS ARE FLAGGED
-           if (allflagged){
+           if (allflagged || !PCMode){
              gchanged=false; dtchanged=false;
              for (j=0; j<nchans[ii]; j++) {
                if(XYSWAP[currAntIdx]){
-                 Ktotal[currAntIdx][0][0][j] = HSw[0][0];
-                 Ktotal[currAntIdx][0][1][j] = HSw[0][1];
-                 Ktotal[currAntIdx][1][0][j] = HSw[1][0];
-                 Ktotal[currAntIdx][1][1][j] = HSw[1][1];} 
+                 Ktotal[currAntIdx][0][0][j] = HSw[0][0]*oneOverSqrt2; //*gainRatio[j];
+                 Ktotal[currAntIdx][0][1][j] = HSw[0][1]*oneOverSqrt2/gainRatio[j];
+                 Ktotal[currAntIdx][1][0][j] = HSw[1][0]*oneOverSqrt2; //*gainRatio[j];
+                 Ktotal[currAntIdx][1][1][j] = HSw[1][1]*oneOverSqrt2/gainRatio[j];} 
                else {
-                 Ktotal[currAntIdx][0][0][j] = H[0][0];
-                 Ktotal[currAntIdx][0][1][j] = H[0][1];
-                 Ktotal[currAntIdx][1][0][j] = H[1][0];
-                 Ktotal[currAntIdx][1][1][j] = H[1][1];
+                 Ktotal[currAntIdx][0][0][j] = H[0][0]*oneOverSqrt2; //*gainRatio[j];
+                 Ktotal[currAntIdx][0][1][j] = H[0][1]*oneOverSqrt2/gainRatio[j];
+                 Ktotal[currAntIdx][1][0][j] = H[1][0]*oneOverSqrt2; //*gainRatio[j];
+                 Ktotal[currAntIdx][1][1][j] = H[1][1]*oneOverSqrt2/gainRatio[j];
                };
+             //  Ktotal[currAntIdx][0][1][j] *= gainRatio[j];
+             //  Ktotal[currAntIdx][1][1][j] *= gainRatio[j];
              };
            };
 
@@ -986,7 +1095,7 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
 // Compute the elements of the K matrix (only those that changed):
 
    //indent level within time range
-           if (dtchanged || gchanged) {
+           if (PCMode && (dtchanged || gchanged)) {
              //indent level if dt or g changed   
 
 // INITIATE K MATRIX:
@@ -1274,6 +1383,8 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
   };
 
   for (i=0;i<nALMA;i++){
+
+  if(PCMode){
     for (j=0;j<nsumArr[i];j++){
       delete[] dttimesArr[i][j];
     };
@@ -1285,39 +1396,49 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
       delete[] gainsArrR2[i][j];
       delete[] gainsArrI2[i][j];
       delete[] gainflag[i][j];
+    };
+  };
+
+    for (j=0; j<ngainTabs[i]; j++){
       delete allgains[i][j];
     };
     delete alldterms[i];
     delete[] allgains[i];
-    delete[]  ntimeArr[i]; 
-    delete[]  timesArr[i];
-    delete[]  gainsArrR1[i];
-    delete[]  gainsArrI1[i];
-    delete[]  gainsArrR2[i];
-    delete[]  gainsArrI2[i];
-    delete[]  gainflag[i];
-    delete[] kind[i];
-    delete[]  nchanArr[i];
-    delete[]  freqsArr[i];
-    delete[] dttimesArr[i];
-    delete[] ndttimeArr[i];
-    delete[] dtflag[i];
-    delete[] dtermsArrR1[i];
-    delete[] dtermsArrI1[i];
-    delete[] dtermsArrR2[i];
-    delete[] dtermsArrI2[i];
-  };
 
+    if(PCMode){
+     delete[]  ntimeArr[i]; 
+     delete[]  timesArr[i];
+     delete[]  gainsArrR1[i];
+     delete[]  gainsArrI1[i];
+     delete[]  gainsArrR2[i];
+     delete[]  gainsArrI2[i];
+     delete[]  gainflag[i];
+     delete[]  kind[i];
+     delete[]  nchanArr[i];
+     delete[]  freqsArr[i];
+     delete[] dttimesArr[i];
+     delete[] ndttimeArr[i];
+     delete[] dtflag[i];
+     delete[] dtermsArrR1[i];
+     delete[] dtermsArrI1[i];
+     delete[] dtermsArrR2[i];
+     delete[] dtermsArrI2[i];
+    };
+
+  };
 
   for (i=0;i<NPGain;i++){
     delete[] PrioriGains[i];
   };
+
   delete[] PrioriGains;
   delete[] alldterms;
   delete[] allgains;
-  delete[] kind;
   delete[] nsumArr;
   delete[] almanums;
+
+ if(PCMode){
+  delete[] kind;
   delete[]  ntimeArr;
   delete[]  nchanArr;
   delete[]  timesArr;
@@ -1333,12 +1454,14 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
   delete[] dtermsArrI1;
   delete[] dtermsArrR2;
   delete[] dtermsArrI2;
-  delete[] isLinear;
-  delete[] XYSWAP;
-  delete[] ngainTabs;
   delete[] dtflag;
   delete[] nchanDt; 
   delete[] dtfreqsArr;
+ };
+
+  delete[] isLinear;
+  delete[] XYSWAP;
+  delete[] ngainTabs;
 
 /////////////////////////////////////////////////////
 
