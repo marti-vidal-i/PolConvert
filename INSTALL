@@ -63,7 +63,14 @@ calibration tables to apply PolConvert.
 
 0.- Download PolConvert from GitHub:
 
+  0.a- Install GIT (e.g., using yum):
+    yum install git
+
+  0.b- Download PolConvert (you may need a GitHub user account):
     git repo clone marti-vidal-i/PolConvert
+
+ - ALTERNATIVE: Just go to the GitHub website and download the tarball.
+
 
 
 1.- Install the non-standard packages needed for compilation. 
@@ -73,18 +80,21 @@ calibration tables to apply PolConvert.
     - FFTW3-DEVEL
     - PYTHON-DEVEL
 
-    For instance (yum), run the commands:
+    For instance use yum or apt-get. Example commands:
 
-    yum install python-devel
-    yum install cfitsio cfitsio-devel
-    yum install fftw-devel fftw-doc
+    yum install python3-devel (or "python3-dev")
+    yum install cfitsio cfitsio-devel (or "libcfitsio-dev")
+    yum install fftw-devel fftw-doc (or "libfftw-dev" or "libfftw3-dev")
 
 
 2.- Install miniconda:
 
   2.a- Download the shell installer from
+
       https://docs.conda.io/en/latest/miniconda.html#linux-installers
-    and follow the instructions.
+
+    and follow the instructions (run as YOUR USER; NOT WITH SUDO!).
+
 
   2.b- Add the conda-forge channel. Just run the command:
 
@@ -92,7 +102,8 @@ calibration tables to apply PolConvert.
 
 
 
-3.- Create a conda environment for polconvert:
+
+3.- Create a conda environment for polconvert. Run the command:
 
     conda create --name PCONV python=3.9 scipy=1.6.3 numpy=1.20.2 matplotlib=3.4.1
 
@@ -126,10 +137,12 @@ calibration tables to apply PolConvert.
 
 6.- Compile the program:
  
-   6.1- Take a look at the "setup.py" script in the PolConvert directory.
+   6.a- Take a look at the "setup.py" script in the PolConvert directory.
         You may need to change the "cfitsio" path defined there.
 
-   6.2- Load the conda environment and compile:
+   6.b- Delete any pre-existing *.so files in the PolConvert directory.
+
+   6.c- Load the conda environment and compile, i.e.:
 
         conda activate PCONV
         python3 setup.py build_ext --inplace
@@ -142,5 +155,9 @@ calibration tables to apply PolConvert.
     PolConvert/EU-VGOS, into a directory where you want to
     produce the polconverted data of a given session. 
     Read the instructions in the script header and good luck.
+
+
+IMPORTANT NOTE: You will ALWAYS have to load the PCONV conda 
+                environment before you run PolConvert.
 
 
