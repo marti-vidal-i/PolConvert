@@ -77,14 +77,14 @@ def POL_CALIBRATE(EXPNAME='',DIFX_DIR = '', DOSCAN=-1,CHANSOL=32,USE_PCAL=True,E
 ############################################################
 # X-Y cross-pol gain estimate (with phasecal correction):
 
-  os.system('rm -rf %s'%os.path.join(DIFX,'POLCONVERT_CALIB_SCANS'))
-  os.system('mkdir %s'%os.path.join(DIFX,'POLCONVERT_CALIB_SCANS'))
+  os.system('rm -rf %s'%os.path.join(DIFX,'%s_PC_CALIB'%EXP))
+  os.system('mkdir %s'%os.path.join(DIFX,'%s_PC_CALIB'%EXP))
   for SI in DOSCAN:
-    os.system('cp -r %s %s/.'%('%s_%s.difx'%(os.path.join(DIFX,EXP),SI), os.path.join(DIFX,'POLCONVERT_CALIB_SCANS')))  
-    os.system('cp -r %s %s/.'%('%s_%s.calc'%(os.path.join(DIFX,EXP),SI), os.path.join(DIFX,'POLCONVERT_CALIB_SCANS')))  
+    os.system('cp -r %s %s/.'%('%s_%s.difx'%(os.path.join(DIFX,EXP),SI), os.path.join(DIFX,'%s_PC_CALIB'%EXP)))  
+    os.system('cp -r %s %s/.'%('%s_%s.calc'%(os.path.join(DIFX,EXP),SI), os.path.join(DIFX,'%s_PC_CALIB'%EXP)))  
 
   
-  WITH_PCAL = PC.polconvert(IDI='%s/POLCONVERT_CALIB_SCANS'%DIFX,
+  WITH_PCAL = PC.polconvert(IDI='%s/%s_PC_CALIB'%(DIFX,EXP),
     OUTPUTIDI = '%s_POL_CALIBRATE_BLIND'%(os.path.join(DIFX,EXP)),
     DiFXinput = '%s_%s.input'%(os.path.join(DIFX,EXP),DOSCAN[0]),
     DiFXcalc = '%s_%s.calc'%(os.path.join(DIFX,EXP),DOSCAN[0]),
@@ -118,7 +118,7 @@ def POL_CALIBRATE(EXPNAME='',DIFX_DIR = '', DOSCAN=-1,CHANSOL=32,USE_PCAL=True,E
   #WITH_PCAL = pk.load(IFF)
   #IFF.close()
   
-  FINAL = PC.polconvert(IDI='%s/POLCONVERT_CALIB_SCANS'%DIFX,
+  FINAL = PC.polconvert(IDI='%s/%s_PC_CALIB'%(DIFX,EXP),
     OUTPUTIDI = '%s_POL_CALIBRATE_RESULTS'%(os.path.join(DIFX,EXP)),          
     DiFXinput = '%s_%s.input'%(os.path.join(DIFX,EXP),DOSCAN[0]),
     DiFXcalc = '%s_%s.calc'%(os.path.join(DIFX,EXP),DOSCAN[0]),

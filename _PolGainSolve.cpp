@@ -1992,7 +1992,7 @@ static PyObject *GetChi2(PyObject *self, PyObject *args) {
   int j= -1;
   double *CrossG;
   double dx = 1.0e-8;
-  double Drate1, Drate2;
+  double Drate1, Drate2, Ddelay1, Ddelay2;
   double *DerAux1, *DerAux2;
   DerAux1 = new double[2];
   DerAux2 = new double[2];
@@ -2008,6 +2008,7 @@ static PyObject *GetChi2(PyObject *self, PyObject *args) {
   };
 
 
+  bool useDelay = true;
 
 
   chisqcount++;
@@ -2339,20 +2340,26 @@ static PyObject *GetChi2(PyObject *self, PyObject *args) {
 
     if(ac1>=0){
          //   Ddelay1 = TWOPI*((Delays[0][0][ac1][currScan]+Delays[1][0][ac1][currScan])*0.5*(Frequencies[currIF][j]-RefNu));
+            Ddelay1 = TWOPI*((Delays[0][0][ac1][currScan])*0.5*(Frequencies[currIF][j]-RefNu));
 	    Drate1 = TWOPI*(Rates[0][ac1][currScan]*(Times[currIF][k]-T0));} 
     else {
-    //  Ddelay1=0.0;
+      Ddelay1=0.0;
       Drate1=0.0;
     };
     if(ac2>=0){
-         //   Ddelay2 = TWOPI*((Delays[0][0][ac2][currScan]+Delays[1][0][ac2][currScan])*0.5*(Frequencies[currIF][j]-RefNu));	    
+         //   Ddelay2 = TWOPI*((Delays[0][0][ac2][currScan]+Delays[1][0][ac2][currScan])*0.5*(Frequencies[currIF][j]-RefNu));
+            Ddelay2 = TWOPI*((Delays[0][0][ac1][currScan])*0.5*(Frequencies[currIF][j]-RefNu));
 	    Drate2 = TWOPI*(Rates[0][ac2][currScan]*(Times[currIF][k]-T0));} 
     else {
-    //  Ddelay2=0.0;
+      Ddelay2=0.0;
       Drate2=0.0;
     };
 
-    RateFactor = std::polar(1.0, Drate1-Drate2); // + Ddelay1-Ddelay2);
+    if(useDelay){
+      RateFactor = std::polar(1.0, Drate1-Drate2 + Ddelay1-Ddelay2);
+    } else {
+      RateFactor = std::polar(1.0, Drate1-Drate2);
+    };
 
     RRRate = RateFactor*FeedFactor1/FeedFactor2; 
     RLRate = RateFactor*FeedFactor1*FeedFactor2; 

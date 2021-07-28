@@ -872,19 +872,16 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 # Get source coordinate for each file (if possible):
     CALCS = ['%s.calc'%os.path.dirname(ci)[:-5] for ci in OUTPUT]
 
+# There will be one source per SWIN file:
     soucoords = [np.ones(len(OUTPUT))*calcsoucoords[0][0], np.ones(len(OUTPUT))*calcsoucoords[0][0]]
-    print(soucoords)
-    print(CALCS)
     for sui,Fcalc in enumerate(CALCS):
       print(sui,Fcalc)
       if os.path.exists(Fcalc):
-        print('EXISTS!')
         FCin = open(Fcalc)
         lines = FCin.readlines()
         FCin.close()
         for ii,line in enumerate(lines):
           if 'SOURCE' in line and ' NAME: ' in line:
-            print(line)
             SNAM = line.split()[-1]
             soucoords[0][sui] = float(lines[ii+1].split()[-1])
             soucoords[1][sui] = float(lines[ii+2].split()[-1])
