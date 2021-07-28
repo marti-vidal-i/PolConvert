@@ -81,6 +81,7 @@ def POL_CALIBRATE(EXPNAME='',DIFX_DIR = '', DOSCAN=-1,CHANSOL=32,USE_PCAL=True,E
   os.system('mkdir %s'%os.path.join(DIFX,'POLCONVERT_CALIB_SCANS'))
   for SI in DOSCAN:
     os.system('cp -r %s %s/.'%('%s_%s.difx'%(os.path.join(DIFX,EXP),SI), os.path.join(DIFX,'POLCONVERT_CALIB_SCANS')))  
+    os.system('cp -r %s %s/.'%('%s_%s.calc'%(os.path.join(DIFX,EXP),SI), os.path.join(DIFX,'POLCONVERT_CALIB_SCANS')))  
 
   
   WITH_PCAL = PC.polconvert(IDI='%s/POLCONVERT_CALIB_SCANS'%DIFX,

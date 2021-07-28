@@ -323,7 +323,7 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
 
 
   double *BadTimes;
-  int NBadTimes;
+  int NBadTimes = 0;
   if(PCMode){
 // Time ranges with unphased signal:
     BadTimes = (double *)PyArray_DATA(timeranges);
@@ -763,7 +763,7 @@ if(PCMode){
 
   double currT, lastTFailed;
   int currAnt, currAntIdx, currNant, otherAnt,currF; 
-  bool notinlist, gchanged, dtchanged, toconj;
+  bool notinlist, gchanged=true, dtchanged=true, toconj;
 
   lastTFailed = 0.0;
 

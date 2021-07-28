@@ -34,6 +34,8 @@ sourcefiles3 = ['_getAntInfo.cpp']
 
 sourcefiles4 = ['_XPCal.cpp']
 
+sourcefiles5 = ['_XPCalMF.cpp']
+
 c_ext1 = Extension("_PolConvert", sources=sourcefiles1,
                   extra_compile_args=["-Wno-deprecated","-O3","-std=c++11"],
                   libraries=['cfitsio'],
@@ -51,6 +53,10 @@ c_ext4 = Extension("_XPCal",sources=sourcefiles4,
                   include_dirs=[np.get_include()],
                   extra_link_args=["-Xlinker","-export-dynamic"])
 
+c_ext5 = Extension("_XPCalMF",sources=sourcefiles5,
+                  extra_compile_args=["-Wno-deprecated","-O3","-std=c++11"],
+                  include_dirs=[np.get_include()],
+                  extra_link_args=["-Xlinker","-export-dynamic"])
 
 if DO_SOLVE:
   c_ext2 = Extension("_PolGainSolve", sources=sourcefiles2,
@@ -71,6 +77,10 @@ setup(
 
 setup(
     ext_modules=[c_ext4],include_dirs=['./'],
+)
+
+setup(
+    ext_modules=[c_ext5],include_dirs=['./'],
 )
 
 

@@ -437,7 +437,7 @@ void DataIOSWIN::readHeader(bool doTest, int saveSource) {
      newdifx[auxI].ignore(sizeof(int)+sizeof(double)); // Pulsar bin + Weight
      newdifx[auxI].read(reinterpret_cast<char*>(UVW), UVWsize);
 
-
+     sidx += auxI;
 
 ////////////////
 // WHAT IS THE DIFFERENCE BETWEEN CFIDX AND FRIDX !!!!!!!!

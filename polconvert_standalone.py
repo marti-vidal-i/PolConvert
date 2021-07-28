@@ -425,7 +425,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
     printMsg('Opening calc file... %s' % DiFXcalc)
     try:
       printMsg('Opening "%s"' % (DiFXcalc))
-      antcoords = []  ; soucoords = [[],[]]; antmounts = []; antcodes = [];
+      antcoords = []  ; calcsoucoords = [[],[]]; antmounts = []; antcodes = [];
       calc = open(DiFXcalc)
       lines = calc.readlines()
       calc.close()
@@ -442,14 +442,16 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 
         if 'SOURCE' in line and ' NAME: ' in line:
           SNAM = line.split()[-1]
-          soucoords[0].append(float(lines[ii+1].split()[-1]))
-          soucoords[1].append(float(lines[ii+2].split()[-1]))
-          printMsg('SOURCE %s AT RA: %.8f rad, DEC: %.8f rad'%(SNAM,soucoords[0][-1],soucoords[1][-1]))
+          calcsoucoords[0].append(float(lines[ii+1].split()[-1]))
+          calcsoucoords[1].append(float(lines[ii+2].split()[-1]))
+          printMsg('SOURCE %s AT RA: %.8f rad, DEC: %.8f rad'%(SNAM,calcsoucoords[0][-1],calcsoucoords[1][-1]))
+
+      
 
       antcoords = np.array(antcoords,dtype=np.float,order='C')
       antmounts = np.array(antmounts,order='C')
-      soucoords[0] = np.array(soucoords[0],dtype=np.float,order='C')
-      soucoords[1] = np.array(soucoords[1],dtype=np.float,order='C')
+      calcsoucoords[0] = np.array(calcsoucoords[0],dtype=np.float,order='C')
+      calcsoucoords[1] = np.array(calcsoucoords[1],dtype=np.float,order='C')
       printMsg('done parsing calc')
     except Exception as ex:
       printMsg(str(ex))
@@ -526,12 +528,12 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
     FreqL = [inputlines.index(l) for l in inputlines if 'FREQ TABLE' in l]
 
 
-    if len(antcoords) == 0:
-      Nteles = [inputlines.index(l) for l in inputlines if 'TELESCOPE ENTRIES' in l][0]
-      antcoords = np.ones((Nteles,3),dtype=np.float)
-      antmounts = np.zeros(Nteles,dtype=np.int)
-    if len(soucoords[0])==0:
-      soucoords = [np.zeros(1,dtype=np.float),np.zeros(1,dtype=np.float)]
+#    if len(antcoords) == 0:
+#      Nteles = [inputlines.index(l) for l in inputlines if 'TELESCOPE ENTRIES' in l][0]
+#      antcoords = np.ones((Nteles,3),dtype=np.float)
+#      antmounts = np.zeros(Nteles,dtype=np.int)
+#    if len(soucoords[0])==0:
+#      soucoords = [np.zeros(1,dtype=np.float),np.zeros(1,dtype=np.float)]
 
 # ONLY ONE FREQ TABLE IS ALLOWED:
     try:
@@ -866,6 +868,29 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
     i0 = np.logical_and(t0<=mjp[1],t0>=mjp[0])
     OUTPUT = [OUTPUT[i] for i in range(len(i0)) if i0[i]]
 
+
+# Get source coordinate for each file (if possible):
+    CALCS = ['%s.calc'%os.path.dirname(ci)[:-5] for ci in OUTPUT]
+
+    soucoords = [np.ones(len(OUTPUT))*calcsoucoords[0][0], np.ones(len(OUTPUT))*calcsoucoords[0][0]]
+    print(soucoords)
+    print(CALCS)
+    for sui,Fcalc in enumerate(CALCS):
+      print(sui,Fcalc)
+      if os.path.exists(Fcalc):
+        print('EXISTS!')
+        FCin = open(Fcalc)
+        lines = FCin.readlines()
+        FCin.close()
+        for ii,line in enumerate(lines):
+          if 'SOURCE' in line and ' NAME: ' in line:
+            print(line)
+            SNAM = line.split()[-1]
+            soucoords[0][sui] = float(lines[ii+1].split()[-1])
+            soucoords[1][sui] = float(lines[ii+2].split()[-1])
+            printMsg('FOUND SOURCE %s AT RA: %.8f rad, DEC: %.8f rad'%(SNAM,soucoords[0][sui],soucoords[1][sui]))
+
+
   else:
     metadata = []
     OUTPUT = OUTPUTIDI
@@ -884,7 +909,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 
 
   if isPcalUsed:
-    import _XPCal as XP
+    import _XPCalMF as XP
     import scipy.interpolate as spint
     printMsg('keys of XYadd:' + str(XYadd.keys()))
     printMsg('keys of XYratio:' + str(XYratio.keys())+'\n')
@@ -901,11 +926,27 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
         PCFile = list(filter(lambda x: x.endswith(doant),PHASECALS))
         if len(PCFile)==0:
           printError("\n\n SANITY-TEST FAILURE! NO PHASECAL FILE FOR %i\n"%doant)
-        tempArr = XP.XPCal(PCFile[0],0,0.0,len(Nr))
+        fName = XP.XPCalMF(PCFile[0],0)
+        IFFCP = open(fName)
+        tempArr = []
+        for line in IFFCP.readlines():
+          tempArr.append(list(map(float,line.split())))
+        IFFCP.close()
+        tempArr = np.array(tempArr)
         print('DONE READING PCAL for %s!'%doant)
+
+## Save Pcals in aux file:
+        if True:
+            os.system('rm -rf %s.pcals2'%os.path.basename(PCFile[0]))
+            OFFf = open(os.path.basename(PCFile[0])+'.pcals2','wb')
+            pk.dump(tempArr,OFFf); OFFf.close()
+
+          #  raw_input('HOLD')
+
+
         # Update pcal files (if not doing a test):
         if not doTest:
-          ErrCode = XP.XPConvert(PCFile[0])  
+          ErrCode = XP.XPCalMF(PCFile[0],1)  
           if ErrCode != 0:
             printError("\n\n ERROR Converting phasecal file %s\n"%os.path.basename(PCFile[0]))
 
@@ -914,8 +955,12 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
           printError("\n\n ERROR! No phasecal information for antenna %i\n Will NOT convert!\n"%i)
         else:
 
-          CPhase = spint.interp1d(tempArr[0],-tempArr[1],bounds_error=False,fill_value = 'extrapolate')
-          CAmpl = spint.interp1d(tempArr[0],tempArr[4],bounds_error=False,fill_value = 1.0)
+          CPhase = spint.interp1d(tempArr[:,0],-tempArr[:,1],bounds_error=False,fill_value = 'extrapolate')
+          CAmpl = spint.interp1d(tempArr[:,0],tempArr[:,2],bounds_error=False,fill_value = 1.0)
+
+
+
+
 
           for ji,j in enumerate(doIF):
             sgn = FrInfo['SIGN'][j-1]  
@@ -930,9 +975,9 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
               XYratioF[i][ji] *= CAmpl(Nus)          
           del CPhase
           Nelem = len(tempArr)
-          for j in range(Nelem-1,-1,-1):
-              del tempArr[j]
-          del tempArr
+      #    for j in range(Nelem-1,-1,-1):
+      #        del tempArr[j]
+      #    del tempArr
 ##################################
     if doant not in XYadd.keys():
        printMsg('ANTENNA %s DOES NOT HAVE XYadd INFO.'%doant)
@@ -1552,13 +1597,13 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
     # see what we got...
     #print('CGains contains: ',[(k,len(CGains[k])) for k in CGains.keys()])
 
-    try:
-#    if True:
+#    try:
+    if True:
 
       fig = pl.figure()
       MaxG = 0.0
       color = ['r','g','b','k','m','y','c']
-      symbol = ['o','^','x']
+      symbol = ['o','+','x']
       Freq2Plot = np.concatenate(AllFreqs)/1.e9
 
       printMsg('Working subplot 1')
@@ -1592,12 +1637,16 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
       sub1.set_ylabel('Cross-Phase (deg.)')
       sub2.set_ylabel('Cross-Amp (Norm.)')
       sub2.set_xlabel('Frequency (GHz)')
-      fig.suptitle('CROSS-POLARIZATION GAINS')
-      pl.savefig('Cross-Gains.png')
+      EXPN = os.path.basename(IDI)
+      if '.' in EXPN:
+        EXPN = '-'.join(EXPN.split('.')[:-1])
+      EXPN = EXPN.replace(' ','_')
+      fig.suptitle('XPOL GAINS %s'%EXPN)
+      pl.savefig('Cross-Gains_%s.png'%EXPN)
 
   #pl.show()
-    except Exception as ex:
-      printMsg('Sorry amigo, plots did not work:\n %s' % str(ex))
+  #  except Exception as ex:
+  #    printMsg('Sorry amigo, plots did not work:\n %s' % str(ex))
     # end of try to plot something
 
     PS.FreeData()
