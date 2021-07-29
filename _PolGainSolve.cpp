@@ -206,7 +206,7 @@ PyMODINIT_FUNC init_PolGainSolve(void)
    int NIF, NIFComp;
    int NBas, NantFit, Npar=-1;
    int npix = 0;
-   double **Frequencies, ***Rates, ***Delays[4];
+   double **Frequencies, ***Rates[4], ***Delays[4];
    double *Tm = nullptr;
    double *BasWgt;
    int *doIF, *antFit; 
@@ -547,8 +547,9 @@ static PyObject *PolGainSolve(PyObject *self, PyObject *args){
   LR = (cplx64f***) malloc(MAXIF*sizeof(cplx64f**));
   RL = (cplx64f***) malloc(MAXIF*sizeof(cplx64f**));
   LL = (cplx64f***) malloc(MAXIF*sizeof(cplx64f**));
-  Rates = (double ***) malloc(MAXIF*sizeof(double**));
+ // Rates = (double ***) malloc(MAXIF*sizeof(double**));
   for(i=0;i<4;i++){
+    Rates[i] = (double ***) malloc(MAXIF*sizeof(double**));
     Delays[i] = (double ***) malloc(MAXIF*sizeof(double**));
   };
 
@@ -672,8 +673,11 @@ static PyObject *ReadData(PyObject *self, PyObject *args) {
     LR = (cplx64f***) realloc(LR,MAXIF*sizeof(cplx64f**));
     RL = (cplx64f***) realloc(RL,MAXIF*sizeof(cplx64f**));
     LL = (cplx64f***) realloc(LL,MAXIF*sizeof(cplx64f**));
-    Rates = (double ***) realloc(Rates,MAXIF*sizeof(double**));
-    for(i=0;i<4;i++){Delays[i] = (double ***) realloc(Delays[i],MAXIF*sizeof(double**));};
+   // Rates = (double ***) realloc(Rates,MAXIF*sizeof(double**));
+    for(i=0;i<4;i++){
+      Delays[i] = (double ***) realloc(Delays[i],MAXIF*sizeof(double**));
+      Rates[i] = (double ***) realloc(Rates[i],MAXIF*sizeof(double**));
+    };
     if(!Ant1 || !Ant2 || !Times || !Weights || !PA1 || !PA2 || !RR || !LR || !RL || !LL){
       Ant1=nullptr; Ant2=nullptr; Times=nullptr; PA1=nullptr; PA2=nullptr; 
       RR=nullptr; LR=nullptr; RL=nullptr; LL=nullptr; ScanDur=nullptr; Weights=nullptr;
@@ -681,8 +685,8 @@ static PyObject *ReadData(PyObject *self, PyObject *args) {
       PyObject *ret = Py_BuildValue("i",-3);
       return ret;
     };
-    if(!Rates || !Delays[0] || !Delays[1] || !Delays[2] || !Delays[3]){
-      Rates=nullptr; for(i=0;i<4;i++){Delays[i]=nullptr;};
+    if(!Rates[0] || !Delays[0] || !Delays[1] || !Delays[2] || !Delays[3]){
+      for(i=0;i<4;i++){Rates[i] = nullptr; Delays[i]=nullptr;};
       fprintf(logFile,"(return -4)"); fflush(logFile);
       PyObject *ret = Py_BuildValue("i",-4);
       return ret;
@@ -1043,16 +1047,20 @@ static PyObject *ReadData(PyObject *self, PyObject *args) {
   };
 
 
-  Rates[NIF-1] = (double **) malloc(NCalAnt*sizeof(double*));
-  for(i=0;i<4;i++){Delays[i][NIF-1] = (double **) malloc(NCalAnt*sizeof(double*));};
+//  Rates[NIF-1] = (double **) malloc(NCalAnt*sizeof(double*));
+  for(i=0;i<4;i++){
+    Delays[i][NIF-1] = (double **) malloc(NCalAnt*sizeof(double*));
+    Rates[i][NIF-1] = (double **) malloc(NCalAnt*sizeof(double*));
+  };
   for(i=0;i<NCalAnt;i++){
-    Rates[NIF-1][i] = (double *) malloc(NScan[NIF-1]*sizeof(double));
+   // Rates[NIF-1][i] = (double *) malloc(NScan[NIF-1]*sizeof(double));
     for(k=0;k<4;k++){
       Delays[k][NIF-1][i] = (double *) malloc(NScan[NIF-1]*sizeof(double));
+      Rates[k][NIF-1][i] = (double *) malloc(NScan[NIF-1]*sizeof(double));
     };
     for(k=0;k<NScan[NIF-1];k++){
-      Rates[NIF-1][i][k] = 0.0;
-      for (j=0;j<4;j++){Delays[j][NIF-1][i][k] = 0.0;};
+   //   Rates[NIF-1][i][k] = 0.0;
+      for (j=0;j<4;j++){Delays[j][NIF-1][i][k] = 0.0; Rates[j][NIF-1][i][k] = 0.0;};
     };
   };
 
@@ -1167,8 +1175,8 @@ double QuinnEstimate(cplx64f *FFTVec){
 static PyObject *SetFringeRates(PyObject *self, PyObject *args) {
 
 
-  int i,j,NantFix,cIF,cScan;
-  double *rates;
+  int i,j,k,NantFix,cIF,cScan;
+  double *rates[4];
 
   PyObject *ratesArr, *antList;
 
@@ -1184,13 +1192,16 @@ static PyObject *SetFringeRates(PyObject *self, PyObject *args) {
 
 
   NantFix = (int) PyList_Size(antList);
-  rates = (double *) PyArray_DATA(ratesArr);
-  for (i=0; i<NCalAnt; i++){
-    Rates[cIF][i][cScan] = 0.0;
-  };
-  for (i=0; i<NantFix; i++){
-    j = (int) PyInt_AsLong(PyList_GetItem(antList,i));
-    Rates[cIF][j-1][cScan] = rates[i];
+
+  for(k=0;k<4;k++){
+    rates[k] = (double *) PyArray_DATA(ratesArr);
+    for (i=0; i<NCalAnt; i++){
+      Rates[k][cIF][i][cScan] = 0.0;
+    };
+    for (i=0; i<NantFix; i++){
+      j = (int) PyInt_AsLong(PyList_GetItem(antList,i));
+      Rates[k][cIF][j-1][cScan] = rates[k][i];
+    };
   };
 
 
@@ -1353,14 +1364,16 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
 
         if (showMe) {
           sprintf(message,"   DoGFF: read %i visiblities\n",NcurrVis);
-          fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);  
+          fprintf(logFile,"%s",message); // std::cout<<message; 
+          fflush(logFile);  
         };
 
 /////////////////
 // FFT the fringe and find the peak:
         if (NcurrVis > 2){
           sprintf(message,"FFT on baseline %i IF %i\n",j,i+1);
-          fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);  
+          fprintf(logFile,"%s",message); // std::cout<<message; 
+          fflush(logFile);  
 
 // Re-define the FFTW plan if dimensions changed:
           if (Nchan[i] != prevChan || NcurrVis != prevNvis){
@@ -1390,8 +1403,8 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
 
 
         if (NcurrVis >2){
-          sprintf(message,"Peaks on baseline %i IF %i\n",j,i+1);
-          fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);  
+      //    sprintf(message,"Peaks on baseline %i IF %i\n",j,i+1);
+      //    fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);  
           Dnpix = (double) Nchan[i]*NcurrVis; 
 
 
@@ -1529,13 +1542,15 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
               BLRates[m][i][j]=0.0;BLDelays[m][i][j]=0.0;BLWeights[m][i][j]=0.0;
             };
             sprintf(message,"WARNING! BASELINE %i HAS NO DATA IN IF %i!\n",j,i+1);
-            fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);  
+            fprintf(logFile,"%s",message); // std::cout<<message; 
+            fflush(logFile);  
 
             for (gotAnts = false, a1=0; a1<NCalAnt; a1++){
               for (a2=a1+1;a2<NCalAnt;a2++){
                 if(j == BasNum[CalAnts[a1]-1][CalAnts[a2]-1]){
                   sprintf(message,"ANTS: %i-%i\n",a1+1,a2+1);
-                  fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);  
+                  fprintf(logFile,"%s",message); // std::cout<<message; 
+                  fflush(logFile);  
                   gotAnts = true;
                   break;
                 };
@@ -1543,18 +1558,21 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
             };
             if (!gotAnts) {
               sprintf(message,"NO-ANTS:\n");
-              fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);  
+              fprintf(logFile,"%s",message); // std::cout<<message; 
+              fflush(logFile);  
             };
 
           };
 
 //////
 
+
           if (showMe){
             for(m=0;m<4;m++){
               sprintf(message,"POL %i (BL %i): PEAK OF %.3e AT INDEX %i-%i (RATE %.3e Hz, DELAY: %.3e s); SNR: %.3e\n",
                    m,j,Peak[m],time[m][1],nu[m][1],BLRates[m][i][j],BLDelays[m][i][j],BLWeights[m][i][j]);
-              fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);  
+              fprintf(logFile,"%s",message); // std::cout<<message; 
+              fflush(logFile);  
             };
           };
 
@@ -1580,22 +1598,22 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
 
 
 // Setup memory:
-    double *Hessian = new double[NantFit*NantFit];
+   // double *Hessian = new double[NantFit*NantFit];
     double **HessianDel = new double*[4];
     for(m=0;m<4;m++){HessianDel[m] = new double[NantFit*NantFit];};
-    double *RateResVec = new double[NantFit];
+    double *RateResVec[4]; // = new double[NantFit];
     double *DelResVec[4];
-    for(m=0;m<4;m++){DelResVec[m] = new double[NantFit];};
+    for(m=0;m<4;m++){DelResVec[m] = new double[NantFit];RateResVec[m] = new double[NantFit];};
     delete[] CovMat;
     CovMat = new double[NantFit*NantFit];
     for (i=0;i<NantFit*NantFit;i++){
-      Hessian[i] = 0.0;
+    //  Hessian[i] = 0.0;
       for(m=0;m<4;m++){HessianDel[m][i]=0.0;}
       CovMat[i] = 0.0;
     };
     for (i=0;i<NantFit;i++){
-      RateResVec[i] = 0.0;
-      for(m=0;m<4;m++){DelResVec[m][i] = 0.0;};
+   //   RateResVec[i] = 0.0;
+      for(m=0;m<4;m++){DelResVec[m][i] = 0.0;RateResVec[m][i] = 0.0;};
     };
 
 
@@ -1629,28 +1647,28 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
 
               if (af1>=0){
                 for(m=0;m<4;m++){
-                  RateResVec[af1] += BLWeights[m][i][BNum]*BLRates[m][i][BNum];
+                  RateResVec[m][af1] += BLWeights[m][i][BNum]*BLRates[m][i][BNum];
                   DelResVec[m][af1] += BLWeights[m][i][BNum]*BLDelays[m][i][BNum];
-                  Hessian[af1*NantFit+af1] += BLWeights[m][i][BNum];
+           //       Hessian[af1*NantFit+af1] += BLWeights[m][i][BNum];
                   HessianDel[m][af1*NantFit+af1] += BLWeights[m][i][BNum];
                 };
               };
 
               if (af2>=0){
                 for(m=0;m<4;m++){
-                  RateResVec[af2] -= BLWeights[m][i][BNum]*BLRates[m][i][BNum];
+                  RateResVec[m][af2] -= BLWeights[m][i][BNum]*BLRates[m][i][BNum];
                   DelResVec[m][af2] -= BLWeights[m][i][BNum]*BLDelays[m][i][BNum];
-                  Hessian[af2*NantFit+af2] += BLWeights[m][i][BNum];
+           //       Hessian[af2*NantFit+af2] += BLWeights[m][i][BNum];
                   HessianDel[m][af2*NantFit+af2] += BLWeights[m][i][BNum];
                 };
               };
 
               if (af1>=0 && af2>=0){
                 for(m=0;m<4;m++){
-                  Hessian[af1*NantFit+af2] += BLWeights[m][i][BNum];
-                  Hessian[af2*NantFit+af1] += BLWeights[m][i][BNum];
-                  HessianDel[m][af1*NantFit+af2] += BLWeights[m][i][BNum];
-                  HessianDel[m][af2*NantFit+af1] += BLWeights[m][i][BNum];
+           //       Hessian[af1*NantFit+af2] -= BLWeights[m][i][BNum];
+           //       Hessian[af2*NantFit+af1] -= BLWeights[m][i][BNum];
+                  HessianDel[m][af1*NantFit+af2] -= BLWeights[m][i][BNum];
+                  HessianDel[m][af2*NantFit+af1] -= BLWeights[m][i][BNum];
                 };
               };
             };
@@ -1666,36 +1684,38 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
       for (i=0; i<NIF; i++){
 
         for(m=0;m<4;m++){
-          Hessian[0] += BLWeights[m][i][BNum];
+    //      Hessian[0] += BLWeights[m][i][BNum];
           HessianDel[m][0] += BLWeights[m][i][BNum];
-          RateResVec[0] += BLWeights[m][i][BNum]*BLRates[m][i][BNum];
+          RateResVec[m][0] += BLWeights[m][i][BNum]*BLRates[m][i][BNum];
           DelResVec[m][0] += BLWeights[m][i][BNum]*BLDelays[m][i][BNum];
         };
 
         for (j=0; j<NCalAnt; j++){
-          Rates[i][j][cScan] = 0.0;
+      //    Rates[i][j][cScan] = 0.0;
           for(m=0;m<4;m++){
+            Rates[m][i][j][cScan] = 0.0;
             Delays[m][i][j][cScan] = 0.0;
           };
 
           if(CalAnts[j]==antFit[0]){
-            if (applyRate>0){Rates[i][j][cScan] = -RateResVec[0]/((double) NIF);};
             for(m=0;m<4;m++){
-              Delays[m][i][j][cScan] = -DelResVec[m][0]/((double) NIF);
+              if (applyRate>0){
+                Rates[m][i][j][cScan] = -RateResVec[m][0]/((double) NIF);};
+                Delays[m][i][j][cScan] = -DelResVec[m][0]/((double) NIF);
             };
           };
         };
       };
     };
 
-    printf("\n\nHessian Globalization Matrix:\n\n");
+    printf("\n\nHessian Globalization Matrix (RR):\n\n");
     bool isSingular;
     isSingular=false;
     for (i=0; i<NantFit; i++){
       printf("  ");
-      if (Hessian[i*NantFit+i]==0.0){isSingular=true;};
+      if (HessianDel[0][i*NantFit+i]==0.0){isSingular=true;};
       for (j=0; j<NantFit; j++){
-        printf("%.2e ",Hessian[i*NantFit+j]);
+        printf("%.2e ",HessianDel[0][i*NantFit+j]);
       };
       printf("\n");
     };
@@ -1704,66 +1724,67 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
       fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);  
     };
     printf("\n");
-    printf("\n\n Residual baseline phase quantities:\n\n");
+    printf("\n\n Residual baseline phase quantities (DELA || RATE):\n\n");
     for (i=0; i<NantFit; i++){
       for(m=0;m<4;m++){printf(" %.2e |", DelResVec[m][i]);};
-      printf("| %.2e \n", RateResVec[i]);
+      printf("| ");
+      for(m=0;m<4;m++){printf(" %.2e |", RateResVec[m][i]);};
+      printf("\n");
     };
     printf("\n");
 
 
-// The Hessian's inverse can be reused for rates, delays and phases!
-
-  //  gsl_matrix_view mm = gsl_matrix_view_array (Hessian, NantFit, NantFit);
-  //  gsl_matrix_view mmd[4]; 
-  //  for(m=0;m<4;m++){mmd[m] = gsl_matrix_view_array (HessianDel[m], NantFit, NantFit);};
-  //  gsl_vector *xx = gsl_vector_calloc(NantFit);
-  //  gsl_vector *dd[4];
-  //  for(m=0;m<4;m++){dd[m] = gsl_vector_calloc(NantFit);};
-  //  gsl_vector_view RateInd = gsl_vector_view_array(RateResVec,NantFit);
-  //  gsl_vector_view *DelInd = new gsl_vector_view[4];
-  //  for(m=0;m<4;m++){DelInd[m] = gsl_vector_view_array(DelResVec[m],NantFit);};
-    double *SolRat = new double[NantFit];
+    double **SolRat = new double*[4]; //[NantFit];
     double **SolDel = new double*[4];
-    for (i=0; i<4; i++){SolDel[i] = new double[NantFit];};
+    for (i=0; i<4; i++){SolDel[i] = new double[NantFit]; SolRat[i] = new double[NantFit];};
 
-    isSingular = solveSystem(NantFit,Hessian,RateResVec,SolRat);
-    if (!isSingular){
+
+
+    isSingular = false; // solveSystem(NantFit,Hessian,RateResVec,SolRat);
       for(i=0;i<4;i++){
-        isSingular = solveSystem(NantFit,HessianDel[i],DelResVec[i],SolDel[i]);
+        if (!isSingular){
+          isSingular = solveSystem(NantFit,HessianDel[i],DelResVec[i],SolDel[i]);
+          isSingular = solveSystem(NantFit,HessianDel[i],RateResVec[i],SolRat[i]);
+        };
       };
-    };
 
 
 
     if (NantFit>1){
 
     for (i=0; i<NCalAnt; i++){
-      Rates[0][i][cScan] = 0.0;
 
-      for(j=0;j<4;j++){Delays[j][0][i][cScan] = 0.0;};
+      for(j=0;j<4;j++){Delays[j][0][i][cScan] = 0.0; Rates[j][0][i][cScan] = 0.0;};
         af1 = -1;
+
         for(j=0; j<NantFit; j++) {
-          if (CalAnts[i]==antFit[j]){af1 = j; break;};
+          if (CalAnts[i]==antFit[j]){
+            af1 = j; 
+            break;
+          };
         };
        if (af1 >=0){
          if(applyRate>0){
-	   Rates[0][i][cScan] = -SolRat[af1]; //gsl_vector_get(xx,af1);
            for(j=0;j<4;j++){
+             Rates[j][0][i][cScan] = -SolRat[j][af1]; //gsl_vector_get(dd[j],af1);
              Delays[j][0][i][cScan] = -SolDel[j][af1]; //gsl_vector_get(dd[j],af1);
            };
          };
        };
     };
 
-    for (i=0; i<NIF; i++){
+
+
+
+    for (i=1; i<NIF; i++){
       for (j=0; j<NCalAnt; j++){
-        Rates[i][j][cScan] = Rates[0][j][cScan];
         for (m=0;m<4;m++){
+          Rates[m][i][j][cScan] = Rates[m][0][j][cScan];
           Delays[m][i][j][cScan] = Delays[m][0][j][cScan];
         };
       };
     };
+
 
   };
 
@@ -1771,13 +1792,20 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
 
 // Print globalized results:
   for (i=0; i<NCalAnt; i++){
+
+/*
     sprintf(message,
         "Antenna %i -> Rate: %.3e Hz.  Delays: (%.2e, %.2e, %.2e, %.2e) ns.\n",
         CalAnts[i],Rates[0][i][cScan],Delays[0][0][i][cScan]*1.e9,Delays[1][0][i][cScan]*1.e9,
         Delays[2][0][i][cScan]*1.e9,Delays[3][0][i][cScan]*1.e9);
     fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);  
+*/
+    sprintf(message, "\n -- Antenna %i: [ Rate (Hz) / Delay (ns) ]:\n",i); fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
+    for(j=0; j<4; j++){
+      sprintf(message, "POL %i: [ %.3e / %.3e ] \n",j,Rates[j][0][i][cScan],Delays[j][0][i][cScan]);
+      fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
+    };
   };
-
 
 
 // Release memory:
@@ -1800,15 +1828,16 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
     delete[] BLWeights[m];
     delete[] HessianDel[m];
     delete[] DelResVec[m];
+    delete[] RateResVec[m];
     delete[] aroundPeak[m];
   };
   delete[] BLRates;
   delete[] BLDelays;
   delete[] BLWeights;
   delete[] aroundPeak;
-  delete[] Hessian;
+//  delete[] Hessian;
   delete[] HessianDel;
-  delete[] RateResVec;
+//  delete[] RateResVec;
 
 
 // Return success:
@@ -2336,20 +2365,24 @@ static PyObject *GetChi2(PyObject *self, PyObject *args) {
 
 // Compute the instrumental phases (for all pol. products):
 
-// NOTE: The cross-pol dleays from GFF are NOT used. Only the rates:
+// NOTE: if useDelay=false, the cross-pol delays from GFF are NOT used. Only the rates:
+
+  RateFactor=1.0;
+
+  if(false){
 
     if(ac1>=0){
          //   Ddelay1 = TWOPI*((Delays[0][0][ac1][currScan]+Delays[1][0][ac1][currScan])*0.5*(Frequencies[currIF][j]-RefNu));
-            Ddelay1 = TWOPI*((Delays[0][0][ac1][currScan])*0.5*(Frequencies[currIF][j]-RefNu));
-	    Drate1 = TWOPI*(Rates[0][ac1][currScan]*(Times[currIF][k]-T0));} 
+            Ddelay1 = TWOPI*((Delays[0][0][ac1][currScan])*(Frequencies[currIF][j]-RefNu));
+	    Drate1 = TWOPI*(Rates[0][0][ac1][currScan]*(Times[currIF][k]-T0));} 
     else {
       Ddelay1=0.0;
       Drate1=0.0;
     };
     if(ac2>=0){
          //   Ddelay2 = TWOPI*((Delays[0][0][ac2][currScan]+Delays[1][0][ac2][currScan])*0.5*(Frequencies[currIF][j]-RefNu));
-            Ddelay2 = TWOPI*((Delays[0][0][ac1][currScan])*0.5*(Frequencies[currIF][j]-RefNu));
-	    Drate2 = TWOPI*(Rates[0][ac2][currScan]*(Times[currIF][k]-T0));} 
+            Ddelay2 = TWOPI*((Delays[0][0][ac2][currScan])*(Frequencies[currIF][j]-RefNu));
+	    Drate2 = TWOPI*(Rates[0][0][ac2][currScan]*(Times[currIF][k]-T0));} 
     else {
       Ddelay2=0.0;
       Drate2=0.0;
@@ -2361,10 +2394,19 @@ static PyObject *GetChi2(PyObject *self, PyObject *args) {
       RateFactor = std::polar(1.0, Drate1-Drate2);
     };
 
+   };
+
     RRRate = RateFactor*FeedFactor1/FeedFactor2; 
+    LLRate = RateFactor/FeedFactor1*FeedFactor2; 
     RLRate = RateFactor*FeedFactor1*FeedFactor2; 
     LRRate = RateFactor/FeedFactor1/FeedFactor2; 
-    LLRate = RateFactor/FeedFactor1*FeedFactor2; 
+
+
+
+
+
+
+
 
    // if (chisqcount==1){sprintf(message,"\n RFACs: %.3e %.3e; %.3e %.3e; %.3e %.3e; %.3e %.3e\n",RRRate.real(),RRRate.imag(),RLRate.real(),RLRate.imag(),LRRate.real(),LRRate.imag(),LLRate.real(),LLRate.imag()); fprintf(auxFile,"%s",message);};
 

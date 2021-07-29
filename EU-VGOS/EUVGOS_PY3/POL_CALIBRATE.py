@@ -29,7 +29,7 @@ if __name__=='__main__':
 
 #################################
 # COMMENT OUT THIS LINE WHEN DEBUGGING WITH execfile(...)
-def POL_CALIBRATE(EXPNAME='',DIFX_DIR = '', DOSCAN=-1,CHANSOL=32,USE_PCAL=True,EXCLUDE_BASELINES=[],DOIF=[],DOAMP=True,PLOTANT=1):
+def POL_CALIBRATE(EXPNAME='',DIFX_DIR = '', DOSCAN=-1,CHANSOL=32,USE_PCAL=True,EXCLUDE_BASELINES=[],DOIF=[],DOAMP=True,PLOTANT=1,APPLY_AMP=True):
  """ Estimates cross-polarization gains using a scan in a SWIN directory.
   The channel resolution is set to CHANSOL. Saves the gains in a dictionary
   that can ge used by PolConvert."""
@@ -112,6 +112,12 @@ def POL_CALIBRATE(EXPNAME='',DIFX_DIR = '', DOSCAN=-1,CHANSOL=32,USE_PCAL=True,E
 
   OFF=open('POLCAL_OUTPUT_SCAN-%s.dat'%DOSCAN[0],'wb')
   pk.dump(WITH_PCAL,OFF,protocol=0) ; OFF.close()
+
+  if not APPLY_AMP:
+    for anti in WITH_PCAL['XYratio'].keys():
+      NIF = len(WITH_PCAL['XYratio'][anti])
+      for ki in range(NIF):
+        WITH_PCAL['XYratio'][anti][ki][:] = 1.0
 
 
   #IFF = open('POLCAL_OUTPUT_SCAN-%03i.dat'%DOSCAN)
