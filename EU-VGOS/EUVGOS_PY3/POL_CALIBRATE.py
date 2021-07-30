@@ -110,14 +110,14 @@ def POL_CALIBRATE(EXPNAME='',DIFX_DIR = '', DOSCAN=-1,CHANSOL=32,USE_PCAL=True,E
 
   os.system('mv %s %s_POLCAL_%s.png'%(Plot, Plot, DOSCAN[0]))
 
-  OFF=open('POLCAL_OUTPUT_SCAN-%s.dat'%DOSCAN[0],'wb')
-  pk.dump(WITH_PCAL,OFF,protocol=0) ; OFF.close()
-
   if not APPLY_AMP:
     for anti in WITH_PCAL['XYratio'].keys():
       NIF = len(WITH_PCAL['XYratio'][anti])
       for ki in range(NIF):
         WITH_PCAL['XYratio'][anti][ki][:] = 1.0
+
+  OFF=open('POLCAL_OUTPUT_SCAN-%s.dat'%DOSCAN[0],'wb')
+  pk.dump(WITH_PCAL,OFF,protocol=0) ; OFF.close()
 
 
   #IFF = open('POLCAL_OUTPUT_SCAN-%03i.dat'%DOSCAN)

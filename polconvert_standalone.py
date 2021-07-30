@@ -932,8 +932,9 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
         tempArr = np.array(tempArr)
         print('DONE READING PCAL for %s!'%doant)
 
+#### FOR DEBUGGING:
 ## Save Pcals in aux file:
-        if True:
+        if DEBUG:
             os.system('rm -rf %s.pcals2'%os.path.basename(PCFile[0]))
             OFFf = open(os.path.basename(PCFile[0])+'.pcals2','wb')
             pk.dump(tempArr,OFFf); OFFf.close()
