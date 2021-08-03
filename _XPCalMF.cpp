@@ -367,8 +367,8 @@ static PyObject *XPCalMF(PyObject *self, PyObject *args)
 
 // MAKE A BACKUP OF THE PCAL FILE:
   PcalF.open(PcalFile.c_str(), std::ios::in | std::ios::binary);
-  std::string SUFFIX(".ORIGINAL");
-  std::string outname = PcalFile + SUFFIX;  
+  std::string ORIGSUFFIX(".ORIGINAL");
+  std::string outname = PcalFile + ORIGSUFFIX;  
   std::ofstream OutPcal(outname.c_str(), std::ios::out | std::ios::binary);
   OutPcal << PcalF.rdbuf();
 
@@ -572,7 +572,7 @@ static PyObject *XPCalMF(PyObject *self, PyObject *args)
   };
 
 
-  std::string SUFFIX(".CROSSPOL");
+  std::string SUFFIX(".CROSSPOL"); // = PyString_AsString(SuffixObj);
   std::string outname = PcalFile + SUFFIX;  
   FILE *outFile = fopen(outname.c_str(),"w");
 

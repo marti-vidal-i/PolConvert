@@ -394,21 +394,24 @@ static PyObject *GetNScan(PyObject *self, PyObject *args){
 
 static PyObject *PolGainSolve(PyObject *self, PyObject *args){
 
-// truncate for first call
-  if (!logFile) logFile = fopen("PolConvert.GainSolve.log","a");
-     PyObject *calant, *linant, *solints, *flagBas;
+  PyObject *calant, *linant, *solints, *flagBas, *logNameObj;
 
 
-  if (!PyArg_ParseTuple(args, "dOOOO",&RelWeight, &solints, &calant, 
-        &linant,&flagBas)){
+  if (!PyArg_ParseTuple(args, "dOOOOO",&RelWeight, &solints, &calant, 
+        &linant,&flagBas, &logNameObj)){
      sprintf(message,"Failed initialization of PolGainSolve! Check inputs!\n"); 
-     fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);  
-     fclose(logFile);
+     std::cout<<message;
     PyObject *ret = Py_BuildValue("i",-1);
     return ret;
   };
 
-  
+
+  // truncate for first call
+  std::string logName = PyString_AsString(logNameObj);
+  if (!logFile) logFile = fopen(logName.c_str(),"a");
+
+
+
 
 // Assign dummy sizes to all variables:  
   NIF = 0;
@@ -748,6 +751,7 @@ static PyObject *ReadData(PyObject *self, PyObject *args) {
 // eof() doesn't do what everyone thinks....
   while(!CPfile.eof() && CPfile.peek() >= 0){
     is1 = false; is2 = false;
+    CPfile.ignore(sizeof(int));
     CPfile.ignore(sizeof(double));   // daytemp
     CPfile.read(reinterpret_cast<char*>(&AuxA1), sizeof(int));
     CPfile.read(reinterpret_cast<char*>(&AuxA2), sizeof(int));
@@ -772,6 +776,7 @@ static PyObject *ReadData(PyObject *self, PyObject *args) {
 // eof() doesn't do what everyone thinks....
   while(!MPfile.eof() && MPfile.peek() >= 0){
     is1 = false; is2 = false;
+    MPfile.ignore(sizeof(int));
     MPfile.ignore(sizeof(double)); // Time
     MPfile.read(reinterpret_cast<char*>(&AuxA1), sizeof(int));
     MPfile.read(reinterpret_cast<char*>(&AuxA2), sizeof(int));
@@ -831,6 +836,7 @@ static PyObject *ReadData(PyObject *self, PyObject *args) {
   i=0;
   while(!MPfile.eof() && MPfile.peek() >= 0){
 // MPfile timestamp is here
+    MPfile.ignore(sizeof(int));
     MPfile.read(reinterpret_cast<char*>(&AuxT), sizeof(double));
     MPfile.read(reinterpret_cast<char*>(&AuxA1), sizeof(int));
     MPfile.read(reinterpret_cast<char*>(&AuxA2), sizeof(int));
@@ -917,6 +923,7 @@ static PyObject *ReadData(PyObject *self, PyObject *args) {
 
   while(!CPfile.eof() && CPfile.peek() >= 0){
 // CPfile timestamp is here
+    CPfile.ignore(sizeof(int));
     CPfile.read(reinterpret_cast<char*>(&AuxT), sizeof(double));
     CPfile.read(reinterpret_cast<char*>(&AuxA1), sizeof(int));
     CPfile.read(reinterpret_cast<char*>(&AuxA2), sizeof(int));
@@ -1389,9 +1396,10 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
           for(k=0;k<4;k++){fftw_execute(pFT[k]);};
         };
 
-        if (Nchan[i]>npix){Chi = npix/2; Chf = Nchan[i]-npix/2;}
+
+        if (npix>0 && Nchan[i]>npix){Chi = npix/2; Chf = Nchan[i]-npix/2;}
         else  {Chi = Nchan[i]/2; Chf = Nchan[i]/2;};
-        if (NcurrVis>npix){ti = npix/2; tf = NcurrVis-npix/2;}
+        if (npix>0 && NcurrVis>npix){ti = npix/2; tf = NcurrVis-npix/2;}
         else  {ti = NcurrVis/2; tf = NcurrVis/2;};
 
         for(l=0;l<4;l++){ 
@@ -2364,28 +2372,23 @@ static PyObject *GetChi2(PyObject *self, PyObject *args) {
 
 
 // Compute the instrumental phases (for all pol. products):
-
+// First, we center the fringes using the (circular-pol) antenna gains derived from the GFF:
 // NOTE: if useDelay=false, the cross-pol delays from GFF are NOT used. Only the rates:
 
   RateFactor=1.0;
+  Ddelay1 = 0.0; Drate1 = 0.0;
+  Ddelay2 = 0.0; Drate2 = 0.0;
 
-  if(false){
-
-    if(ac1>=0){
-         //   Ddelay1 = TWOPI*((Delays[0][0][ac1][currScan]+Delays[1][0][ac1][currScan])*0.5*(Frequencies[currIF][j]-RefNu));
-            Ddelay1 = TWOPI*((Delays[0][0][ac1][currScan])*(Frequencies[currIF][j]-RefNu));
-	    Drate1 = TWOPI*(Rates[0][0][ac1][currScan]*(Times[currIF][k]-T0));} 
-    else {
-      Ddelay1=0.0;
-      Drate1=0.0;
+    if(ac1>=0 and !is1){
+            Ddelay1 = TWOPI*((Delays[0][0][ac1][currScan]+Delays[1][0][ac1][currScan])*0.5*(Frequencies[currIF][j]-RefNu));
+         //   Ddelay1 = TWOPI*((Delays[0][0][ac1][currScan])*(Frequencies[currIF][j]-RefNu));
+	    Drate1 = TWOPI*((Rates[0][0][ac1][currScan]+Rates[1][0][ac1][currScan])*(Times[currIF][k]-T0));
     };
-    if(ac2>=0){
-         //   Ddelay2 = TWOPI*((Delays[0][0][ac2][currScan]+Delays[1][0][ac2][currScan])*0.5*(Frequencies[currIF][j]-RefNu));
-            Ddelay2 = TWOPI*((Delays[0][0][ac2][currScan])*(Frequencies[currIF][j]-RefNu));
-	    Drate2 = TWOPI*(Rates[0][0][ac2][currScan]*(Times[currIF][k]-T0));} 
-    else {
-      Ddelay2=0.0;
-      Drate2=0.0;
+ 
+    if(ac2>=0 and !is2){
+            Ddelay2 = TWOPI*((Delays[0][0][ac2][currScan]+Delays[1][0][ac2][currScan])*0.5*(Frequencies[currIF][j]-RefNu));
+         //   Ddelay2 = TWOPI*((Delays[0][0][ac2][currScan])*(Frequencies[currIF][j]-RefNu));
+	    Drate2 = TWOPI*((Rates[0][0][ac2][currScan]+Rates[1][0][ac2][currScan])*0.5*(Times[currIF][k]-T0));
     };
 
     if(useDelay){
@@ -2394,7 +2397,6 @@ static PyObject *GetChi2(PyObject *self, PyObject *args) {
       RateFactor = std::polar(1.0, Drate1-Drate2);
     };
 
-   };
 
     RRRate = RateFactor*FeedFactor1/FeedFactor2; 
     LLRate = RateFactor/FeedFactor1*FeedFactor2; 
@@ -2665,6 +2667,7 @@ if (gsl_death_by != GSL_SUCCESS) {
 */
 
 
+for(i=0;i<Npar;i++){SolVec[i] = Lambda*IndVec[i]/CovMat[i*Npar+i];};
 
 for(i=0;i<Npar;i++){
   TheorImpr += DirDer[i]*SolVec[i]*SolVec[i] - 2.*IndVec[i]*SolVec[i];

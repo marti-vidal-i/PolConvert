@@ -104,6 +104,9 @@ class DataIO {
 // Set the current IF (and reset the mixed-vis. counter):
    virtual bool setCurrentIF(int i) = 0;
 
+// Get the file number of the current visibility (only useful for SWIN files; always returns 0 for FITS-IDI):
+   virtual int getFileNumber() = 0;
+
 
 /* Very important function. Finds the next combination of the 4 correlation
    products. Returns the visibilities as an array of pointers;

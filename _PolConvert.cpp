@@ -220,10 +220,11 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
   PyObject *ngain, *nsum, *gains, *ikind, *dterms, *plotRange;
   PyObject *IDI, *antnum, *tempPy, *ret; 
   PyObject *allphants, *nphtimes, *phanttimes, *Range, *SWAP; 
-  PyObject *doIF, *metadata, *refAnts, *ACorrPy;
-  PyObject *asdmTimes, *plIF, *isLinearObj, *XYaddObj; 
+  PyObject *doIF, *metadata, *refAnts, *ACorrPy, *logNameObj;
+  PyObject *asdmTimes, *plIF, *isLinearObj, *XYaddObj, *ALMAstuff; 
   PyObject *antcoordObj, *soucoordObj, *antmountObj, *timeranges; 
   int nALMA, plAnt, nPhase, doTest, doConj, doNorm, calField, verbose, doParI;
+  int currFile;
   double doSolve;
   bool isSWIN, doParang; 
    
@@ -232,6 +233,7 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
 
 
 
+/*
   if(PCMode){
 //                           0 0 0 0 0 1 1 1 1 1 2 2 2 2 2 3 33
 //                           0 2 4 6 8 0 2 4 6 8 0 2 4 6 8 0 23
@@ -247,19 +249,35 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
       ret = Py_BuildValue("i",-1);
       return ret;
   };
-
-  } else {
-  if (!PyArg_ParseTuple(args, "iOiOOOOOOidiiOOOOOOiOii",
+*/
+//  } else {
+  if (!PyArg_ParseTuple(args, "iOiOOOOOOidiiOOOOOOiOiiOO",
     &nALMA, &plIF, &plAnt, &doIF, &SWAP, &IDI, &antnum, 
     &plotRange, &Range, &doTest, &doSolve, &doConj, &doNorm, &XYaddObj, 
     &metadata, &soucoordObj, &antcoordObj, &antmountObj, &isLinearObj,
-    &calField, &ACorrPy, &doParI, &verbose)) { 
+    &calField, &ACorrPy, &doParI, &verbose, &logNameObj, &ALMAstuff)) { 
       printf("FAILED PolConvert! Unable to parse arguments!\n");
       fflush(stdout);
       ret = Py_BuildValue("i",-1);
       return ret;
   };
 
+//  };
+
+
+  if(PCMode){
+    nPhase = PyList_Size(PyList_GetItem(ALMAstuff,5));
+    ngain = PyList_GetItem(ALMAstuff,0);
+    nsum = PyList_GetItem(ALMAstuff,1);
+    ikind = PyList_GetItem(ALMAstuff,2);
+    gains = PyList_GetItem(ALMAstuff,3);
+    dterms = PyList_GetItem(ALMAstuff,4);
+    allphants = PyList_GetItem(ALMAstuff,5);
+    nphtimes = PyList_GetItem(ALMAstuff,6);
+    phanttimes = PyList_GetItem(ALMAstuff,7);
+    refAnts = PyList_GetItem(ALMAstuff,8);
+    asdmTimes = PyList_GetItem(ALMAstuff,9);
+    timeranges = PyList_GetItem(ALMAstuff,10);
   };
 
 
@@ -281,9 +299,9 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
   };
 
 // OPEN LOG FILE:
-
   char message[2048];
-  FILE *logFile = fopen("PolConvert.log","a");
+  std::string logName = PyString_AsString(logNameObj);
+  FILE *logFile = fopen(logName.c_str(),"a");
 
 // Echo some calibration information:
   if(calField>=0){
@@ -301,7 +319,7 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
   sprintf(message,"\nisSwin is %s\n", isSWIN ? "True" : "False");
   fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
 
-  int nSWINFiles = 0; // compiler warning
+  int nSWINFiles = 1; // compiler warning
   std::string* SWINFiles, outputfits;
 
   if (isSWIN) {
@@ -369,16 +387,18 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
 
   int NPGain, NPIF;
 
-  NPGain = PyList_Size(XYaddObj);
-  NPIF = PyList_Size(PyList_GetItem(XYaddObj,0));
-  cplx32f ***PrioriGains = new cplx32f**[NPGain];
-  for (i=0;i<NPGain;i++){
-    PrioriGains[i] = new cplx32f*[NPIF];
-    for (j=0; j<NPIF; j++){
-      PrioriGains[i][j] = (cplx32f *) PyArray_DATA(PyList_GetItem(PyList_GetItem(XYaddObj,i),j));
+  NPGain = PyList_Size(PyList_GetItem(XYaddObj,0));
+  NPIF = PyList_Size(PyList_GetItem(PyList_GetItem(XYaddObj,0),0));
+  cplx32f ****PrioriGains = new cplx32f***[nSWINFiles]; 
+  for(k=0;k<nSWINFiles;k++){
+    PrioriGains[k] = new cplx32f **[NPGain];
+    for (i=0;i<NPGain;i++){
+      PrioriGains[k][i] = new cplx32f*[NPIF];
+      for (j=0; j<NPIF; j++){
+        PrioriGains[k][i][j] = (cplx32f *) PyArray_DATA(PyList_GetItem(PyList_GetItem(PyList_GetItem(XYaddObj,k),i),j));
+      };
     };
   };
-
 
 
 // Array and Observation Geometry:
@@ -633,15 +653,42 @@ if(PCMode){
 /////////////////////////////////
 // READ VLBI DATA:
 
+
+// How many IFs do we convert?
+  int nIFconv = (int) PyList_Size(doIF) ;
+  bool doAll = false;
+
+// How many IFs do we plot?
+  int nIFplot = (int) PyList_Size(plIF) ;
+  int IFs2Plot[nIFplot];
+  for (ii=0; ii<nIFplot; ii++) {
+    IFs2Plot[ii] = (int)PyInt_AsLong(PyList_GetItem(plIF,ii)) - 1;
+  };
+
+// If no IF list was given, convert all of them:
+//  if (nIFconv==0){nIFconv = DifXData->getNfreqs(); doAll=true;};
+
+// Which IFs do we convert?
+  int IFs2Conv[nIFconv];
+  for (ii=0; ii<nIFconv; ii++) {
+    if (doAll){IFs2Conv[ii]=ii;} else {
+      IFs2Conv[ii] = (int)PyInt_AsLong(PyList_GetItem(doIF,ii)) - 1;
+    };
+  }; 
+
+
   DataIO *DifXData ;  // Polymorphism to SWIN or FITS-IDI.
   bool OverWrite= true; // Always force overwrite (for now)
   bool iDoSolve = doSolve >= 0.0;
+
+
+
 
   if (isSWIN) {
     sprintf(message,"\n\n Opening and preparing SWIN files.\n");
     fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
     DifXData = new DataIOSWIN(nSWINFiles, SWINFiles, nALMA, 
-           almanums, doRange, SWINnIF, SWINnchan, ACorrs, SWINFreqs, 
+           almanums, doRange, SWINnIF, SWINnchan, nIFconv, IFs2Conv, ACorrs, SWINFreqs, 
            OverWrite, doTest, iDoSolve, calField, jd0, Geometry, doParang, logFile);
   } else {
     sprintf(message,"\n\n Opening FITS-IDI file and reading header.\n");
@@ -662,27 +709,6 @@ if(PCMode){
   fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
 
 
-// How many IFs do we convert?
-  int nIFconv = (int) PyList_Size(doIF) ;
-  bool doAll = false;
-
-// How many IFs do we plot?
-  int nIFplot = (int) PyList_Size(plIF) ;
-  int IFs2Plot[nIFplot];
-  for (ii=0; ii<nIFplot; ii++) {
-    IFs2Plot[ii] = (int)PyInt_AsLong(PyList_GetItem(plIF,ii)) - 1;
-  };
-
-// If no IF list was given, convert all of them:
-  if (nIFconv==0){nIFconv = DifXData->getNfreqs(); doAll=true;};
-
-// Which IFs do we convert?
-  int IFs2Conv[nIFconv];
-  for (ii=0; ii<nIFconv; ii++) {
-    if (doAll){IFs2Conv[ii]=ii;} else {
-      IFs2Conv[ii] = (int)PyInt_AsLong(PyList_GetItem(doIF,ii)) - 1;
-    };
-  }; 
 
   int nnu = DifXData->getNfreqs();
   int ALMARefAnt = -1; // If no calAPP is used, do not look for any extra X-Y phase offset.
@@ -816,7 +842,7 @@ if(PCMode){
 // Prepare plotting files:
   int noI = -1;
   for (ii=0; ii<nIFconv; ii++) {
-    sprintf(message,"POLCONVERT.FRINGE/POLCONVERT.FRINGE_%i",IFs2Conv[ii]+1);
+    sprintf(message,"POLCONVERT.FRINGE/POLCONVERT.FRINGE_IF%i",IFs2Conv[ii]+1);
     printf("Writing %s\n", message);
     plotFile[ii] = fopen(message,"wb");
     if (IFs2Conv[ii]>=0 && IFs2Conv[ii]<nnu){
@@ -841,17 +867,17 @@ if(PCMode){
 // APPLY AUTO-CORRELATIONS CORRECTION:
 
   for (currAntIdx=0; currAntIdx<nALMA; currAntIdx++) {
-    for (im=0; im<nIFconv; im++) {
-      ii = IFs2Conv[im];
-      for (ij=0; ij<nchans[ii]; ij++){
-        PrioriGains[currAntIdx][im][ij] *= DifXData->getAmpRatio(currAntIdx, im, ij);
+
+    for (k=0;k<nSWINFiles;k++){
+      for (im=0; im<nIFconv; im++) {
+        ii = IFs2Conv[im];
+        for (ij=0; ij<nchans[ii]; ij++){
+          PrioriGains[k][currAntIdx][im][ij] *= DifXData->getAmpRatio(currAntIdx, im, ij);
+        };
       };
     };
+
   };
-
-
-
-
 
 
 
@@ -912,6 +938,10 @@ if(PCMode){
          currT,currAnt, otherAnt, toconj, currF)){
 
          countNvis += 1;
+
+         currFile = DifXData->getFileNumber();
+
+
 
 // Check if there was an error in reading:
          if (!DifXData->succeed()){
@@ -977,7 +1007,7 @@ if(PCMode){
     
  
            for (ij=0; ij<nchans[ii]; ij++){
-             gainRatio[ij] = PrioriGains[currAntIdx][im][ij]; 
+             gainRatio[ij] = PrioriGains[currFile][currAntIdx][im][ij]; 
            };
 
            if(PCMode && allflagged && currT != lastTFailed){
@@ -1427,8 +1457,11 @@ if(PCMode){
 
   };
 
-  for (i=0;i<NPGain;i++){
-    delete[] PrioriGains[i];
+  for (j=0;j<nSWINFiles;j++){
+    for (i=0;i<NPGain;i++){
+      delete[] PrioriGains[j][i];
+    };
+    delete[] PrioriGains[j];
   };
 
   delete[] PrioriGains;

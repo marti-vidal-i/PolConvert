@@ -103,10 +103,6 @@ if not goodclib:
 ### ... and we could keep on trying! (with an infinite loop! XD ).
 
 
-## Set to non-ALMA:
-PC.setPCMode(1)
-
-
 import os,sys,shutil,re
 import gc
 import time
@@ -120,10 +116,19 @@ import pickle as pk
 
 
 
-def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntIdx=[], Range=[], XYadd={}, XYdel={}, XYratio={}, usePcal={}, swapXY=[], swapRL=False, feedRotation=[], correctParangle=False, IDI_conjugated=False, plotIF=[], plotRange=[], plotAnt='',excludeAnts=[],excludeBaselines=[],doSolve=-1,solint=[1,1],doTest=True,npix=64,solveAmp=True,solveMethod='gradient', calstokes=[1.,0.,0.,0.], calfield=-1):
+def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntIdx=[], Range=[], XYadd={}, XYdel={}, XYratio={}, usePcal={}, swapXY=[], swapRL=False, feedRotation=[], correctParangle=False, IDI_conjugated=False, plotIF=[], plotRange=[], plotAnt='',excludeAnts=[],excludeBaselines=[],doSolve=-1,solint=[1,1],doTest=True,npix=-1,solveAmp=True,solveMethod='gradient', calstokes=[1.,0.,0.,0.], calfield=-1, plotSuffix = '', pcalSuffix = '', ALMAstuff = []):
+
+
+## Set to non-ALMA:
+  if len(ALMAstuff)==0:
+    PC.setPCMode(1)
+
 
 
   amp_norm=0.0
+
+
+  logName = "PolConvert%s.log"%plotSuffix
 
 ############################################
 
@@ -141,7 +146,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 # Auxiliary function: print error and raise exception:
   def printError(msg):
     print(msg,'\n') 
-    lfile = open("PolConvert.log","a")
+    lfile = open(logName,"a")
     print('\n'+msg+'\n', file=lfile)
     lfile.close()
     sys.stdout.flush()
@@ -155,7 +160,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
     if doterm:
       print(msg)
     if dolog:
-      lfile = open("PolConvert.log","a")
+      lfile = open(logName,"a")
       print(msg,file=lfile)
       lfile.close()
 
@@ -245,8 +250,9 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
     printError("ERROR! doSolve should be a float!")
   
 
-  allMethods = ['gradient','Levenberg-Marquardt','COBYLA','Nelder-Mead']
-  scipyMethods = ['COBYLA','Nelder-Mead']
+  scipyMethods = ['COBYLA','Nelder-Mead','Powell','BFGS','Newton-CG','SLSQP']
+  allMethods = scipyMethods + ['gradient','Levenberg-Marquardt']
+
   if solveMethod not in allMethods:
     printError("ERROR! \'solveMethod\' must be any of: %s"%(', '.join(allMethods)))
 
@@ -463,6 +469,11 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
       printMsg('There are %i antennas.'%len(antmounts))
   elif os.path.isfile(IDI):
     isSWIN = False
+
+# Currently, PCALs are not supported for FITS-IDI:
+    isPcalUsed = False
+ 
+
     printMsg('\n\nYou have asked to convert a FITS-IDI file.')
     printMsg('Reading array geometry...')
     try:
@@ -732,78 +743,6 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 
 
 
-##########################################
-#########
-# COMPUTE XY delays:
-
-  XYdelF = [[0.0,0.0] for i in range(nALMATrue)]
-  if type(XYdel) is not dict: #or len(XYdel) != nALMA:
-    printError("Invalid format for XYdel!\n") # Should be a LIST of numbers, as large as the number of linear-polarization VLBI stations!")
-
-
-  for i,doant in enumerate(linAntNamTrue):
-    if doant in XYdel.keys():
-      if type(XYdel[doant]) is list:
-        try:
-          XYdelF[i] = list(map(float,XYdel[doant])) #float(XYdel[i]*np.pi/180.)
-        except:
-          printError("Invalid format for XYdel!\n Should be a dictionary with LISTS of numbers!")
-      else:
-        try:
-          XYdelF[i] = [float(XYdel[doant]),0.0] #float(XYdel[i]*np.pi/180.)
-        except:
-          printError("Invalid format for XYdel!\n Should be a dictionary with LISTS of numbers!")
-
-  XYaddF = [[] for i in range(nALMATrue)]
-
-  for i in range(nALMATrue):
-    for j in doIF: # range(len(FrInfo['SIGN'])):
-      sgn = FrInfo['SIGN'][j-1]
-
-      if (float(FrInfo['NUM CHANNELS'][j-1]//FrInfo['CHANS TO AVG'][j-1]) !=
-          FrInfo['NUM CHANNELS'][j-1]/FrInfo['CHANS TO AVG'][j-1]):
-            printMsg("linspace check freq: %d / %d = %f" % (
-              FrInfo['NUM CHANNELS'][j-1],FrInfo['CHANS TO AVG'][j-1],
-              FrInfo['NUM CHANNELS'][j-1]/FrInfo['CHANS TO AVG'][j-1]))
-      if isSWIN:
-        NuChan = np.linspace((sgn-1.)/2.,(sgn+1.)/2.,
-            FrInfo['NUM CHANNELS'][j-1]//FrInfo['CHANS TO AVG'][j-1],
-            endpoint=False)
-      else:
-        NuChan = np.linspace(0.,sgn,
-            FrInfo['NUM CHANNELS'][j-1]//FrInfo['CHANS TO AVG'][j-1],
-            endpoint=False)
-      Nus = 1.e6*np.array(
-        FrInfo['FREQ (MHZ)'][j-1] + FrInfo['BW (MHZ)'][j-1]*NuChan,
-            dtype=np.float)
-      XYaddF[i].append(np.zeros(len(Nus),dtype=np.float,order='C'))
-   #   print('HOLA ',i,j,len(XYaddF[i]),len(Nus))
-      XYaddF[i][j-1][:] = 2.*np.pi*(Nus-XYdelF[i][1])*XYdelF[i][0]
-
-#########
-##########################################
-
-
- # print('SHAPE XYaddF: ',np.shape(XYaddF))
-
-
-# Prepare memory of XY amplitude ratios:
-
-  if type(XYratio) is not dict:
-    printError("Invalid format for XYratio!")
-
-  XYratioF = [[] for i in range(nALMATrue)]
-  for i in range(nALMATrue):
-    for j in doIF:
-      if (float(FrInfo['NUM CHANNELS'][j-1]//FrInfo['CHANS TO AVG'][j-1]) !=
-          FrInfo['NUM CHANNELS'][j-1]/FrInfo['CHANS TO AVG'][j-1]):
-            printMsg("linspace check freq: %d / %d = %f" % (
-              FrInfo['NUM CHANNELS'][j-1],FrInfo['CHANS TO AVG'][j-1],
-              FrInfo['NUM CHANNELS'][j-1]/FrInfo['CHANS TO AVG'][j-1]))
-      XYratioF[i].append(np.ones(FrInfo['NUM CHANNELS'][j-1]//FrInfo['CHANS TO AVG'][j-1],dtype=np.float,order='C'))
-
-
- # print('SHAPE XYratioF: ',np.shape(XYratioF))
 
 # COMPUTE TIME RANGES:
 
@@ -848,8 +787,12 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
     PHASECALS = []
     walk = [f for f in os.walk(OUTPUTIDI)]
     for subd in walk:
-      OUTPUT += [os.path.join(subd[0],fi) for fi in filter(lambda x: x.startswith('DIFX_'),subd[2])]
-      PHASECALS += [os.path.join(subd[0],fi) for fi in filter(lambda x: x.startswith('PCAL_'),subd[2])]
+      ADD2OUTPUT = [os.path.join(subd[0],fi) for fi in filter(lambda x: x.startswith('DIFX_'),subd[2])]
+      OUTPUT += ADD2OUTPUT
+      for difxfile in ADD2OUTPUT:
+        prefix = (os.path.basename(difxfile).split('.')[0])[5:]
+        PHASECALS.append([os.path.join(subd[0],fi) for fi in filter(lambda x: x.startswith('PCAL_%s'%prefix),subd[2])])
+
 
     if len(OUTPUT) == 0:
       printError("No *.difx files found in directory!")
@@ -895,6 +838,100 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 
 
 
+
+
+##########################################
+#########
+# COMPUTE XY delays:
+
+  XYdelF = [[0.0,0.0] for i in range(nALMATrue)]
+  if type(XYdel) is not dict: #or len(XYdel) != nALMA:
+    printError("Invalid format for XYdel!\n") # Should be a LIST of numbers, as large as the number of linear-polarization VLBI stations!")
+
+
+  for i,doant in enumerate(linAntNamTrue):
+    if doant in XYdel.keys():
+      if type(XYdel[doant]) is list:
+        try:
+          XYdelF[i] = list(map(float,XYdel[doant])) #float(XYdel[i]*np.pi/180.)
+        except:
+          printError("Invalid format for XYdel!\n Should be a dictionary with LISTS of numbers!")
+      else:
+        try:
+          XYdelF[i] = [float(XYdel[doant]),0.0] #float(XYdel[i]*np.pi/180.)
+        except:
+          printError("Invalid format for XYdel!\n Should be a dictionary with LISTS of numbers!")
+
+  if isSWIN:
+    XYaddF = [[[] for i in range(nALMATrue)] for difxdfile in OUTPUT]
+  else:
+    XYaddF = [[[] for i in range(nALMATrue)]]
+
+
+  for i in range(nALMATrue):
+    for j in doIF: # range(len(FrInfo['SIGN'])):
+      sgn = FrInfo['SIGN'][j-1]
+
+      if (float(FrInfo['NUM CHANNELS'][j-1]//FrInfo['CHANS TO AVG'][j-1]) !=
+          FrInfo['NUM CHANNELS'][j-1]/FrInfo['CHANS TO AVG'][j-1]):
+            printMsg("linspace check freq: %d / %d = %f" % (
+              FrInfo['NUM CHANNELS'][j-1],FrInfo['CHANS TO AVG'][j-1],
+              FrInfo['NUM CHANNELS'][j-1]/FrInfo['CHANS TO AVG'][j-1]))
+      if isSWIN:
+        NuChan = np.linspace((sgn-1.)/2.,(sgn+1.)/2.,
+            FrInfo['NUM CHANNELS'][j-1]//FrInfo['CHANS TO AVG'][j-1],
+            endpoint=False)
+      else:
+        NuChan = np.linspace(0.,sgn,
+            FrInfo['NUM CHANNELS'][j-1]//FrInfo['CHANS TO AVG'][j-1],
+            endpoint=False)
+      Nus = 1.e6*np.array(
+        FrInfo['FREQ (MHZ)'][j-1] + FrInfo['BW (MHZ)'][j-1]*NuChan,
+            dtype=np.float)
+
+      for dfile in range(len(XYaddF)):
+        XYaddF[dfile][i].append(np.zeros(len(Nus),dtype=np.float,order='C'))
+   #   print('HOLA ',i,j,len(XYaddF[i]),len(Nus))
+        XYaddF[dfile][i][-1][:] = 2.*np.pi*(Nus-XYdelF[i][1])*XYdelF[i][0]
+
+#########
+##########################################
+
+
+ # print('SHAPE XYaddF: ',np.shape(XYaddF))
+
+
+# Prepare memory of XY amplitude ratios:
+
+  if type(XYratio) is not dict:
+    printError("Invalid format for XYratio!")
+
+  if isSWIN:
+    XYratioF = [ [[] for i in range(nALMATrue)] for difxfile in OUTPUT]
+  else:
+    XYratioF = [ [[] for i in range(nALMATrue)] ]
+
+
+
+  for i in range(nALMATrue):
+    for j in doIF:
+      if (float(FrInfo['NUM CHANNELS'][j-1]//FrInfo['CHANS TO AVG'][j-1]) !=
+          FrInfo['NUM CHANNELS'][j-1]/FrInfo['CHANS TO AVG'][j-1]):
+            printMsg("linspace check freq: %d / %d = %f" % (
+              FrInfo['NUM CHANNELS'][j-1],FrInfo['CHANS TO AVG'][j-1],
+              FrInfo['NUM CHANNELS'][j-1]/FrInfo['CHANS TO AVG'][j-1]))
+
+      for dfile in range(len(XYratioF)):
+        XYratioF[dfile][i].append(np.ones(FrInfo['NUM CHANNELS'][j-1]//FrInfo['CHANS TO AVG'][j-1],dtype=np.float,order='C'))
+
+
+ # print('SHAPE XYratioF: ',np.shape(XYratioF))
+
+
+
+
+
+
 # Set XYadd and XYratio:
 
   if type(XYadd) is not dict: # or len(XYadd.keys) != nALMA:
@@ -912,97 +949,100 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
     printMsg('keys of XYratio:' + str(XYratio.keys())+'\n')
 
 
-  for i,doant in enumerate(linAntNamTrue):
-      
-        
+    for i,doant in enumerate(linAntNamTrue):
+          
 #########################
 #### CORRECTIONS BASED ON PHASECAL TONES:
 
-    if usePcal[doant]:
+      if usePcal[doant]:
         printMsg("Using Pcal for %s" % doant)
-        PCFile = list(filter(lambda x: x.endswith(doant),PHASECALS))
-        if len(PCFile)==0:
-          printError("\n\n SANITY-TEST FAILURE! NO PHASECAL FILE FOR %i\n"%doant)
-        fName = XP.XPCalMF(PCFile[0],0)
-        IFFCP = open(fName)
-        tempArr = []
-        for line in IFFCP.readlines():
-          tempArr.append(list(map(float,line.split())))
-        IFFCP.close()
-        tempArr = np.array(tempArr)
-        print('DONE READING PCAL for %s!'%doant)
 
-#### FOR DEBUGGING:
-## Save Pcals in aux file:
-        if DEBUG:
-            os.system('rm -rf %s.pcals2'%os.path.basename(PCFile[0]))
-            OFFf = open(os.path.basename(PCFile[0])+'.pcals2','wb')
-            pk.dump(tempArr,OFFf); OFFf.close()
+        for dfile,phcalscan in enumerate(PHASECALS):
 
-          #  raw_input('HOLD')
+          PCFile = list(filter(lambda x: x.endswith(doant+pcalSuffix),phcalscan))
+        #  print('PCFile: ',doant+pcalSuffix, phcalscan)
+        #  os.system('cp %s %s%s'%(PCFile[0],PCFile[0],plotSuffix))
+          if len(PCFile)==0:
+            printError("\n\n SANITY-TEST FAILURE! NO PHASECAL FILE FOR %s\n"%doant)
+          fName = XP.XPCalMF(PCFile[0],0)
+          IFFCP = open(fName)
+          tempArr = []
+          for line in IFFCP.readlines():
+            tempArr.append(list(map(float,line.split())))
+          IFFCP.close()
+          tempArr = np.array(tempArr)
 
+          print(fName)
+          print(np.shape(tempArr))
 
         # Update pcal files (if not doing a test):
-        if not doTest:
-          ErrCode = XP.XPCalMF(PCFile[0],1)  
-          if ErrCode != 0:
-            printError("\n\n ERROR Converting phasecal file %s\n"%os.path.basename(PCFile[0]))
+          if not doTest:
+            ErrCode = XP.XPCalMF(PCFile[0],1)  
+            if ErrCode != 0:
+              printError("\n\n ERROR Converting phasecal file %s\n"%os.path.basename(PCFile[0]))
 
 
-        if len(tempArr[0])==0:
-          printError("\n\n ERROR! No phasecal information for antenna %i\n Will NOT convert!\n"%i)
+          if len(tempArr[0])==0:
+            printError("\n\n ERROR! No phasecal information for antenna %i\n Will NOT convert!\n"%i)
+          else:
+
+            CPhase = spint.interp1d(tempArr[:,0],-tempArr[:,1],bounds_error=False,fill_value = 'extrapolate')
+            CAmpl = spint.interp1d(tempArr[:,0],tempArr[:,2],bounds_error=False,fill_value = 1.0)
+
+            for ji,j in enumerate(doIF):
+              sgn = FrInfo['SIGN'][j-1]  
+              if isSWIN:
+                NuChan = np.linspace((sgn-1.)/2.,(sgn+1)/2.,int(FrInfo['NUM CHANNELS'][j-1]/FrInfo['CHANS TO AVG'][j-1]),endpoint=False)
+              else:
+                NuChan = np.linspace(0.,sgn,int(FrInfo['NUM CHANNELS'][j-1]/FrInfo['CHANS TO AVG'][j-1]),endpoint=False)
+              Nus = np.array(FrInfo['FREQ (MHZ)'][j-1] + FrInfo['BW (MHZ)'][j-1]*NuChan,dtype=np.float)
+              XYaddF[dfile][i][ji] += (CPhase(Nus))*np.pi/180.
+
+              if doant in XYratio.keys() and XYratio[doant] == 0.0:
+                XYratioF[dfile][i][ji] *= CAmpl(Nus)          
+            del CPhase
+            Nelem = len(tempArr)
+
+##################################
+
+
+      if doant not in XYadd.keys():
+         printMsg('ANTENNA %s DOES NOT HAVE XYadd INFO.'%doant)
+
+      else:
+
+        TOADD = {}        
+        if type(XYadd[doant]) is list:
+          for ifi in range(len(XYadd[doant])):
+            TOADD[ifi+1] = XYadd[doant][ifi]
+        elif type(XYadd[doant]) is dict:
+          TOADD = XYadd[doant]
+
+        if len(TOADD.keys())>0:
+          for jid,j in enumerate(sorted(TOADD.keys())):
+            if type(TOADD[j]) in [list,np.ndarray]:
+              arrSize = np.shape(np.array(TOADD[j]))
+              if len(arrSize)!=1 or arrSize[0] != IFchan:
+                printError("Shape of XYadd array(s) does not coincide with number of IF channels\n")
+              else:
+                for dfile in range(len(OUTPUT)):
+                  XYaddF[dfile][i][jid] += np.array(TOADD[j])*np.pi/180.
+            else:
+              try:
+                for dfile in range(len(OUTPUT)):
+                  XYaddF[dfile][i][jid] += float(TOADD[j])*np.pi/180.
+              except Exception as ex:
+                printMsg(str(ex))
+                printError("Invalid format for XYadd!\nShould be a LIST of numbers (or a list of lists of numbers),\nor a list of lists of arrays")
         else:
 
-          CPhase = spint.interp1d(tempArr[:,0],-tempArr[:,1],bounds_error=False,fill_value = 'extrapolate')
-          CAmpl = spint.interp1d(tempArr[:,0],tempArr[:,2],bounds_error=False,fill_value = 1.0)
-
-
-
-
-
-          for ji,j in enumerate(doIF):
-            sgn = FrInfo['SIGN'][j-1]  
-            if isSWIN:
-              NuChan = np.linspace((sgn-1.)/2.,(sgn+1)/2.,int(FrInfo['NUM CHANNELS'][j-1]/FrInfo['CHANS TO AVG'][j-1]),endpoint=False)
-            else:
-              NuChan = np.linspace(0.,sgn,int(FrInfo['NUM CHANNELS'][j-1]/FrInfo['CHANS TO AVG'][j-1]),endpoint=False)
-            Nus = np.array(FrInfo['FREQ (MHZ)'][j-1] + FrInfo['BW (MHZ)'][j-1]*NuChan,dtype=np.float)
-            XYaddF[i][ji] += (CPhase(Nus))*np.pi/180.
-
-            if doant in XYratio.keys() and XYratio[doant] == 0.0:
-              XYratioF[i][ji] *= CAmpl(Nus)          
-          del CPhase
-          Nelem = len(tempArr)
-      #    for j in range(Nelem-1,-1,-1):
-      #        del tempArr[j]
-      #    del tempArr
-##################################
-    if doant not in XYadd.keys():
-       printMsg('ANTENNA %s DOES NOT HAVE XYadd INFO.'%doant)
-
-    else:
-        
-      if type(XYadd[doant]) is list:
-        for j in range(len(XYadd[doant])):
-         if type(XYadd[doant][j]) in [list,np.ndarray]:
-           arrSize = np.shape(np.array(XYadd[doant][j]))
-           if len(arrSize)!=1 or arrSize[0] != IFchan:
-             printError("Shape of XYadd array(s) does not coincide with number of IF channels\n")
-           else:
-             XYaddF[i][j] += np.array(XYadd[doant][j])*np.pi/180.
-         else:
-           try:
-             XYaddF[i][j] += float(XYadd[doant][j])*np.pi/180.
-           except Exception as ex:
-             printMsg(str(ex))
-             printError("Invalid format for XYadd!\nShould be a LIST of numbers (or a list of lists of numbers),\nor a list of lists of arrays")
-      else:
-        try:
-          for j in range(len(doIF)):           
-            XYaddF[i][j] += float(XYadd[doant])*np.pi/180.
-        except Exception as ex:
-          printMsg(str(ex))
-          printError("Invalid format for XYadd!\n Should be a LIST of numbers (or a list of lists),\n as large as the number of linear-polarization VLBI stations!")
+          try:
+            for j in range(len(doIF)):
+              for dfile in range(len(OUTPUT)):         
+                XYaddF[dfile][i][j] += float(XYadd[doant])*np.pi/180.
+          except Exception as ex:
+            printMsg(str(ex))
+            printError("Invalid format for XYadd!\n Should be a LIST of numbers (or a list of lists),\n as large as the number of linear-polarization VLBI stations!")
 
 
 
@@ -1015,44 +1055,59 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
   
   for i,doant in enumerate(linAntNamTrue):
 
-    try:  
+#    try:  
   
-      if doant not in XYratio.keys():
-        printMsg('ANTENNA %s DOES NOT HAVE XYratio INFO!'%doant)
+    if doant not in XYratio.keys():
+      printMsg('ANTENNA %s DOES NOT HAVE XYratio INFO!'%doant)
+
+    else:
+
+      TOADD = {}        
+      if type(XYratio[doant]) is list:
+        for ifi in range(len(XYratio[doant])):
+          TOADD[ifi+1] = XYratio[doant][ifi]
+      elif type(XYratio[doant]) is dict:
+        TOADD = XYratio[doant]
+
+
+      if len(TOADD.keys())>0: 
+     #   if type(XYratio[doant]) not in [list,np.ndarray]:
+     #     if float(XYratio[doant]) < 0.0:
+     #       NchanAutos = max([1,int(float(IFchan)/float(-XYratio[doant]))])
+     #       UseAutoCorrs[i] = NchanAutos
+     #       printMsg("Will correct Antenna %i with auto-correlations, applying a median filter of %i channels.\n"%(linAntIdxTrue[i],NchanAutos))
+     #     elif float(XYratio[doant]) > 0.0:
+     #     for j in TOADD.keys(): 
+     #       for j in range(len(doIF)): 
+     #         XYratioF[i][j] *= float(XYratio[doant])
+     #   else:
+          
+        for jid,j in enumerate(sorted(TOADD.keys())):
+          if type(TOADD[j]) in [list,np.ndarray]:
+            tempArr = np.array(TOADD[j])
+            arrSize = np.shape(tempArr)
+            if len(arrSize)!=1 or arrSize[0] != IFchan:
+              printError("Shape of XYratio array(s) does not coincide with number of IF channels\n")
+            else:
+              for dfile in range(len(XYratioF)):
+                XYratioF[dfile][i][jid] *= tempArr
+          else:
+              for dfile in range(len(XYratioF)):
+                XYratioF[dfile][i][jid] *= float(TOADD[j])
 
       else:
-          
-        if type(XYratio[doant]) not in [list,np.ndarray]:
-
-          if float(XYratio[doant]) < 0.0:
-            NchanAutos = max([1,int(float(IFchan)/float(-XYratio[doant]))])
-            UseAutoCorrs[i] = NchanAutos
-            printMsg("Will correct Antenna %i with auto-correlations, applying a median filter of %i channels.\n"%(linAntIdxTrue[i],NchanAutos))
-          elif float(XYratio[doant]) > 0.0:
-            for j in range(len(doIF)): 
-              XYratioF[i][j] *= float(XYratio[doant])
-
-        else:
-          
-          for j in range(len(XYratio[doant])):
-            if type(XYratio[doant][j]) in [list,np.ndarray]:
-              tempArr = np.array(XYratio[doant][j])
-              arrSize = np.shape(tempArr)
-              if len(arrSize)!=1 or arrSize[0] != IFchan:
-                printError("Shape of XYratio array(s) does not coincide with number of IF channels\n")
-              else:
-                XYratioF[i][j] *= tempArr
-            else:
-              try:
-                XYratioF[i][j] *= float(XYratio[doant][j])
-              except Exception as ex:
-                printMsg(str(ex))
-                printError("Invalid format for XYratio!\nShould be a list (or a list of lists,\nor a list of lists of arrays))")
+        try:
+          for j in range(len(doIF)):
+            for dfile in range(len(XYratioF)):         
+              XYratioF[dfile][i][j] *= float(XYratio[doant])
+        except Exception as ex:
+          printMsg(str(ex))
+          printError("Invalid format for XYadd!\n Should be a LIST of numbers (or a list of lists),\n as large as the number of linear-polarization VLBI stations!")
 
 
-    except Exception as ex:
-      printMsg(str(ex))
-      printError("Invalid format for XYratio!\n Should be a LIST of numbers (or a list of lists),\n as large as the number of linear-polarization VLBI stations!")
+#    except Exception as ex:
+#      printMsg(str(ex))
+#      printError("Invalid format for XYratio!\n Should be a LIST of numbers (or a list of lists),\n as large as the number of linear-polarization VLBI stations!")
 
 
 
@@ -1060,12 +1115,13 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 # A-PRIORI GAINS:
 #  print('XYadd / XYratio: ',len(XYaddF),len(XYratioF))
 
-  PrioriGains = []
-  for i in range(len(linAntIdxTrue)):
-    PrioriGains.append([])
-    for j in range(len(XYaddF[i])):
+  PrioriGains = [[] for dfile in XYaddF]
+  for dfile in range(len(XYaddF)):
+    for i in range(len(linAntIdxTrue)):
+      PrioriGains[dfile].append([])
+      for j in range(len(XYaddF[dfile][i])):
       # print(i,j,len(XYaddF[i]),len(XYratioF[i]))
-       PrioriGains[i].append(np.array(XYratioF[i][j]*np.exp(1.j*XYaddF[i][j]),dtype=np.complex64,order='C'))
+        PrioriGains[dfile][i].append(np.array(XYratioF[dfile][i][j]*np.exp(1.j*XYaddF[dfile][i][j]),dtype=np.complex64,order='C'))
 
 
 
@@ -1073,8 +1129,8 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 
 
 # TEMPORARY FILE TO STORE FRINGE FOR PLOTTING:
-  if os.path.exists('POLCONVERT.FRINGE'):
-    os.system('rm -rf POLCONVERT.FRINGE')
+#  if not os.path.exists('POLCONVERT.FRINGE'):
+#    os.system('mkdir POLCONVERT.FRINGE')
 
 
 
@@ -1083,10 +1139,16 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
     os.system('rm -rf POLCONVERT.GAINS')
 
   if len(plotIF)>0:
-    os.system('rm -rf CONVERSION.MATRIX; mkdir CONVERSION.MATRIX')
-    os.system('rm -rf FRINGE.PEAKS; mkdir FRINGE.PEAKS')
-    os.system('rm -rf FRINGE.PLOTS; mkdir FRINGE.PLOTS')
-  os.system('rm -rf POLCONVERT.FRINGE; mkdir POLCONVERT.FRINGE')
+    for dirnam in ['CONVERSION.MATRIX','FRINGE.PEAKS','FRINGE.PLOTS','POLCONVERT.FRINGE']:
+      if not os.path.exists(dirnam):
+        os.system('mkdir %s'%dirnam)
+      for ifi in doIF:
+        os.system('rm *IF%i*'%ifi)
+
+#    os.system('rm -rf CONVERSION.MATRIX; mkdir CONVERSION.MATRIX')
+#    os.system('rm -rf FRINGE.PEAKS; mkdir FRINGE.PEAKS')
+#    os.system('rm -rf FRINGE.PLOTS; mkdir FRINGE.PLOTS')
+#    os.system('rm -rf POLCONVERT.FRINGE; mkdir POLCONVERT.FRINGE')
 
 
   printMsg("\n###\n### Going to PolConvert\n###")
@@ -1096,26 +1158,37 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 
   doAmpNorm = amp_norm>0.0
   didit = -10
-  if DEBUG:
-    PC_Params = [nALMATrue, plotIF, plotAnt, doIF, swapXY, OUTPUT, 
-        linAntIdxTrue, plRan, Ran, doTest, doSolve, doConj, doAmpNorm, 
-        np.shape(PrioriGains), len(metadata), soucoords, antcoords, antmounts, 
-        isLinear,calfield,UseAutoCorrs,correctParangle,DEBUG]
-    printMsg("POLCONVERT CALLED WITH: %s"%str(PC_Params))
+#  if DEBUG:
+#    PC_Params = [nALMATrue, plotIF, plotAnt, doIF, swapXY, OUTPUT, 
+#        linAntIdxTrue, plRan, Ran, doTest, doSolve, doConj, doAmpNorm, 
+#        np.shape(PrioriGains), len(metadata), soucoords, antcoords, antmounts, 
+#        isLinear,calfield,UseAutoCorrs,correctParangle,DEBUG]
+#    printMsg("POLCONVERT CALLED WITH: %s"%str(PC_Params))
 
   # plotAnt is no longer used by PC.PolConvert(), but is required by doSolve
   # the second argument is "PC:PolConvert::plIF" and controls whether the huge binary fringe files are written.
   try:
-    didit = PC.PolConvert(nALMATrue, plotIF, plotAnt, doIF, 
+
+#    if len(ALMAstuff.keys())==0:
+     didit = PC.PolConvert(nALMATrue, plotIF, plotAnt, doIF, 
         swapXY, OUTPUT, linAntIdxTrue, plRan, Ran, 
         doTest, doSolve, doConj, doAmpNorm, PrioriGains, metadata, 
         soucoords, antcoords, antmounts, isLinear,calfield,
-        UseAutoCorrs,bool(correctParangle),DEBUG)
+        UseAutoCorrs,bool(correctParangle),DEBUG, logName, ALMAstuff)
+#    else:
+#      didit = PC.PolConvert(nALMATrue, plotIF, plotAnt, doIF, 
+#        swapXY, OUTPUT, linAntIdxTrue, plRan, Ran, 
+#        doTest, doSolve, doConj, doAmpNorm, PrioriGains, metadata, 
+#        soucoords, antcoords, antmounts, isLinear,calfield,
+#        UseAutoCorrs,bool(correctParangle),DEBUG, logName,)
+
+
+
   except Exception as ex:
     printMsg(str(ex))
    # printMsg("Continuing despite the exception, just for the fun of it")
    # didit = 0
-    printErr("\n###\n### Done with PolConvert (status %d).\n###" % (didit))
+    printError("\n###\n### Done with PolConvert (status %d).\n###" % (didit))
 
 
 
@@ -1239,7 +1312,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
    tic = time.time()
 
 
-   CGains = {'XYadd':{},'XYratio':{},'aPrioriXYGain':PrioriGains}
+   CGains = {'XYadd':{},'XYratio':{},'aPrioriXYGain':PrioriGains,'Frequency':{}}
 
 #   solveMethod = 'Levenberg-Marquardt'
 #   fitMethod = 'COBYLA'   # 'Newton-CG'  # 'nelder-mead'
@@ -1285,13 +1358,29 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 ## FOR DEBUGGING:
    os.system('rm -f PolConvert.GainSolve.Calls')
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ############################################################
 # Levenberg-Marquardt minimizer of the GCPFF problem:
+
+### NOTE: CURRENTLY BROKEN!!
+
    def LMMin(p0,Ch0,Ch1):
 
      MAXIT = maxIter*len(fitAnts)
      relchange = 1.0
-    # Gchange = 1.0
 
      i = 0
 
@@ -1303,9 +1392,6 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 
      LMTune = LMLambda
 
-#     currChi2,TheorImpr_0 = PS.GetChi2(ptst0,IFlist,fitAnts,Ch0,Ch1,solveAmp,LMTune)
-#     Chi2_0,TheorImpr_0 = PS.GetChi2(ptst0,IFlist,fitAnts,Ch0,Ch1,solveAmp,-1.0)
-
      minChi2 = 0.0 
      minGains = np.copy(pini)
 
@@ -1316,7 +1402,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
        ptst0 = np.copy(currP)
        currChi2 = PS.GetChi2(ptst0,LMTune,Ch0,Ch1,0)
        Chi2_0 = PS.GetChi2(ptst0,-1.0,Ch0,Ch1,0)
-       sys.stdout.write('%.3g/1 '%Chi2_0) ; sys.stdout.flush()
+     #  sys.stdout.write('%.3g/1 '%Chi2_0) ; sys.stdout.flush()
 
        if i==0 or currChi2<minChi2:
          minChi2 = currChi2
@@ -1331,7 +1417,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 
          Chi2_ini = PS.GetChi2(ptst0,LMTune,Ch0,Ch1,0)
          Chi2_0 = PS.GetChi2(ptst0,-1.0,Ch0,Ch1,0)
-         sys.stdout.write('%.3g/2 '%Chi2_0) ; sys.stdout.flush()
+     #    sys.stdout.write('%.3g/2 '%Chi2_0) ; sys.stdout.flush()
          i += 1     
 
          if i>=MAXIT:
@@ -1365,7 +1451,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
        ptst0 = np.copy(currP)
        Chi2_ini = PS.GetChi2(ptst0,LMTune,Ch0,Ch1,0)
        Chi2_0 = PS.GetChi2(ptst0,-1.0,Ch0,Ch1,0)
-       sys.stdout.write('%.3g/3 '%Chi2_0) ; sys.stdout.flush()
+    #   sys.stdout.write('%.3g/3 '%Chi2_0) ; sys.stdout.flush()
 
        i += 1
 
@@ -1380,13 +1466,13 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
            ptst0 = np.copy(currP)
            Chi2_ini = PS.GetChi2(ptst0,LMTune,Ch0,Ch1,0)
            Chi2_1 = PS.GetChi2(ptst0,-1.0,Ch0,Ch1,0)
-           sys.stdout.write('%.3g/4'%Chi2_1)
+    #       sys.stdout.write('%.3g/4'%Chi2_1)
            if Chi2_1<minChi2:
              minChi2 = Chi2_1
              minGains = np.copy(ptst0)
              currP = np.copy(ptst0)
              currChi2 = Chi2_1
-             sys.stdout.write('a')
+     #        sys.stdout.write('a')
 
            if Chi2_1<Chi2_0 and i<=MAXIT:
              relchange = (currChi2 - Chi2_0)/Chi2_0
@@ -1394,10 +1480,10 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
              ptst1[:] = ptst0
              currP = np.copy(ptst0)
              currChi2 = Chi2_1
-             sys.stdout.write('b')
+     #        sys.stdout.write('b')
            else:
              break
-           sys.stdout.write(' ') ; sys.stdout.flush()
+     #      sys.stdout.write(' ') ; sys.stdout.flush()
 
       #   relchange = (currChi2 - Chi2_0)/Chi2_0
          LMTune *= KFacDecr  # Come back to state of last successful decrease
@@ -1426,11 +1512,60 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
      #printMsg("\n    Final error: %.3e in ChSq / %.3e in gains\n"%(np.abs(relchange),Gchange))
 
 
-
-
-
      return [minGains,FLIP]   
+
+
    # end of Levenberg-Marquardt minimizer of the GCPFF problem
+#############################################
+
+
+
+
+
+
+
+
+########################################
+### Gradient Minimizer for the GCPFF problem.
+
+   def GrMin(p0,Ch0,Ch1):
+
+     MAXIT = maxIter*len(fitAnts)
+     relchange = 1.0
+
+     Lambda = 1.0
+
+     i = 0
+
+     # First iteration:
+     pini = np.array(p0)
+     currP = np.copy(pini)
+     Chi2ini = PS.GetChi2(currP,Lambda,Ch0,Ch1,0)
+     bestChi = float(Chi2ini)
+     bestP = np.copy(pini)
+     ptest = np.copy(currP)
+
+     while i<MAXIT:
+       i += 1
+       currP[:] = ptest 
+       Chi2 = PS.GetChi2(ptest,Lambda,Ch0,Ch1,0)
+       if Chi2<bestChi:
+         bestChi = Chi2
+         bestP[:] = currP
+         Lambda *= 2.0
+       else:
+         ptest[:] = currP
+         Lambda /= 2.0
+
+
+     Chi2_final = PS.GetChi2(bestP,-1.0,Ch0,Ch1,1)
+     FLIP = Chi2_final > 0.0  # Flip gains by 180 degrees.
+
+
+
+
+
+     return [bestP,FLIP]   
 
 
 
@@ -1454,16 +1589,16 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
     lAnts = np.array(linAntIdxTrue,dtype=np.int32)
 
     printMsg('\n%%% initializing PolGainSolve\n')
-    MySolve = PS.PolGainSolve(doSolveD,solint,selAnts,lAnts,[FlagBas1,FlagBas2])
+    MySolve = PS.PolGainSolve(doSolveD,solint,selAnts,lAnts,[FlagBas1,FlagBas2],'PolGainSolve%s.log'%plotSuffix)
     printMsg(PS.__doc__ + ('\nInitialization rv %d\n'%MySolve) + '%%%\n')
 
     AllFreqs = []
 
     for pli in doIF:
       printMsg("Reading back IF #%i"%pli)
-      file1 = "POLCONVERT.FRINGE/OTHERS.FRINGE_%i"%pli
-      file2 = "POLCONVERT.FRINGE/POLCONVERT.FRINGE_%i"%pli
-      success = PS.ReadData(pli, file1, file2,100.)
+      file1 = "POLCONVERT.FRINGE/OTHERS.FRINGE_IF%i"%pli
+      file2 = "POLCONVERT.FRINGE/POLCONVERT.FRINGE_IF%i"%pli
+      success = PS.ReadData(pli, file1, file2, 30.)
       #printMsg("  calling GetNScan(0) (success = %d)"% success)
       NScan = PS.GetNScan(pli)
       if success != 0:
@@ -1495,11 +1630,12 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 
      ChAv = abs(solint[0]) 
      for ci in fitAnts:
-       CGains['XYadd'][antcodes[ci-1]] = []
-       CGains['XYratio'][antcodes[ci-1]] = []
+       CGains['XYadd'][antcodes[ci-1]] = {}
+       CGains['XYratio'][antcodes[ci-1]] = {}
      for plii,pli in enumerate(doIF):
       # printMsg("  working %s,%s"%(str(plii),str(pli)))
        Nchans = np.shape(AllFreqs[plii])[0]
+       CGains['Frequency'][pli] = AllFreqs[plii]
        temp = [np.zeros(Nchans,dtype=np.complex64) for ci in fitAnts]
        BPChan = list(range(0,Nchans,ChAv))
        if BPChan[-1]<Nchans-1:
@@ -1527,15 +1663,27 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 
 
          if fitMethod not in scipyMethods:
-           myfit,FLIP = LMMin(p0,BPChan[chran],BPChan[chran+1])
+           if fitMethod=='Levenberg-Marquardt':
+             myfit,FLIP = LMMin(p0,BPChan[chran],BPChan[chran+1])
+           if fitMethod=='gradient':
+             myfit,FLIP = GrMin(p0,BPChan[chran],BPChan[chran+1])
          else:
-           mymin = spopt.minimize(PS.GetChi2,p0,args=(-1.0, BPChan[chran],BPChan[chran+1],0),method=fitMethod)
-         #  OFTST = open('capullo.dat','wb')
-         #  pk.dump(mymin,OFTST,protocol=0)
-         #  OFTST.close()
+
+
+           if fitMethod in ['BFGS','Newton-CG','SLSQP']:
+             def Fmini(p):
+               return PS.GetChi2(p,-1.0, BPChan[chran],BPChan[chran+1],0)
+             def Fgrad(p):
+               return spopt.approx_fprime(p, Fmini, 1.e-8)
+             mymin = spopt.minimize(Fmini,p0,method=fitMethod, jac=Fgrad)
+
+           else:
+
+             mymin = spopt.minimize(PS.GetChi2,p0,args=(-1.0, BPChan[chran],BPChan[chran+1],0),method=fitMethod)
+          #   mymin = spopt.minimize(Fmini,p0,method=fitMethod)
+
            Chi2_final = PS.GetChi2(mymin.x,-1,BPChan[chran],BPChan[chran+1],1)
            FLIP = Chi2_final > 0.0
-
            myfit = mymin.x
 
          for ci,calant in enumerate(fitAnts):
@@ -1547,8 +1695,8 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
              temp[ci][BPChan[chran]:BPChan[chran+1]+1]= np.exp(1.j*(PhasFactor+myfit[ci]))
 
        for ci,calant in enumerate(fitAnts):
-         CGains['XYratio'][antcodes[calant-1]].append(1./np.copy(np.abs(temp[ci])))
-         CGains['XYadd'][antcodes[calant-1]].append(np.copy(-180./np.pi*np.angle(temp[ci])))
+         CGains['XYratio'][antcodes[calant-1]][pli] = 1./np.copy(np.abs(temp[ci]))
+         CGains['XYadd'][antcodes[calant-1]][pli] = np.copy(-180./np.pi*np.angle(temp[ci]))
 
      printMsg("Done with BP mode\n")
 
@@ -1575,19 +1723,19 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 
       RefFreq = AllFreqs[0][0]
       for ci,calant in enumerate(fitAnts):
-       CGains['XYadd'][antcodes[calant-1]] = []
-       CGains['XYratio'][antcodes[calant-1]] = []
+       CGains['XYadd'][antcodes[calant-1]] = {}
+       CGains['XYratio'][antcodes[calant-1]] = {}
        for plii,pli in enumerate(doIF):
-        if solveAmp:
+         if solveAmp:
 # RE+IM SPACE:
 #          CrossGain = (myfit[2*ci] + 1.j*myfit[2*ci+1])*np.exp(1.j*(AllFreqs[plii]-RefFreq)*myfit[2*len(fitAnts)+ci]) 
 # AMP+PHASE SPACE:
-          CrossGain = (myfit[2*ci]*np.exp(1.j*myfit[2*ci+1]))*np.exp(1.j*(AllFreqs[plii]-RefFreq)*myfit[2*len(fitAnts)+ci])
-        else:
-          CrossGain = (np.exp(1.j*myfit[ci]))*np.exp(1.j*(AllFreqs[plii]-RefFreq)*myfit[len(fitAnts)+ci])
+           CrossGain = (myfit[2*ci]*np.exp(1.j*myfit[2*ci+1]))*np.exp(1.j*(AllFreqs[plii]-RefFreq)*myfit[2*len(fitAnts)+ci])
+         else:
+           CrossGain = (np.exp(1.j*myfit[ci]))*np.exp(1.j*(AllFreqs[plii]-RefFreq)*myfit[len(fitAnts)+ci])
 
-        CGains['XYadd'][antcodes[calant-1]].append(np.copy(-180./np.pi*np.angle(CrossGain)))
-        CGains['XYratio'][antcodes[calant-1]].append(cp.copy(1./np.abs(CrossGain)))
+         CGains['XYadd'][antcodes[calant-1]][pli] = np.copy(-180./np.pi*np.angle(CrossGain))
+         CGains['XYratio'][antcodes[calant-1]][pli] = cp.copy(1./np.abs(CrossGain))
     # end of if BP else MBD MODE:
       printMsg("Done with MBD mode\n")      
 
@@ -1606,16 +1754,16 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 
       printMsg('Working subplot 1')
       sub1 = fig.add_subplot(211)
-      for antii,anti in enumerate(CGains['XYadd'].keys()):
+      for antii,anti in enumerate(sorted(CGains['XYadd'].keys())):
         sub1.plot(Freq2Plot,np.concatenate(
-            [np.array(ll) for ll in CGains['XYadd'][anti]]),
+            [np.array(CGains['XYadd'][anti][ll]) for ll in sorted(CGains['XYadd'][anti].keys())]),
             symbol[int(((antii)//len(color))%len(symbol))]+color[int((antii)%len(color))],
             label='ANT. '+str(anti))
 
       printMsg('Working subplot 2')
       sub2 = fig.add_subplot(212,sharex=sub1)
-      for antii,anti in enumerate(CGains['XYratio'].keys()):
-        toplot = np.concatenate([np.array(ll) for ll in CGains['XYratio'][anti]])
+      for antii,anti in enumerate(sorted(CGains['XYratio'].keys())):
+        toplot = np.concatenate([np.array(CGains['XYratio'][anti][ll]) for ll in sorted(CGains['XYratio'][anti].keys())])
         MaxG = max(MaxG,np.max(toplot))
         sub2.plot(Freq2Plot,toplot,
             symbol[int(((antii)//len(color))%len(symbol))]+color[int((antii)%len(color))],
@@ -1640,7 +1788,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
         EXPN = '-'.join(EXPN.split('.')[:-1])
       EXPN = EXPN.replace(' ','_')
       fig.suptitle('XPOL GAINS %s'%EXPN)
-      pl.savefig('Cross-Gains_%s.png'%EXPN)
+      pl.savefig('Cross-Gains_%s%s.png'%(EXPN,plotSuffix))
 
   #pl.show()
   #  except Exception as ex:
@@ -1721,11 +1869,11 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 # Filter out IFs with no data:
    GoodIFs = []
    for pli in plotIF:
-     if os.stat("POLCONVERT.FRINGE/POLCONVERT.FRINGE_%i"%pli).st_size>10:
+     if os.stat("POLCONVERT.FRINGE/POLCONVERT.FRINGE_IF%i"%pli).st_size>10:
        GoodIFs.append(pli)
      else:
        printMsg("WARNING! IF %i was NOT polconverted properly\n"%pli)
-       printMsg("POLCONVERT.FRINGE/POLCONVERT.FRINGE_%i missing/bad\n"%pli)
+       printMsg("POLCONVERT.FRINGE/POLCONVERT.FRINGE_IF%i missing/bad\n"%pli)
 
 
 # start of GoodIFs pli loop
@@ -1734,12 +1882,12 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
     print('\n\n')
     printMsg("Plotting selected fringe for IF #%i"%pli)
 
-    frfile = open("POLCONVERT.FRINGE/POLCONVERT.FRINGE_%i"%pli,"rb")
+    frfile = open("POLCONVERT.FRINGE/POLCONVERT.FRINGE_IF%i"%pli,"rb")
 
 
     alldats = frfile.read(4)
     nchPlot = stk.unpack("i",alldats[:4])[0]
-    dtype = np.dtype([("JDT",np.float64),("ANT1",np.int32),("ANT2",np.int32),
+    dtype = np.dtype([("FILE",np.int32),("JDT",np.float64),("ANT1",np.int32),("ANT2",np.int32),
                       ("PANG1",np.float64),("PANG2",np.float64), 
                       ("MATRICES",np.complex64,12*nchPlot)])
 
@@ -1747,10 +1895,10 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 # an "integer is required" error in the first try to read:
     try:
       fringe = np.fromfile(frfile,dtype=dtype)
-      printMsg("Read fringe data from file POLCONVERT.FRINGE_%i"%pli)
+      printMsg("Read fringe data from file POLCONVERT.FRINGE_IF%i"%pli)
     except:
       fringe = np.fromfile(frfile,dtype=dtype)
-      printMsg("Exceptional Read of fringe data POLCONVERT.FRINGE_%i"%pli)
+      printMsg("Exceptional Read of fringe data POLCONVERT.FRINGE_IF%i"%pli)
       printMsg("len(fringe) = %d" % len(fringe))
     frfile.close()
 
@@ -1770,7 +1918,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
         fringe[:]["ANT1"] == ant1,fringe[:]["ANT2"] == ant2)
       AntEntry2 = np.logical_and(
         fringe[:]["ANT2"] == ant1,fringe[:]["ANT1"] == ant2)
-      AntEntry = np.logical_or(AntEntry1,AntEntry2)
+      AntEntry = np.logical_and(fringe[:]["FILE"]==0, np.logical_or(AntEntry1,AntEntry2))
       printMsg("np.sum(AntEntry) > 0: '" + str(np.sum(AntEntry)) + "'")
 
       # start of np.sum(AntEntry)
@@ -1791,13 +1939,18 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
          rchan = np.shape(uncal[0])[0] 
 
 # Zoom for the image plots: a square centered on nchPlot and rchan:
-         ToZoom = min(rchan,nchPlot,npix)
+         if npix>0:
+           ToZoom = min(nchPlot,npix,rchan)
+           print('ToZoom: ',rchan,nchPlot,npix,ToZoom)
+           t0 = (nchPlot - ToZoom)//2
+           t1 = (nchPlot + ToZoom)//2
+           Ch0 = (rchan - ToZoom)//2
+           Ch1 = (rchan + ToZoom)//2
+         else:
+           t0 = 0; t1 = -1
+           Ch0 = 0; Ch1 = -1
 
-         t0 = (nchPlot - ToZoom)//2
-         t1 = (nchPlot + ToZoom)//2
 
-         Ch0 = (rchan - ToZoom)//2
-         Ch1 = (rchan + ToZoom)//2
 
 # Fringes in delay-rate space:
          if ant2==plotAnt or ant1==plotAnt:
@@ -1854,9 +2007,12 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 # Plot fringes:
          if ant2==plotAnt or ant1==plotAnt:
 
+
+
           printMsg('making Fringe.plot.ANT%i-%i.IF%i.png'%(ant1,ant2,pli))
           fig.clf()
-          ratt = 1.0   
+       #   ratt = max(1.0,ToZoom/rchan)  
+          ratt = 'auto'
 
           fig.subplots_adjust(left=0.02,right=0.98,wspace=0.05,hspace=0.2)
  
@@ -1932,8 +2088,8 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
           pl.setp(sub7.get_xticklabels(),visible=False)
           pl.setp(sub7.get_yticklabels(),visible=False)
 
-          fig.suptitle('DELAY-RATE FRINGE FOR IF %i (BASELINE TO ANT #%i) FROM %i-%02i:%02i:%02i TO %i-%02i:%02i:%02i'%tuple([pli,plotAnt]+plotRange))
-          fig.savefig('FRINGE.PLOTS/Fringe.plot.ANT%i-%i.IF%i.png'%(ant1,ant2,pli))
+          fig.suptitle('DELAY-RATE FRINGE FOR IF %i (BASELINE %s-%s) FROM %i-%02i:%02i:%02i TO %i-%02i:%02i:%02i'%tuple([pli,antcodes[ant1-1], antcodes[ant2-1]]+plotRange))
+          fig.savefig('FRINGE.PLOTS/Fringe.plot.ANT_%s-%s.IF%i.png'%( antcodes[ant1-1], antcodes[ant2-1] ,pli))
 
 
 
@@ -2037,7 +2193,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 
           RLRatio = (MAXl[0]/MAXl[3])/(MAXl[2]/MAXl[1])
 
-          toprint = [pli,
+          toprint = [antcodes[ant1-1],antcodes[ant2-1], pli, MAX,
             MAXl[0]/MAX,DRR,
             MAXl[3]/MAX,DLL,
             MAXl[1]/MAX,DRL,
@@ -2051,8 +2207,8 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
             MAXmix[2]/DLRu])
 
 
-          pmsg = '''
-  FOR IF #%i. NORM. FRINGE PEAKS:  
+          pmsg = '''BASELINE %s TO %s
+  FOR IF #%i. NORM. FRINGE PEAKS (MAX OF %.3e ):  
      RR: %.2e ; SNR: %.1f
      LL: %.2e ; SNR: %.1f 
      RL: %.2e ; SNR: %.1f   
@@ -2060,11 +2216,11 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
      AMPLITUDE: %.2e  RL/LR Norm.: %.2e
   '''
 
-          printMsg("writing FRINGE.PEAKS%i-ANT%i.dat"%(pli,ant1))
-          pfile = open('FRINGE.PEAKS/FRINGE.PEAKS%i-ANT%i.dat'%(pli,ant1),'w' )
+          printMsg("writing FRINGE.PEAKS_IF%i-ANT%i.dat"%(pli,ant1))
+          pfile = open('FRINGE.PEAKS/FRINGE.PEAKS_IF%i_%s-%s.dat'%(pli,antcodes[ant1-1],antcodes[ant2-1]),'w' )
 
           printMsg(pmsg%tuple(toprint))
-          pfile.write(pmsg)
+          pfile.write(pmsg%tuple(toprint))
 
 
           NUM =  np.angle(FRRu[RMAXu]*np.average(Kmat[2]))
@@ -2083,7 +2239,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
           printMsg(pmsg) 
           pfile.write(pmsg)
 
-          printMsg("wrote FRINGE.PEAKS%i-ANT%i.dat"%(pli,ant1))
+          printMsg("wrote FRINGE.PEAKS_IF%i-ANT%i.dat"%(pli,ant1))
          # end of if for this baseline to be plotted
        # end of if len(fringe)>0
        else:
@@ -2163,7 +2319,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
      pl.xlim((min(plotIF)-dChan*0.2,max(plotIF)+0.4*dChan))
      pl.ylim((0.,1.1*np.max(CONVAMP[:,[1,3,5,7]])))
      fig.suptitle(jobLabel(DiFXinput)+' ANT: %i v %i'%(thisAnt,plotAnt))
-     fig.savefig('FRINGE.PLOTS/ALL_IFs_ANT_%i_%i.png'%(thisAnt,plotAnt))
+     fig.savefig('FRINGE.PLOTS/ALL_IFs_ANT_%i_%i%s.png'%(thisAnt,plotAnt,plotSuffix))
 
      fig3 = pl.figure()
      sub1 = fig3.add_subplot(111)
@@ -2183,7 +2339,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
         pl.ylim((0,2))
 
      fig3.suptitle(jobLabel(DiFXinput)+' ANT: %i v %i'%(thisAnt,plotAnt))
-     fig3.savefig('FRINGE.PLOTS/RL_LR_RATIOS_ANT_%i_%i.png'%(thisAnt,plotAnt))
+     fig3.savefig('FRINGE.PLOTS/RL_LR_RATIOS_ANT_%i_%i%s.png'%(thisAnt,plotAnt,plotSuffix))
 
 
 
@@ -2201,9 +2357,9 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
   printMsg('Please, check the PolConvert.log file for special messages.',dolog=False)
 
   if sys.version_info.major < 3:
-    ofile = open('PolConvert.XYGains.dat','w')
+    ofile = open('PolConvert.XYGains%s.dat'%plotSuffix,'w')
   else:
-    ofile = open('PolConvert.XYGains.dat','wb')
+    ofile = open('PolConvert.XYGains%s.dat'%plotSuffix,'wb')
 
   cgs = str(CGains)
   if len(cgs) > 79: printMsg("%s..." % cgs[0:78])
@@ -2219,54 +2375,6 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 
   printMsg('Task PolConvert is Done\n\n')
   return CGains   # RETURN!
-
-
-## THESE LINES ARE FOR TESTING. WILL NOT BE RUN WHEN
-## THE CODE IS LOADED AS A PACKAGE:
-if __name__=='__main__':
-  IDI                =  "DiFX/POLCONVERT_CALIB_SCANS"
-  OUTPUTIDI          =  "DiFX/ev9203_POL_CALIBRATE_BLIND"
-  DiFXinput          =  "DiFX/ev9203_074.input"
-  DiFXcalc           =  "DiFX/ev9203_074.calc"
-  doIF               =  range(1,33)
-  linAntIdx          =  [1, 2, 3, 4]
-  Range              =  []
-  ALMAant            =  ""
-  spw                =  -1
-  calAPP             =  ""
-  calAPPTime         =  [0.0, 5.0]
-  APPrefant          =  ""
-  gains              =  [['NONE'], ['NONE'], ['NONE'], ['NONE']]
-  interpolation      =  []
-  gainmode           =  [[], [], [], []]
-  XYavgTime          =  0.0
-  dterms             =  ['NONE', 'NONE', 'NONE', 'NONE']
-  amp_norm           =  1.0
-  XYadd              =  {}
-  XYdel              =  {}
-  XYratio            =  {}
-  usePcal            =  [True, True, True, True]
-  swapXY             =  [False, False, False, False]
-  swapRL             =  True
-  feedRotation       =  []
-  correctParangle    =  False
-  IDI_conjugated     =  False
-  plotIF             =  doIF
-  plotRange          =  [0, 0, 0, 0, 2, 0, 0, 0]
-  plotAnt            =  1
-  excludeAnts        =  []
-  excludeBaselines    =  [['OE', 'OW']]
-  doSolve            =  0.0
-  solint             =  [128, 1]
-  doTest             =  False
-  npix               =  50
-  solveAmp           =  True
-  solveMethod        =  "COBYLA"
-  calstokes          =  [1.0, 0.0, 0.0, 0.0]
-  calfield           =  -1
-
-  polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx, Range, ALMAant, spw, calAPP, calAPPTime, APPrefant, gains, interpolation, gainmode, XYavgTime, dterms, amp_norm, XYadd, XYdel, XYratio, usePcal, swapXY, swapRL, feedRotation, correctParangle, IDI_conjugated, plotIF, plotRange, plotAnt,excludeAnts,excludeBaselines,doSolve,solint,doTest,npix,solveAmp,solveMethod, calstokes, calfield)
-
 
 
 

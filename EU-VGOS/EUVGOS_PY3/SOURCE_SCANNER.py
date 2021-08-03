@@ -160,8 +160,8 @@ def SOURCE_SCANNER(EXPNAME='', DIFX_DIR='',SNRCut = 10.0):
 
           del P1, P2, XXp, YYp, XYp, YXp, XXmatrix, YYmatrix, XYmatrix, YXmatrix
 
-        else:
-          print("Problem with baseline %i-%i, IF %i"%(bb[0],bb[1],IFp))
+        #else:
+        #  print("Problem with baseline %i-%i, IF %i"%(bb[0],bb[1],IFp))
           
         del MASK
 

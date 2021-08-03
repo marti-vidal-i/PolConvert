@@ -61,6 +61,9 @@ class DataIOFITS: public DataIO {
    bool setCurrentMixedVis();
 
 
+// Dummy function:
+   int getFileNumber();
+
  // Modify the visibilities read by "getNextMixedVis" by the calibration matrix supplied
  // Saves the result in the "bufferVis" pointer  
   void applyMatrix(std::complex<float> *M[2][2], bool swap, bool print, int thisAnt, FILE *plotFile);

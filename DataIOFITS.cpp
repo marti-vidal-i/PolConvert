@@ -172,7 +172,7 @@ void DataIOFITS::finish(){
 
 
 
-
+int DataIOFITS::getFileNumber(){return 0;};
 
 
 
@@ -909,11 +909,13 @@ void DataIOFITS::applyMatrix(std::complex<float> *M[2][2], bool swap,
 
     };
 
+   int zero = 0;
 
    if (print && canPlot) {
 
      if (currConj){
      if (k==0){
+       fwrite(&zero,sizeof(int),1,plotFile);
        fwrite(&JDTimes[currVis],sizeof(double),1,plotFile);
        fwrite(&an1[currVis],sizeof(int),1,plotFile);
        fwrite(&an2[currVis],sizeof(int),1,plotFile);
@@ -934,6 +936,7 @@ void DataIOFITS::applyMatrix(std::complex<float> *M[2][2], bool swap,
      fwrite(&M[1][1][k],sizeof(std::complex<float>),1,plotFile);
      } else {
      if(k==0){
+       fwrite(&zero,sizeof(int),1,plotFile);
        fwrite(&JDTimes[currVis],sizeof(double),1,plotFile);
        fwrite(&an2[currVis],sizeof(int),1,plotFile);
        fwrite(&an1[currVis],sizeof(int),1,plotFile);
