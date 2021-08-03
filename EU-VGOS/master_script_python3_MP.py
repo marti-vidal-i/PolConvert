@@ -520,6 +520,8 @@ if 2 in mysteps:
     os.system('rm -rf %s.py'%filename)
 
 
+  os.system('rm -rf keywords_STEP2_*.dat')
+
   newlogs = glob.glob('*.log')
   for log in newlogs:
     if log not in currlogs:
