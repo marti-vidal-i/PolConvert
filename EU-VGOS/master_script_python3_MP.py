@@ -59,7 +59,13 @@ NCPU = 11
 
 # Params about the dataset to process (USED BY ALL STEPS):
 EXPNAME = 'ev0287'
-DIFX_DIR = 'DiFX'
+
+# Directory with the ORIGINAL data:
+DIFX_DIR = 'DiFX_ORIG'
+
+# Destionation directory of the POLCONVERTED data (difx + metadata):
+PCONV_DIR = 'DiFX'
+
 
 # LIST OF IFS (STARTING FROM 1 !!!):
 DOIF = list(range(1,33))
@@ -106,7 +112,7 @@ POLCAL_SCAN = ['030','031','079'] # Little difference if we add more scans, e.g.
 
 #POLCAL_SCAN = ['267','266','268', '237', '166', '080']
 
-## SUFFIX TO ADD TO THE POLCONVERTED DIFX FILES:
+## SUFFIX TO ADD TO THE ORIGINAL COPY OF THE DATA:
 SUFFIX = ''
 
 
@@ -197,10 +203,12 @@ if 1 in mysteps:
   os.system('rm -rf POLCAL_OUTPUT_SCAN-*_IF-*.dat')
   os.system('rm -rf FRINGE.PEAKS FRINGE.PLOTS POLCONVERT.FRINGE')
 
-  CALDIR = os.path.join(DIFX_DIR,'%s_PC_CALIB'%EXPNAME)
-
+  CALDIR = os.path.join(PCONV_DIR,'%s_PC_CALIB'%EXPNAME)
+  if not os.path.exists(PCONV_DIR):
+    os.system('mkdir %s'%PCONV_DIR)
   os.system('rm -rf %s'%CALDIR)
   os.system('mkdir %s'%CALDIR)
+
   for SI in POLCAL_SCAN:
     os.system('cp -r %s %s/.'%('%s_%s.difx'%(os.path.join(DIFX_DIR,EXPNAME),SI),  CALDIR))  
     os.system('cp -r %s %s/.'%('%s_%s.calc'%(os.path.join(DIFX_DIR,EXPNAME),SI),  CALDIR))  
@@ -431,12 +439,12 @@ if 1 in mysteps:
   
 
 
-
-
- 
-
   if os.path.exists('POL_CALIBRATE.FAILED'):
      raise Exception('STEP 1 FAILED!') 
+
+
+
+
 
 
 
@@ -446,6 +454,11 @@ if 2 in mysteps:
 
   if len(list(filter(lambda x: 'POLCONVERTER' not in x, glob.glob('*.FAILED'))))>0:
     raise Exception('ANOTHER TASK FAILED PREVIOUSLY. WILL ABORT UNTIL YOU SOLVE IT!')      
+
+
+  if not os.path.exists(PCONV_DIR):
+    os.system('mkdir %s'%PCONV_DIR)
+
 
   NCPU = int(NCPU)
   if NCPU < 1:
@@ -492,7 +505,9 @@ if 2 in mysteps:
 
     SCRIPT_NAME = 'STEP2_%s'%SCAN
 
-    keyw = {'EXPNAME':EXPNAME, 'DIFX_DIR':DIFX_DIR, 'XYGAINS':XYG, 'SUFFIX': SUFFIX, 'USE_PCAL':USE_PCAL,'SCAN_LIST':[SCAN]}
+   # os.system('cp -r %s %s'%(os.path.join(DIFX_DIR,'%s_%s*'%(EXPNAME,SCAN)), PCONV_DIR))
+
+    keyw = {'EXPNAME':EXPNAME, 'ORIG_DIR':DIFX_DIR, 'DIFX_DIR':PCONV_DIR, 'XYGAINS':XYG, 'SUFFIX': SUFFIX, 'USE_PCAL':USE_PCAL,'SCAN_LIST':[SCAN]}
     keys = open('keywords_%s.dat'%SCRIPT_NAME,'wb'); pk.dump(keyw, keys); keys.close()
 
     OFF = open('%s.py'%SCRIPT_NAME,'w')
@@ -503,6 +518,7 @@ if 2 in mysteps:
 
 
   def DO_PARALLEL(filename):
+
     print('GOING TO RUN %s'%filename)
     os.system(PYTHON_CALL%filename) 
  

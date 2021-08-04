@@ -8,6 +8,7 @@ import glob
 import pickle as pk
 import os, sys
 import multiprocessing
+import re
 
 
 if __name__ == '__main__':
@@ -21,7 +22,7 @@ if __name__ == '__main__':
 
 #################################
 # COMMENT OUT THIS LINE WHEN DEBUGGING WITH execfile(...)
-def POLCONVERTER(EXPNAME = '', XYGAINS = '', DIFX_DIR='', SUFFIX = '_PC', SCAN_LIST = [], USE_PCAL=True, DOPLOT=False, REFANT=''):
+def POLCONVERTER(EXPNAME = '', XYGAINS = '', ORIG_DIR='', DIFX_DIR='', SUFFIX = '_PC', SCAN_LIST = [], USE_PCAL=True, DOPLOT=False, REFANT=''):
  """ Converts all scans in a SWIN directory, using a cross-polarization
  gain file computed by PolConvert from a calibrator scan. It saves the new
  SWIN files in the same directory, adding SUFFIX to the *.difx subdirecotries."""
@@ -103,13 +104,16 @@ def POLCONVERTER(EXPNAME = '', XYGAINS = '', DIFX_DIR='', SUFFIX = '_PC', SCAN_L
 
    # print('POLCONVERTING SCAN %s'%scn,file=OFF)
 
-    DIFX = './%s/%s.difx'%(DIFX_DIR, scn)
-    OUTPUT = './%s/%s.difx%s'%(DIFX_DIR, scn,SUFFIX)
+    DIFX = '%s/%s.difx'%(DIFX_DIR, scn)
+    OUTPUT = '%s/%s.difx%s'%(DIFX_DIR, scn,SUFFIX)
 
     print('\nDOING SCAN: %s\n'%scn)
 
-    INP = './%s/%s.input'%(DIFX_DIR, scn)
-    CAL = './%s/%s.calc'%(DIFX_DIR, scn)
+    os.system('cp -r %s* %s/.'%(os.path.join(ORIG_DIR,scn), DIFX_DIR))
+
+
+    INP = '%s/%s.input'%(DIFX_DIR, scn)
+    CAL = '%s/%s.calc'%(DIFX_DIR, scn)
   #  OUT = './%s/PC_OUTPUT_%s.dat'%(DIFX_DIR, scn)
 
     command =  'import pickle as pk\n'
@@ -138,17 +142,48 @@ def POLCONVERTER(EXPNAME = '', XYGAINS = '', DIFX_DIR='', SUFFIX = '_PC', SCAN_L
 #    command +="pk.dump(MY_PCONV,OFF,protocol=0) ; OFF.close()\n"
 
 
-    comfile = open('./%s/AUXSCRIPT_%s.py'%(DIFX_DIR,scn),'w')
+    comfile = open('%s/AUXSCRIPT_%s.py'%(DIFX_DIR,scn),'w')
     print(command,file=comfile)
     comfile.close()
     
-    os.system('python3 ./%s/AUXSCRIPT_%s.py'%(DIFX_DIR,scn))
+    os.system('python3 %s/AUXSCRIPT_%s.py'%(DIFX_DIR,scn))
   
+
+## UPDATE INPUT FILE:
+    os.system('cp %s %s.ORIG'%(INP,INP))
+    IFF = open('%s.ORIG'%INP,'r')
+    OFF = open(INP,'w')
+    for line in IFF.readlines():
+        if (re.search(r'ZOOM.*POL:\s+X$', line)):
+            line = re.sub(r'X$', 'R', line)
+        if (re.search(r'ZOOM.*POL:\s+Y$', line)):
+            line = re.sub(r'Y$', 'L', line)
+        
+        if (re.search(r'REC.*POL:\s+X$', line)):
+            line = re.sub(r'X$', 'R', line)
+        if (re.search(r'REC.*POL:\s+Y$', line)):
+            line = re.sub(r'Y$', 'L', line)
+      #  if (re.search(r'.*FILENAME:', line) or
+      #      re.search(r'.*VEX FILE:', line)):
+      #      if o.path != '':
+      #          line = re.sub(o.path, os.path.dirname(o.srcdir), line)
+      #      line = re.sub(o.srcdir, o.dstdir, line)
+        OFF.write(line)
+    IFF.close()
+    OFF.close()
+
+# Remove temporary files:
+    os.system('rm -f %s/AUXSCRIPT_%s.py'%(DIFX_DIR,scn))
+
+
+
+
 
 
 
   for scn in SCANS:
     scanPolConvert(scn)
+
 
 
   

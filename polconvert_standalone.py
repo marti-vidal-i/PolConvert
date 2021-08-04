@@ -207,10 +207,10 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
       for i in range(dims[0]-1):
        if phases[i+1,j]-phases[i,j] > np.pi:
         phases[i+1:,j] -= 2.*np.pi
-        printMsg('Adding phase wrap to gain at channel %i'%i)
+       # printMsg('Adding phase wrap to gain at channel %i'%i)
        elif phases[i+1,j]-phases[i,j] < -np.pi:
         phases[i+1:,j] += 2.*np.pi
-        printMsg('Removing phase wrap to gain at channel %i'%i)
+       # printMsg('Removing phase wrap to gain at channel %i'%i)
      if check:
        pl.figure()
        pl.plot(180./np.pi*phases[:,0])
@@ -818,7 +818,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 # There will be one source per SWIN file:
     soucoords = [np.ones(len(OUTPUT))*calcsoucoords[0][0], np.ones(len(OUTPUT))*calcsoucoords[0][0]]
     for sui,Fcalc in enumerate(CALCS):
-      print(sui,Fcalc)
+     # print(sui,Fcalc)
       if os.path.exists(Fcalc):
         FCin = open(Fcalc)
         lines = FCin.readlines()
@@ -891,14 +891,12 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 
       for dfile in range(len(XYaddF)):
         XYaddF[dfile][i].append(np.zeros(len(Nus),dtype=np.float,order='C'))
-   #   print('HOLA ',i,j,len(XYaddF[i]),len(Nus))
         XYaddF[dfile][i][-1][:] = 2.*np.pi*(Nus-XYdelF[i][1])*XYdelF[i][0]
 
 #########
 ##########################################
 
 
- # print('SHAPE XYaddF: ',np.shape(XYaddF))
 
 
 # Prepare memory of XY amplitude ratios:
@@ -925,7 +923,6 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
         XYratioF[dfile][i].append(np.ones(FrInfo['NUM CHANNELS'][j-1]//FrInfo['CHANS TO AVG'][j-1],dtype=np.float,order='C'))
 
 
- # print('SHAPE XYratioF: ',np.shape(XYratioF))
 
 
 
@@ -945,8 +942,8 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
   if isPcalUsed:
     import _XPCalMF as XP
     import scipy.interpolate as spint
-    printMsg('keys of XYadd:' + str(XYadd.keys()))
-    printMsg('keys of XYratio:' + str(XYratio.keys())+'\n')
+    #printMsg('keys of XYadd:' + str(XYadd.keys()))
+    #printMsg('keys of XYratio:' + str(XYratio.keys())+'\n')
 
 
     for i,doant in enumerate(linAntNamTrue):
@@ -960,8 +957,6 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
         for dfile,phcalscan in enumerate(PHASECALS):
 
           PCFile = list(filter(lambda x: x.endswith(doant+pcalSuffix),phcalscan))
-        #  print('PCFile: ',doant+pcalSuffix, phcalscan)
-        #  os.system('cp %s %s%s'%(PCFile[0],PCFile[0],plotSuffix))
           if len(PCFile)==0:
             printError("\n\n SANITY-TEST FAILURE! NO PHASECAL FILE FOR %s\n"%doant)
           fName = XP.XPCalMF(PCFile[0],0)
@@ -972,8 +967,6 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
           IFFCP.close()
           tempArr = np.array(tempArr)
 
-          print(fName)
-          print(np.shape(tempArr))
 
         # Update pcal files (if not doing a test):
           if not doTest:
@@ -1120,7 +1113,6 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
     for i in range(len(linAntIdxTrue)):
       PrioriGains[dfile].append([])
       for j in range(len(XYaddF[dfile][i])):
-      # print(i,j,len(XYaddF[i]),len(XYratioF[i]))
         PrioriGains[dfile][i].append(np.array(XYratioF[dfile][i][j]*np.exp(1.j*XYaddF[dfile][i][j]),dtype=np.complex64,order='C'))
 
 
@@ -2362,15 +2354,15 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
     ofile = open('PolConvert.XYGains%s.dat'%plotSuffix,'wb')
 
   cgs = str(CGains)
-  if len(cgs) > 79: printMsg("%s..." % cgs[0:78])
-  else:             printMsg("%s" % cgs)
+ # if len(cgs) > 79: printMsg("%s..." % cgs[0:78])
+ # else:             printMsg("%s" % cgs)
 
   try:
     pk.dump(CGains,ofile)
   except Exception as ex:
     printMsg(str(ex))
   ofile.close()
-  printMsg('PolConvert.XYGains.dat was written with CGains' + str(CGains.keys()))
+#  printMsg('PolConvert.XYGains.dat was written with CGains' + str(CGains.keys()))
 
 
   printMsg('Task PolConvert is Done\n\n')
