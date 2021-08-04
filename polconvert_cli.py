@@ -37,10 +37,10 @@ class polconvert_cli_:
 
     def __call__(self, IDI=None, OUTPUTIDI=None, DiFXinput=None, DiFXcalc=None, doIF=None, linAntIdx=None, Range=None, ALMAant=None, spw=None, calAPP=None, calAPPTime=None, APPrefant=None, gains=None, interpolation=None, gainmode=None, XYavgTime=None, dterms=None, amp_norm=None, XYadd=None, XYdel=None, XYratio=None, usePcal=None, swapXY=None, swapRL=None, feedRotation=None, correctParangle=None, IDI_conjugated=None, plotIF=None, plotRange=None, plotAnt=None, excludeAnts=None, excludeBaselines=None, doSolve=None, solint=None, doTest=None, npix=None, solveAmp=None, solveMethod=None, calstokes=None, calfield=None, ):
 
-        """\n\nVersion 1.8.2 -- Converts VLBI visibilities polarization basis.
+        """\n\nVersion 1.9.0 -- Converts VLBI visibilities polarization basis.
 
         Detailed Description:
-\n\nVersion 1.8.2 -- Converts VLBI visibilities from mixed-polarization (linear-circular) into circular basis. Works with single VLBI stations as well as with calibrated phased arrays (i.e., phased ALMA).\n\n
+\n\nVersion 1.9.0 -- Converts VLBI visibilities from mixed-polarization (linear-circular) into circular basis. Works with single VLBI stations as well as with calibrated phased arrays (i.e., phased ALMA).\n\n
         Arguments :
                 IDI: Input FITS-IDI file with VLBI visibilities. It can also be a direcotry containing SWIN files from DiFX.
                    Default Value: 
@@ -528,7 +528,7 @@ LINEAR FEEDS.
         mytmp['solveMethod'] = solveMethod
         mytmp['calstokes'] = calstokes
         mytmp['calfield'] = calfield
-        pathname="file:///home/marti/WORKAREA/LAUNCHPAD/PolConvert/polconvertsd/"
+        pathname="file:///home/marti/WORKAREA/GITHUB/PolConvert/"
         trec = casac.casac.utils().torecord(pathname+'polconvert.xml')
 
         casalog.origin('polconvert')
@@ -725,7 +725,7 @@ LINEAR FEEDS.
 #
 #
     def description(self, key='polconvert', subkey=None):
-        desc={'polconvert': '\n\nVersion 1.8.2 -- Converts VLBI visibilities polarization basis.',
+        desc={'polconvert': '\n\nVersion 1.9.0 -- Converts VLBI visibilities polarization basis.',
                'IDI': 'Input FITS-IDI file with VLBI visibilities. It can also be a direcotry containing SWIN files from DiFX.',
                'OUTPUTIDI': 'Output FITS-IDI file (or SWIN directory). If equal to IDI, the file(s) will be overwritten',
                'DiFXinput': 'If SWIN files are being converted, this must be the *.input file used by DiFX.',

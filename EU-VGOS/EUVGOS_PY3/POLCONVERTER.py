@@ -109,7 +109,8 @@ def POLCONVERTER(EXPNAME = '', XYGAINS = '', ORIG_DIR='', DIFX_DIR='', SUFFIX = 
 
     print('\nDOING SCAN: %s\n'%scn)
 
-    os.system('cp -r %s* %s/.'%(os.path.join(ORIG_DIR,scn), DIFX_DIR))
+    if len(ORIG_DIR)>0:
+      os.system('cp -r %s* %s/.'%(os.path.join(ORIG_DIR,scn), DIFX_DIR))
 
 
     INP = '%s/%s.input'%(DIFX_DIR, scn)

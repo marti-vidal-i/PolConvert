@@ -13,7 +13,7 @@ from taskinit import xmlpath
 import task_polconvert
 def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntIdx=[1], Range=[], ALMAant='', spw=-1, calAPP='', calAPPTime=[0.,5.], APPrefant='', gains=[["NONE"]], interpolation=[], gainmode=[], XYavgTime=0.0, dterms=["NONE"], amp_norm=0.01, XYadd={}, XYdel={}, XYratio={}, usePcal=[], swapXY=[False], swapRL=True, feedRotation=[], correctParangle=False, IDI_conjugated=False, plotIF=-1, plotRange=[], plotAnt=-1, excludeAnts=[], excludeBaselines=[], doSolve=-1, solint=[1,1], doTest=True, npix=50, solveAmp=True, solveMethod='gradient', calstokes=[1.,0.,0.,0.], calfield=-1):
 
-        """\n\nVersion 1.8.2 -- Converts VLBI visibilities polarization basis.
+        """\n\nVersion 1.9.0 -- Converts VLBI visibilities polarization basis.
 
 For more information about the internals of PolConvert, please read:
 
@@ -283,7 +283,7 @@ LINEAR FEEDS.
         mytmp['solveMethod'] = solveMethod
         mytmp['calstokes'] = calstokes
         mytmp['calfield'] = calfield
-        pathname="file:///home/marti/WORKAREA/LAUNCHPAD/PolConvert/polconvertsd/"
+        pathname="file:///home/marti/WORKAREA/GITHUB/PolConvert/"
         trec = casac.utils().torecord(pathname+'polconvert.xml')
 
         casalog.origin('polconvert')
