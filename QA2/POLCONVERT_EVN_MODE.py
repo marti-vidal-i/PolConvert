@@ -5,137 +5,103 @@
 ######################################
 
 
-# NAME OF DIFX FILE (CAL SCAN):
-CALIDI = 'e18c21-0-b2_1022.difx'
-
-# NAMES OF ALL DIFX TO CONVERT:
-IDIs = ['e18c21-0-b2_1022.difx']
-
-
-# RANGE OF IFs TO CONVERT:
-IF = range(36,68)
-
-
-# METHOD TO MINIMIZE THE ERROR FUNCTION (EXPERIMENTAL BEING ADDED):
-METHOD = "COBYLA"
-
-
-
-# INDEX (INDICES) OF THE LINEAR-POLARIZATION ANTENNA(S).
-# THE FIRST ANTENNA HAS INDEX 1:
-LINANT = [1]
-
-
-# ANTENNA WHOSE BASELINES ARE TO BE PLOTTED FOR ASSESSMENT:
-PLOTANT = 2
-
-
-# GCPFF LAGRANGE MULTIPLIER (ZERO WILL NOT USE RR/LL, WHICH
-# MAY INTRODUCE PI AMBIGUITIES IN THE XY PHASE):
-SOLVEMOD = 0.2
-
-# NUMBER OF CHANNELS TO AVERAGE WITHIN EACH IF FOR THE SOLUTION:
-NCHAV = 8
-
-# SEARCH WINDOW OF THE FRINGES IN DELAY-RATE MATRIC (PIXEL UNITS):
-NPIX = 100
-
-#################
-# SCRIPT STARTS #
-#################
-
-
-# Remove de "difx" extension:
-BASENAM = CALIDI[:-5]
 
 
 
 
-# STEP 1. ESTIMATE THE CROSS-POL GAINS.
-# THIS WILL RETURN A DICTIONARY (GAIN ENTRIES PER ANTENNA):
-# RESULTS OF THE CALIBRATION IS PLACED IN RESULT WHICH
-# IS A PYTHON DICTIONARY WHICH CONTAINS THE NUMPY ARRAYS
-# THIS MUST BE PICKLED TO BREAK INTO TWO STEPS
-# THE POLCONVERT OPTIONS MAY NEED TWEAKING BETWEEN
-# ALMA AND EVN OR VGOS OR ... CASES
-RESULT = polconvert(IDI  =  CALIDI,
-  OUTPUTIDI          =  "TEST_EVN",
-  DiFXinput          =  "%s.input"%BASENAM,
-  DiFXcalc           =  "%s.calc"%BASENAM,
-  doIF               =  list(IF),
-  linAntIdx          =  LINANT,
-  Range              =  [],
-  ALMAant            =  "",
-  spw                =  -1,
-  calAPP             =  "",
-  calAPPTime         =  [0.0, 8.0],
-  APPrefant          =  "",
-  gains              =  [['NONE']],
-  interpolation      =  [[]],
-  gainmode           =  [[]],
-  XYavgTime          =  0.0,
-  dterms             =  ['NONE'],
-  amp_norm           =  1.0,
-  XYadd              =  {},
-  XYdel              =  {},
-  XYratio            =  {},
-  swapXY             =  [False],
-  swapRL             =  False,
-  IDI_conjugated     =  True,
-  plotIF             =  list(IF),
-  plotRange          =  [0, 0, 0, 0, 14, 0, 0, 0],
-  plotAnt            =  PLOTANT,
-  excludeAnts        =  [],
-  doSolve            =  SOLVEMOD,
-  solint             =  [NCHAV, 1],
-  doTest             =  True,
-  npix               =  NPIX,
-  solveAmp           =  True,
-  solveMethod        =  METHOD,
-  calstokes          =  [1.0, 0.0, 0.0, 0.0],
-  calfield           =  -1)
+from PolConvert import polconvert_CASA as PCONV
+import pickle as pk
 
 
-# STEP 2: CALIBRATE THE WHOLE EXPERIMENT:
-# NOTE THAT AT THE MOMENT ONLY RESULT['XYadd'] IS USED
-# WE NEED TO EXPERIMENT MORE HERE...
-for DIFX in IDIs:
-  BASENAM = DIFX[:-5]
+REFANT = 'O8' # Antenna to which refer the conversion gain solution (O8)
+LINANT = 'EF' # Antenna with linear feed (EF)
 
-  polconvert(IDI  =  DIFX,
-    OUTPUTIDI          = '%s.difx_polconverted'%BASENAM ,
-    DiFXinput          =  "%s.input"%BASENAM,
-    DiFXcalc           =  "%s.calc"%BASENAM,
-    doIF               =  list(IF),
-  linAntIdx          = LINANT,
-  Range              =  [],
-  ALMAant            =  "",
-  spw                =  -1,
-  calAPP             =  "",
-  calAPPTime         =  [0.0, 8.0],
-  APPrefant          =  "",
-  gains              =  [['NONE']],
-  interpolation      =  [[]],
-  gainmode           =  [[]],
-  XYavgTime          =  0.0,
-  dterms             =  ['NONE'],
-  amp_norm           =  1.0,
-  XYadd              =  RESULT['XYadd'],
-  XYdel              =  {},
-  XYratio            =  RESULT['XYratio'],
-  swapXY             =  [False],
-  swapRL             =  False,
-  IDI_conjugated     =  True,
-  plotIF             =  list(IF),
-  plotRange          =  [0, 0, 0, 0, 14, 0, 0, 0],
-  plotAnt            =  PLOTANT,
-  excludeAnts        =  [],
-  doSolve            =  -1.0,
-  solint             =  [1, 1],
-  doTest             =  False,
-  npix               =  100,
-  solveAmp           =  False,
-  calfield           =  -1)
+REF_IDI = 'eo014_1_1.IDI6' # IDI with calibrator scan
+CALRANGE = [0,23,28,0,0,23,39,45] # time range of calibrator scan (J0927+3902)
+NCHAN = 32 # Number of channels per IF (to compute the multi-band delay)
+NIF = 8  # Number of IFs.
+
+NITER = 1  # Number of X-Y phase-estimate iterations (just 1 should suffice)
+
+# List with the names of all FITS-IDIs to convert:
+ALL_IDIs = ['eo014_1_1.IDI6']
+
+# Add this suffix to the converted IDIs (empty string -> overwrite!)
+SUFFIX = '.POLCONVERT'
+
+import os
+import numpy as np
+
+
+# Initial gain estimates (dummy gains):
+#EndGainsAmp = [1.0 for i in range(NIF)]
+#EndGainsPhase = [0.0 for i in range(NIF)]
+#TotGains = []
+
+
+# Estimate cross-gains with PolConvert:
+for i in range(NITER):
+
+
+##################################
+# Convert XYadd and XYratio to lists, in order
+# to avoid corruption of the *.last file
+  if i==0:
+    XYadd = {}
+    XYratio = {}
+  else:
+    IFF = open('PolConvert.XYGains.dat','rb')
+    XYG = pk.load(IFF)
+    XYadd = XYG['XYadd']
+    XYratio = XYG['XYratio']
+##################################
+
+
+## WORKS: doSolve = 0.01  solint = [1,30] (OLD??)
+
+  GainsIt = PCONV.polconvert(IDI=REF_IDI,
+             OUTPUTIDI=REF_IDI,
+             linAntIdx=[LINANT],
+             plotIF = [],
+             correctParangle = False,
+             doIF = list(range(1,NIF+1)),
+             XYadd = XYadd,
+             XYratio = XYratio,
+             Range = CALRANGE,
+             plotRange = CALRANGE,
+             IDI_conjugated = False,
+             doSolve = 0.1,   #4,
+             solint = [1,30],  #BP MODE
+             plotAnt = REFANT,
+             amp_norm = 0.0,
+             excludeAnts = ["HH","T6"] , #8,9],
+             doTest=True)
+  
+  os.system('rm -rf FRINGE.PLOTS.ITER%i'%i)
+  os.system('mv FRINGE.PLOTS FRINGE.PLOTS.ITER%i'%i)
+  os.system('mv Cross-Gains.png Cross-Gains.ITER%i.png'%i)
+
+# HERE WE CAN CONVERT ALL IDIs:
+if False:
+ for IDI in ALL_IDIs:
+  polconvert(IDI=IDI,
+             OUTPUTIDI=IDI+SUFFIX,
+             linAntIdx=[LINANT],
+             correctParangle = False,
+             doIF = list(range(1,NIF+1)),
+             doSolve = -1,
+             plotIF = [],
+             XYadd = GainsIt['XYadd'],
+             XYratio = GainsIt['XYratio'],
+             IDI_conjugated = False,
+             amp_norm = 0.0,
+             doTest=False)
+
+
+
+
+
+
 
 
 

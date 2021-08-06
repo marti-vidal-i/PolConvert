@@ -50,8 +50,8 @@
 
 from __future__ import absolute_import
 from __future__ import print_function
-__version__ = "1.9.0  "  # 7 characters
-date = 'Jul 19 2021'     
+__version__ = "2.0b  "  # 7 characters
+date = 'Aug 4, 2021'     
 
 
 ################
@@ -75,13 +75,9 @@ except:
  print(' (which uses the API version of your system) and should') 
  print(' be *harmless*.\n')
 
-#mypath = os.path.dirname(os.path.realpath('__file__'))
-#print mypath
 
 if not goodclib:
   try: 
-#   mypath = os.path.dirname(os.path.realpath('__file__'))
-#   sys.path.append(mypath)
    import _PolConvert as PC
    goodclib = True
    print('\nC++ shared library loaded successfully (2nd try)\n')
@@ -116,16 +112,42 @@ import pickle as pk
 
 
 
-def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntIdx=[], Range=[], XYadd={}, XYdel={}, XYratio={}, usePcal={}, swapXY=[], swapRL=False, feedRotation=[], correctParangle=False, IDI_conjugated=False, plotIF=[], plotRange=[], plotAnt='',excludeAnts=[],excludeBaselines=[],doSolve=-1,solint=[1,1],doTest=True,npix=-1,solveAmp=True,solveMethod='gradient', calstokes=[1.,0.,0.,0.], calfield=-1, plotSuffix = '', pcalSuffix = '', ALMAstuff = []):
+def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntIdx=[], Range=[], XYadd={}, XYdel={}, XYratio={}, usePcal={}, swapXY=[], swapRL=False, feedRotation=[], correctParangle=False, IDI_conjugated=False, plotIF=[], plotRange=[], plotAnt='',excludeAnts=[],excludeBaselines=[],doSolve=-1,solint=[1,1],doTest=True,npix=-1,solveAmp=True,solveMethod='COBYLA', calstokes=[1.,0.,0.,0.], calfield=-1, plotSuffix = '', pcalSuffix = '', ALMAstuff = [], saveArgs=False, amp_norm=0.0):
+  """ POLCONVERT - STANDALONE VERSION 2.0b.
+
+     Similar parameters as the method defined in polconvert_CASA. The parameters specific 
+     of this task (i.e., polconvert_standalone::polconvert) may be useful to parallelize polconvert:
+
+        plotSuffix: Suffix to add to the names of the plot files.
+        pcalSuffix: Suffix to add to the names of the original pcal files in the difx directories.
+        ALMAstuff: List of ALMA-specific parameters passed by polconvert_CASA::polconvert.
+
+  """
+
+
+  if saveArgs:
+
+      ARGS = {'IDI':IDI, 'OUTPUTIDI':OUTPUTIDI, 'DiFXinput':DiFXinput, 'DiFXcalc':DiFXcalc, 
+          'doIF':doIF, 'linAntIdx':linAntIdx, 'Range':Range, 'XYadd':XYadd, 'XYdel':XYdel, 
+          'XYratio':XYratio, 'usePcal':usePcal, 'swapXY':swapXY, 'swapRL':swapRL, 
+          'feedRotation':feedRotation, 'correctParangle':correctParangle, 
+          'IDI_conjugated':IDI_conjugated, 'plotIF':plotIF, 'plotRange':plotRange, 
+          'plotAnt':plotAnt, 'excludeAnts':excludeAnts, 'excludeBaselines':excludeBaselines, 
+          'doSolve':doSolve, 'solint':solint, 'doTest':doTest, 'npix':npix, 
+          'solveAmp':solveAmp, 'solveMethod':solveMethod, 'calstokes':calstokes, 
+          'calfield':calfield, 'ALMAstuff':ALMAstuff}
+
+      OFF = open('PolConvert_standalone.last','wb')
+      pk.dump(ARGS,OFF); OFF.close()
 
 
 ## Set to non-ALMA:
   if len(ALMAstuff)==0:
-    PC.setPCMode(1)
+    PC.setPCMode(0)
 
 
 
-  amp_norm=0.0
+#  amp_norm=0.0
 
 
   logName = "PolConvert%s.log"%plotSuffix
@@ -133,7 +155,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 ############################################
 
 # this turns into the verbosity argument of _PolConvert.so
-  print('Entered task_polconvert::polconvert()')
+  print('Entered polconvert_standalone::polconvert()')
   DEBUG = False
 
   if 'POLCONVERTDEBUG' in os.environ:
@@ -183,40 +205,6 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 
 
 
-# Auxiliary function: unwrap phases for time interpolation
-  def unwrap(phases, check=False):
-
-    dims = np.shape(phases)
- #   print dims
-    if dims[1]==0:  # Bandpass type
-     for i in range(len(phases)-1):
-      if phases[i+1]-phases[i] > np.pi:
-        phases[i+1,:] -= 2.*np.pi
-      elif phases[i+1]-phases[i] < -np.pi:
-        phases[i+1,:] += 2.*np.pi
-     if check:
-       pl.figure()
-       pl.plot(180./np.pi*phases)
-    #   pl.show()
-    #   raw_input('CHECK')
-
-
-    elif dims[0]>1:  # Bandpass-gain type
- #    pl.plot(phases[:,0])
-     for j in range(dims[1]):
-      for i in range(dims[0]-1):
-       if phases[i+1,j]-phases[i,j] > np.pi:
-        phases[i+1:,j] -= 2.*np.pi
-       # printMsg('Adding phase wrap to gain at channel %i'%i)
-       elif phases[i+1,j]-phases[i,j] < -np.pi:
-        phases[i+1:,j] += 2.*np.pi
-       # printMsg('Removing phase wrap to gain at channel %i'%i)
-     if check:
-       pl.figure()
-       pl.plot(180./np.pi*phases[:,0])
-    #   pl.show()
-    #   raw_input('CHECK')
-
 
 
 
@@ -262,8 +250,11 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
   elif len(calstokes)!=4 and doSolve>0.0:
     printError("ERROR! calstokes should have 4 elements, not %d (%s)!" % (
         len(calstokes), str(calstokes)))
-  for item in calstokes:
-    if type(item) is not float:
+  for ii,item in enumerate(calstokes):
+    try:
+      calstokes[ii] = float(item)
+   # if type(item) is not float:
+    except:
       printError("ERROR! calstokes should only have float elements; got %s!" %
          str(type(item)))
 
@@ -375,23 +366,9 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
       pcant += 1
   isPcalUsed = pcant > 0
 
-#  if type(usePcal) is not list:
-#    printError("Invalid format for usePcal! Should be a list of booleans!\n")
-#  elif len(usePcal)==0:
-#    usePcal = [False for i in range(nALMA)]
-#  else:
-#    for pi in usePcal:
-#      if type(pi) is not bool:
-#        printError("Invalid format for usePcal! " + 
-#            "It should be a list of booleans!\n")
 
-
-#  if len(np.where(usePcal)[0]) > 0:
-#    isPcalUsed = True
-#    printMsg("Info: Pcal used in %s" % str(np.where(usePcal)[0])) 
-#  else:
-#    isPcalUsed = False
-#    printMsg("Info: Pcal is not in use")
+  if len(swapXY)==0:
+    swapXY = [False for swp in range(nALMA)]
 
 
   if len(swapXY) != nALMA:
@@ -428,6 +405,9 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
     printMsg('\n\nYou have asked to convert a set of SWIN files.')
     if len(DiFXinput)==0 or not os.path.exists(DiFXinput) or not os.path.isfile(DiFXinput):
       printError("Invalid DiFX input file! %s"%DiFXinput)
+
+
+
     printMsg('Opening calc file... %s' % DiFXcalc)
     try:
       printMsg('Opening "%s"' % (DiFXcalc))
@@ -440,7 +420,6 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
         if 'TELESCOPE' in line and 'NAME' in line:
           antcodes.append(line.split()[-1])
         if 'TELESCOPE' in line and 'X (m):' in line:
-    #      printMsg(line.rstrip())
           antcoords.append(list(map(float,[ll.split()[-1] for ll in lines[ii:ii+3]])))
           printMsg('TELESCOPE %s AT X: %.3f ; Y: %.3f ; Z: %.3f'%tuple([antcodes[-1]] + antcoords[-1]))
 # CURRENTLY, ONLY ALTAZ MOUNTS SUPPORTED FOR SWIN FILES:
@@ -467,6 +446,8 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
       printError('ERROR! NO ANTENNAS FOUND IN CALC FILE!')
     else:
       printMsg('There are %i antennas.'%len(antmounts))
+
+
   elif os.path.isfile(IDI):
     isSWIN = False
 
@@ -498,11 +479,13 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
         soucoords[1] *= np.pi/180.
 
       antcodes = [ff[:2] for ff in ffile['ANTENNA'].data['ANNAME']]
+
+      print("ANTENNA NAMES: ")
+      print(','.join(antcodes))
+
       ffile.close()
 
 # THESE LINES FAIL IF ORBPARM IS PRESENT IN ARRAY GEOMETRY!
-#      antcoords = np.array(ffile[grarr].data['STABXYZ'],dtype=np.float)
-#      antmounts = np.array(ffile[grarr].data['MNTSTA'],dtype=np.float)
       import _getAntInfo as gA
       
       success = gA.getAntInfo(IDI)
@@ -539,12 +522,6 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
     FreqL = [inputlines.index(l) for l in inputlines if 'FREQ TABLE' in l]
 
 
-#    if len(antcoords) == 0:
-#      Nteles = [inputlines.index(l) for l in inputlines if 'TELESCOPE ENTRIES' in l][0]
-#      antcoords = np.ones((Nteles,3),dtype=np.float)
-#      antmounts = np.zeros(Nteles,dtype=np.int)
-#    if len(soucoords[0])==0:
-#      soucoords = [np.zeros(1,dtype=np.float),np.zeros(1,dtype=np.float)]
 
 # ONLY ONE FREQ TABLE IS ALLOWED:
     try:
@@ -1064,16 +1041,6 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 
 
       if len(TOADD.keys())>0: 
-     #   if type(XYratio[doant]) not in [list,np.ndarray]:
-     #     if float(XYratio[doant]) < 0.0:
-     #       NchanAutos = max([1,int(float(IFchan)/float(-XYratio[doant]))])
-     #       UseAutoCorrs[i] = NchanAutos
-     #       printMsg("Will correct Antenna %i with auto-correlations, applying a median filter of %i channels.\n"%(linAntIdxTrue[i],NchanAutos))
-     #     elif float(XYratio[doant]) > 0.0:
-     #     for j in TOADD.keys(): 
-     #       for j in range(len(doIF)): 
-     #         XYratioF[i][j] *= float(XYratio[doant])
-     #   else:
           
         for jid,j in enumerate(sorted(TOADD.keys())):
           if type(TOADD[j]) in [list,np.ndarray]:
@@ -1106,7 +1073,6 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 
 
 # A-PRIORI GAINS:
-#  print('XYadd / XYratio: ',len(XYaddF),len(XYratioF))
 
   PrioriGains = [[] for dfile in XYaddF]
   for dfile in range(len(XYaddF)):
@@ -1121,9 +1087,6 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 
 
 # TEMPORARY FILE TO STORE FRINGE FOR PLOTTING:
-#  if not os.path.exists('POLCONVERT.FRINGE'):
-#    os.system('mkdir POLCONVERT.FRINGE')
-
 
 
 
@@ -1134,47 +1097,23 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
     for dirnam in ['CONVERSION.MATRIX','FRINGE.PEAKS','FRINGE.PLOTS','POLCONVERT.FRINGE']:
       if not os.path.exists(dirnam):
         os.system('mkdir %s'%dirnam)
-      for ifi in doIF:
-        os.system('rm *IF%i*'%ifi)
-
-#    os.system('rm -rf CONVERSION.MATRIX; mkdir CONVERSION.MATRIX')
-#    os.system('rm -rf FRINGE.PEAKS; mkdir FRINGE.PEAKS')
-#    os.system('rm -rf FRINGE.PLOTS; mkdir FRINGE.PLOTS')
-#    os.system('rm -rf POLCONVERT.FRINGE; mkdir POLCONVERT.FRINGE')
+     
 
 
   printMsg("\n###\n### Going to PolConvert\n###")
 
- # print PrioriGains
-#  raw_input('HOLD!')
 
   doAmpNorm = amp_norm>0.0
   didit = -10
-#  if DEBUG:
-#    PC_Params = [nALMATrue, plotIF, plotAnt, doIF, swapXY, OUTPUT, 
-#        linAntIdxTrue, plRan, Ran, doTest, doSolve, doConj, doAmpNorm, 
-#        np.shape(PrioriGains), len(metadata), soucoords, antcoords, antmounts, 
-#        isLinear,calfield,UseAutoCorrs,correctParangle,DEBUG]
-#    printMsg("POLCONVERT CALLED WITH: %s"%str(PC_Params))
-
   # plotAnt is no longer used by PC.PolConvert(), but is required by doSolve
   # the second argument is "PC:PolConvert::plIF" and controls whether the huge binary fringe files are written.
   try:
 
-#    if len(ALMAstuff.keys())==0:
      didit = PC.PolConvert(nALMATrue, plotIF, plotAnt, doIF, 
         swapXY, OUTPUT, linAntIdxTrue, plRan, Ran, 
         doTest, doSolve, doConj, doAmpNorm, PrioriGains, metadata, 
         soucoords, antcoords, antmounts, isLinear,calfield,
         UseAutoCorrs,bool(correctParangle),DEBUG, logName, ALMAstuff)
-#    else:
-#      didit = PC.PolConvert(nALMATrue, plotIF, plotAnt, doIF, 
-#        swapXY, OUTPUT, linAntIdxTrue, plRan, Ran, 
-#        doTest, doSolve, doConj, doAmpNorm, PrioriGains, metadata, 
-#        soucoords, antcoords, antmounts, isLinear,calfield,
-#        UseAutoCorrs,bool(correctParangle),DEBUG, logName,)
-
-
 
   except Exception as ex:
     printMsg(str(ex))
@@ -1590,15 +1529,13 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
       printMsg("Reading back IF #%i"%pli)
       file1 = "POLCONVERT.FRINGE/OTHERS.FRINGE_IF%i"%pli
       file2 = "POLCONVERT.FRINGE/POLCONVERT.FRINGE_IF%i"%pli
-      success = PS.ReadData(pli, file1, file2, 30.)
-      #printMsg("  calling GetNScan(0) (success = %d)"% success)
+      success = PS.ReadData(pli, file1, file2, 100.)
       NScan = PS.GetNScan(pli)
       if success != 0:
         printError('Failed PolGainSolve: ERROR %i'%success)
 
       AllFreqs.append(np.zeros(PS.GetNchan(pli),order='C',dtype=np.float))
       ifsofIF = PS.GetIFs(pli,AllFreqs[-1])
-     # AllFreqs.append(ifsofIF)
  
     MaxChan = max([np.shape(pp)[0] for pp in AllFreqs])
 
@@ -1705,7 +1642,6 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
       laux = list(doIF)
       Npar = len(fitAnts)*{True:2,False:1}[solveAmp]
       PS.SetFit(Npar,laux,fitAnts,solveAmp,solveQU,Stokes,useCov)
- #     print 'First Chi2: ', PS.GetChi2(np.array(p0),-1.0,0,MaxChan-1,solveAmp,solveQU,Stokes,-1.0,False)
       if fitMethod not in scipyMethods: #=='Levenberg-Marquardt':
         myfit = LMMin(p0,0,MaxChan-1)
         sys.stdout.write('.') ; sys.stdout.flush()
@@ -1732,8 +1668,6 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
       printMsg("Done with MBD mode\n")      
 
 ## These arrays can be very large!
-    # see what we got...
-    #print('CGains contains: ',[(k,len(CGains[k])) for k in CGains.keys()])
 
 #    try:
     if True:
@@ -1782,10 +1716,6 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
       fig.suptitle('XPOL GAINS %s'%EXPN)
       pl.savefig('Cross-Gains_%s%s.png'%(EXPN,plotSuffix))
 
-  #pl.show()
-  #  except Exception as ex:
-  #    printMsg('Sorry amigo, plots did not work:\n %s' % str(ex))
-    # end of try to plot something
 
     PS.FreeData()
     printMsg("PS Data freed\n")

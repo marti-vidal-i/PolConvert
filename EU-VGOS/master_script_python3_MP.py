@@ -12,10 +12,8 @@
 ###     DIRECTORY OF THE DiFX DATA DIRECTORY CORRESPONDING TO THE
 ###     SESSION TO BE POLCONVERTED).
 
-### 1.- SET THE EXPERIMENT NAME (EXPNAME), THE NAME OF THE 
-###     DIRECTORY WITH THE DIFX DATA (DIFX_DIR), AND THE 
-###     DESTINATION DIRECTORY FOR THE POLCONVERTED DATA
-###     (PCONV_DIR).
+### 1.- SET THE EXPERIMENT NAME (EXPNAME) AND THE NAME OF THE 
+###     DIRECTORY WITH THE DIFX DATA (DIFX_DIR).
 ###
 ### 2.- RUN THIS SCRIPT BY SETTING "mysteps = [0]".
 ###     IT WILL GENERATE THE FILE "SOURCES_*.txt", WHERE YOU
@@ -46,7 +44,7 @@ PYTHON_CALL = 'python3 %s.py'
 ######################################
 
 # List of steps to be performed:
-mysteps = [2]
+mysteps = [1,2]
 
 
 
@@ -73,13 +71,16 @@ PCONV_DIR = 'DiFX'
 DOIF = list(range(1,33))
 
 # FREQUENCY AVERAGING FOR CROSS-POL GAINS:
-CHAVG = 32
+CHAVG = 8
+
+# PRE-AVERAGING TIME OF THE DATA (SECONDS):
+INTTIME = 20.
 
 # DO WE ALSO SOLVE FOR AMPLITUDE GAINS ???
 SOLVE_AMP = True
 
 # DO WE APPLY THE AMPLITUDES??
-APPLY_AMP = False
+APPLY_AMP = True
 
 # WHICH ALGORITHM DO WE USE??
 
@@ -114,7 +115,7 @@ POLCAL_SCAN = ['030','031','079'] # Little difference if we add more scans, e.g.
 
 #POLCAL_SCAN = ['267','266','268', '237', '166', '080']
 
-## SUFFIX TO ADD TO THE POLCONVERTED DIFX DIRECTORIES:
+## SUFFIX TO ADD TO THE ORIGINAL COPY OF THE DATA:
 SUFFIX = ''
 
 
@@ -152,7 +153,7 @@ Start += 'IFF = open(\'keywords_%s.dat\',\'rb\'); kww = pk.load(IFF); IFF.close(
 # Place to save all intermediate CASA log files (can get VERY large!!)
 if not os.path.exists('LOGS'):
   os.system('mkdir LOGS')  
-currlogs = glob.glob('*.log')
+currlogs = [] #glob.glob('*.log')
 
 
 
@@ -235,9 +236,10 @@ if 1 in mysteps:
   for CURRIF in DOIF:
 
     SCRIPT_NAME = 'STEP1_%i'%CURRIF
-    keyw = {'EXPNAME':EXPNAME, 'DIFX_DIR':CALDIR, 'DOSCAN':POLCAL_SCAN, 'CHANSOL': CHAVG, 'USE_PCAL':USE_PCAL,
-            'EXCLUDE_BASELINES':EXCLUDE_BASELINE,'DOAMP':SOLVE_AMP,'DOIF':[CURRIF],'PLOTANT':REFANT, 
-            'APPLY_AMP':APPLY_AMP, 'SOLVER':SOLVER, 'APPLY_POLCAL':False, 'PCAL_SUFFIX':'_IF%i'%CURRIF}
+    keyw = {'EXPNAME':EXPNAME, 'DIFX_DIR':CALDIR, 'DOSCAN':POLCAL_SCAN, 'CHANSOL': CHAVG, 
+            'USE_PCAL':USE_PCAL, 'INTTIME':INTTIME, 'EXCLUDE_BASELINES':EXCLUDE_BASELINE, 
+            'DOAMP':SOLVE_AMP,'DOIF':[CURRIF],'PLOTANT':REFANT, 'APPLY_AMP':APPLY_AMP, 
+            'SOLVER':SOLVER, 'APPLY_POLCAL':False, 'PCAL_SUFFIX':'_IF%i'%CURRIF}
 
     keys = open('keywords_%s.dat'%SCRIPT_NAME,'wb'); pk.dump(keyw, keys,protocol=0); keys.close()
 
@@ -291,6 +293,17 @@ if 1 in mysteps:
   os.system('rm -rf FRINGE.PEAKS')
   os.system('rm -rf FRINGE.PLOTS_NOCALIB')
   os.system('mv FRINGE.PLOTS FRINGE.PLOTS_NOCALIB')
+
+
+
+
+## SECOND ROUND!!
+
+
+
+
+
+
 
 
 #  input('HOLD')

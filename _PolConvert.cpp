@@ -124,7 +124,7 @@ static char module_docstring[] =
 static char PolConvert_docstring[] =
     "Converts mixed-polarization visibilities into pure circular-polarization basis";
 static char setPCMode_docstring[] =
-    "Sets the running mode to ALMA (0) or to non-ALMA (1).";
+    "Sets the running mode to either ALMA (true; the default) or non-ALMA (false).";
 
 
 
@@ -178,7 +178,7 @@ PyMODINIT_FUNC init_PolConvert(void)
 
 
 
-
+// Set the mode to non-ALMA, if the argument is 0 (false).
 static PyObject *setPCMode(PyObject *self, PyObject *args){
   PyObject *ret;
   int whichMode;
@@ -189,7 +189,7 @@ static PyObject *setPCMode(PyObject *self, PyObject *args){
       return ret;
   };
 
-  if(whichMode==1){
+  if(whichMode==0){
     PCMode=false;
     printf("PolConvert interface will change to non-ALMA.\n");
     fflush(stdout);
@@ -233,38 +233,22 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
 
 
 
-/*
-  if(PCMode){
-//                           0 0 0 0 0 1 1 1 1 1 2 2 2 2 2 3 33
-//                           0 2 4 6 8 0 2 4 6 8 0 2 4 6 8 0 23
-  if (!PyArg_ParseTuple(args, "iOiiOOOOOOOOOOOOOOOOidiiOOOOOOiOOii",
-    &nALMA, &plIF, &plAnt, &nPhase, &doIF, &SWAP, &ngain, &nsum, // 00-07
-    &ikind, &gains, &dterms, &IDI, &antnum, &plotRange, &Range,  // 08-14
-    &allphants, &nphtimes, &phanttimes, &refAnts, &asdmTimes,    // 15-19
-    &doTest, &doSolve, &doConj, &doNorm, &XYaddObj, &metadata,   // 20-25
-    &soucoordObj, &antcoordObj, &antmountObj, &isLinearObj,      // 26-29
-    &calField, &timeranges, &ACorrPy, &doParI, &verbose)) {      // 30-34
-      printf("FAILED PolConvert! Unable to parse arguments!\n");
-      fflush(stdout);
-      ret = Py_BuildValue("i",-1);
-      return ret;
-  };
-*/
-//  } else {
   if (!PyArg_ParseTuple(args, "iOiOOOOOOidiiOOOOOOiOiiOO",
-    &nALMA, &plIF, &plAnt, &doIF, &SWAP, &IDI, &antnum, 
-    &plotRange, &Range, &doTest, &doSolve, &doConj, &doNorm, &XYaddObj, 
-    &metadata, &soucoordObj, &antcoordObj, &antmountObj, &isLinearObj,
-    &calField, &ACorrPy, &doParI, &verbose, &logNameObj, &ALMAstuff)) { 
+    &nALMA, &plIF, &plAnt, &doIF,                               // 0-3
+    &SWAP, &IDI, &antnum, &plotRange,                           // 4-7
+    &Range, &doTest, &doSolve, &doConj,                         // 8-11
+    &doNorm, &XYaddObj, &metadata, &soucoordObj,                // 12-15
+    &antcoordObj, &antmountObj, &isLinearObj, &calField,        //16-19
+    &ACorrPy, &doParI, &verbose, &logNameObj, &ALMAstuff)) {    //20-24
       printf("FAILED PolConvert! Unable to parse arguments!\n");
       fflush(stdout);
       ret = Py_BuildValue("i",-1);
       return ret;
   };
 
-//  };
 
 
+// Load ALMA-specific stuff
   if(PCMode){
     nPhase = PyList_Size(PyList_GetItem(ALMAstuff,5));
     ngain = PyList_GetItem(ALMAstuff,0);
@@ -278,6 +262,7 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
     refAnts = PyList_GetItem(ALMAstuff,8);
     asdmTimes = PyList_GetItem(ALMAstuff,9);
     timeranges = PyList_GetItem(ALMAstuff,10);
+    isLinearObj = PyList_GetItem(ALMAstuff,11);
   };
 
 
@@ -340,6 +325,8 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
   };
 
 
+
+// Specific for ALMA:
   double *BadTimes;
   int NBadTimes = 0;
   if(PCMode){
@@ -377,9 +364,11 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
   ret = Py_BuildValue("i",1);
 
 
+
 // Times to analyse:
   double *plRange = (double *)PyArray_DATA(plotRange);
   double *doRange = (double *)PyArray_DATA(Range);
+
 
 
 
@@ -401,6 +390,7 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
   };
 
 
+
 // Array and Observation Geometry:
   ArrayGeometry *Geometry = new ArrayGeometry;
   double *AntCoordArr = (double *)PyArray_DATA(antcoordObj);
@@ -409,6 +399,7 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
 
   double *SouCoordArr = (double *)PyArray_DATA(PyList_GetItem(soucoordObj,1));
   double *SouCoordRA = (double *)PyArray_DATA(PyList_GetItem(soucoordObj,0));
+
     
   Geometry->NtotSou = (int) PyArray_DIM(PyList_GetItem(soucoordObj,1),0);
   Geometry->NtotAnt = (int) PyArray_DIM(antcoordObj,0);
@@ -428,6 +419,7 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
   for (i=0; i<Geometry->NtotAnt;i++){
     Geometry->BasNum[i] = new int[Geometry->NtotAnt];
   };
+
 
   int Inum = 1, I3, J3;
   double RR;
@@ -465,6 +457,13 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
   long *nASDMtimes;
   Weighter *ALMAWeight;
 
+
+
+
+
+////////////////////////////////////////////////
+/////////////////////////////////
+/// SPECIFIC FOR ALMA:
   if(PCMode){
     time0 = (double *)PyArray_DATA(PyList_GetItem(asdmTimes,0));
     time1 = (double *)PyArray_DATA(PyList_GetItem(asdmTimes,1));
@@ -472,7 +471,6 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
 
 ///////////
 // Useful to determine which ALMA antennas are phased up at each time:
-
 
   ASDMant = new int[nPhase];
   ASDMtimes = new double*[nPhase];
@@ -485,14 +483,16 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
   };
   ALMAWeight = new Weighter(nPhase,nASDMtimes,nASDMEntries,ASDMant,ASDMtimes,ALMARef,time0,time1,BadTimes, NBadTimes, logFile);
 
-  } else {
+  } else {  // If ALMA is not used, set weights to dummy:
   ALMAWeight = new Weighter(logFile);
   };
 
-
 ///////////
-
 //////////////////////////////////////////////
+
+
+
+
 // ALLOCATE MEMORY
   int **kind = new int*[nALMA];
   bool **isLinear = new bool*[nALMA];
@@ -532,6 +532,9 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
        fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
     };
 
+
+// Arrays with gain information. If ALMA is not used, we set them to
+// summy values:
     if(PCMode){
       ngainTabs[i] = (int)PyInt_AsLong(PyList_GetItem(ngain,i));
       kind[i] = new int[ngainTabs[i]];
@@ -553,9 +556,8 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
 //////////////////////////////////////////////
 
 
-
 //////////////////////////////////////////////
-// READ CALIBRATION TABLES:
+// READ CALIBRATION TABLES (ALMA CASE):
 
 if(PCMode){
 
@@ -620,24 +622,44 @@ if(PCMode){
 
 
 
+
 // ALLOCATE MEMORY FOR CALIBRATION INSTANCES:
   CalTable ***allgains = new CalTable**[nALMA];
   CalTable **alldterms = new CalTable*[nALMA];
 
-// CREATE CALIBRATION INSTANCES:   
+// CREATE CALIBRATION INSTANCES:  
+
+ 
   for (i=0; i<nALMA; i++){
     allgains[i] = new CalTable*[ngainTabs[i]];
-   
+
+ // ALMA CASE: ACTUAL CALIBRATION INFORMATION OF THE PHASED ARRAY:        
     if(PCMode){
        alldterms[i] = new CalTable(2,dtermsArrR1[i],dtermsArrI1[i],
            dtermsArrR2[i],dtermsArrI2[i],dtfreqsArr[i],dttimesArr[i],
            nsumArr[i],ndttimeArr[i], nchanDt[i],dtflag[i],true,logFile,verbose);
+
        for (j=0; j<ngainTabs[i];j++){
+/*
+         printf("CALLING GAIN %i WITH %i\n",j,kind[i][j]);fflush(stdout); 
+         printf("GAINS R1: %.3e\n",gainsArrR1[i][j][0][0]);
+         printf("GAINS I1: %.3e\n",gainsArrI1[i][j][0][0]);
+         printf("GAINS R2: %.3e\n",gainsArrR2[i][j][0][0]);
+         printf("GAINS I2: %.3e\n",gainsArrI2[i][j][0][0]);
+         printf("FREQS: %.3e\n",freqsArr[i][j][0]);
+         printf("TIMES: %.3e\n",timesArr[i][j][0][0]);
+         printf("NA: %i\n",nsumArr[i]);
+         printf("NTI: %i\n",ntimeArr[i][j][0]);
+         printf("FG: %i\n",gainflag[i][j][0][0]);
+         printf("IL: %i\n",isLinear[i][j]);
+*/
          allgains[i][j] = new CalTable(kind[i][j],gainsArrR1[i][j],
            gainsArrI1[i][j],gainsArrR2[i][j],gainsArrI2[i][j],freqsArr[i][j],
            timesArr[i][j],nsumArr[i],ntimeArr[i][j], nchanArr[i][j],
            gainflag[i][j],isLinear[i][j],logFile,verbose);
        };
+
+     // NON-ALMA CASE: DUMMY GAINS.
     } else {
       alldterms[i] = new CalTable(2,logFile);
       allgains[i][0] = new CalTable(0,logFile);
@@ -646,9 +668,10 @@ if(PCMode){
   };
 
 
-
-
   fflush(logFile);
+
+
+
 
 /////////////////////////////////
 // READ VLBI DATA:
@@ -664,6 +687,7 @@ if(PCMode){
   for (ii=0; ii<nIFplot; ii++) {
     IFs2Plot[ii] = (int)PyInt_AsLong(PyList_GetItem(plIF,ii)) - 1;
   };
+
 
 // If no IF list was given, convert all of them:
 //  if (nIFconv==0){nIFconv = DifXData->getNfreqs(); doAll=true;};
@@ -1125,7 +1149,7 @@ if(PCMode){
 // Compute the elements of the K matrix (only those that changed):
 
    //indent level within time range
-           if (PCMode && (dtchanged || gchanged)) {
+           if (PCMode && (dtchanged || gchanged) && !allflagged) {
              //indent level if dt or g changed   
 
 // INITIATE K MATRIX:

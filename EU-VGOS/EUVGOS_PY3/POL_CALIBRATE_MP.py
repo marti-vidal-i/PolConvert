@@ -29,7 +29,7 @@ if __name__=='__main__':
 
 #################################
 # COMMENT OUT THIS LINE WHEN DEBUGGING WITH execfile(...)
-def POL_CALIBRATE(EXPNAME='',DIFX_DIR = '', DOSCAN=-1,CHANSOL=32,USE_PCAL=True,EXCLUDE_BASELINES=[],DOIF=[],DOAMP=True,PLOTANT=1,APPLY_AMP=True,APPLY_POLCAL=True,SOLVER = 'COBYLA',DOSOLVE=0.0, PCAL_SUFFIX=''):
+def POL_CALIBRATE(EXPNAME='',DIFX_DIR = '', DOSCAN=-1,CHANSOL=32,USE_PCAL=True,EXCLUDE_BASELINES=[],DOIF=[],DOAMP=True,PLOTANT=1,APPLY_AMP=True,APPLY_POLCAL=True,SOLVER = 'COBYLA',DOSOLVE=0.0, PCAL_SUFFIX='',INTTIME=1.0):
  """ Estimates cross-polarization gains using a scan in a SWIN directory.
   The channel resolution is set to CHANSOL. Saves the gains in a dictionary
   that can ge used by PolConvert."""
@@ -95,7 +95,7 @@ def POL_CALIBRATE(EXPNAME='',DIFX_DIR = '', DOSCAN=-1,CHANSOL=32,USE_PCAL=True,E
     usePcal = USE_PCAL, XYadd={}, XYratio={}, XYdel={}, pcalSuffix= PCAL_SUFFIX,
 # Gain-solver configuration:    
     solveAmp = DOAMP, solveMethod = SOLVER, #'Nelder-Mead', #'COBYLA', #"Levenberg-Marquardt",
-    doSolve=DOSOLVE,doTest=True, solint = [CHANSOL, 1])
+    doSolve=DOSOLVE,doTest=True, solint = [CHANSOL, INTTIME])
 
  # raw_input('HOLD')
 
@@ -111,13 +111,13 @@ def POL_CALIBRATE(EXPNAME='',DIFX_DIR = '', DOSCAN=-1,CHANSOL=32,USE_PCAL=True,E
 
 #  os.system('mv %s %s_POLCAL_%s.png'%(Plot, Plot, DOSCAN[0]))
 
-  if not APPLY_AMP:
-    WITH_PCAL['XYratioOriginal'] = {}
-    for anti in WITH_PCAL['XYratio'].keys():
-      WITH_PCAL['XYratioOriginal'][anti] = {}
-      NIF = len(WITH_PCAL['XYratio'][anti])
-      for ki in DOIF:
-        WITH_PCAL['XYratioOriginal'][anti][ki] = np.copy(WITH_PCAL['XYratio'][anti][ki])
+  WITH_PCAL['XYratioOriginal'] = {}
+  for anti in WITH_PCAL['XYratio'].keys():
+    WITH_PCAL['XYratioOriginal'][anti] = {}
+    NIF = len(WITH_PCAL['XYratio'][anti])
+    for ki in DOIF:
+      WITH_PCAL['XYratioOriginal'][anti][ki] = np.copy(WITH_PCAL['XYratio'][anti][ki])
+      if not APPLY_AMP:  
         WITH_PCAL['XYratio'][anti][ki][:] = 1.0
 
 

@@ -210,8 +210,9 @@ void DataIOFITS::saveCirculars(std::string inputfile) {
 // OPEN AUXILIARY BINARY FILES:
   if (doWriteCirc){
     for (ii=0; ii<Nfreqs; ii++){
-      sprintf(message,"POLCONVERT.FRINGE/OTHERS.FRINGE_%li",ii+1);
+      sprintf(message,"POLCONVERT.FRINGE/OTHERS.FRINGE_IF%i",ii+1);
       circFile[ii] = fopen(message,"wb");
+   //   printf("Writing %i chans to %i\n",Freqs[ii].Nchan,ii+1);fflush(stdout);
       fwrite(&Freqs[ii].Nchan,sizeof(int),1,circFile[ii]);
       fwrite(Freqvals[ii],Freqs[ii].Nchan*sizeof(double),1,circFile[ii]);
     };

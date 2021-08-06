@@ -221,6 +221,7 @@ PyMODINIT_FUNC init_PolGainSolve(void)
    int **Ant1, **Ant2, **BasNum, **Scan;
    double **Times, **ScanDur, **Weights, *CovMat, *IndVec, *SolVec;
    cplx64f **PA1, **PA2, **auxC00, **auxC01, **auxC10, **auxC11;
+   cplx64f **auxC00Flp, **auxC11Flp; // To better check Parangle Flip.
    cplx64f ***RR, ***RL, ***LR, ***LL, **CrossSpec00, **CrossSpec11;
 
    double Lambda;
@@ -444,7 +445,7 @@ static PyObject *PolGainSolve(PyObject *self, PyObject *args){
   sprintf(message,"There are %i baselines to flag\n",Ntwin);
   fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);  
 
-  sprintf(message,"Will divide each calibration scan into %.1f chunks\n",TAvg);
+  sprintf(message,"Will pre-average the data in chunks of %.1f seconds\n",TAvg);
   fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);  
 
   AddParHand = RelWeight>0.0;
@@ -486,7 +487,7 @@ static PyObject *PolGainSolve(PyObject *self, PyObject *args){
       };
       if (isCal1 && isCal2){
         BasNum[i][j] = k;
-        printf("Baseline %i-%i will have assigned number %i\n",i+1,j+1,k);
+    //    printf("Baseline %i-%i will have assigned number %i\n",i+1,j+1,k);
         for(l=0;l<Nlin; l++){if(i==Lant[l]-1 || j==Lant[l]-1){LinBasNum[NLinBas]=k; NLinBas += 1; break; };};
         k += 1;
       };
@@ -499,7 +500,8 @@ static PyObject *PolGainSolve(PyObject *self, PyObject *args){
   for(i=0;i<MaxAnt;i++){
     for(j=i+1;j<MaxAnt;j++){
        BNum = BasNum[i][j];
-       if (BNum>0){printf("Weighting baselines %i\n",BNum); BasWgt[BNum] = 1.0;} else {BasWgt[BNum]=0.0;};
+       if (BNum>0){ //printf("Weighting baselines %i\n",BNum); 
+           BasWgt[BNum] = 1.0;} else {BasWgt[BNum]=0.0;};
        for(l=0;l<Ntwin;l++){
          if((Twins[0][l]==i+1 && Twins[1][l]==j+1)||(Twins[0][l]==j+1 && Twins[1][l]==i+1)){
            printf("Flagging baseline %i\n",BNum); BasNum[i][j] = -1; BasWgt[BNum] = 0.0; break;
@@ -512,11 +514,16 @@ static PyObject *PolGainSolve(PyObject *self, PyObject *args){
   auxC01 = new cplx64f*[k]; 
   auxC10 = new cplx64f*[k];
   auxC11 = new cplx64f*[k];
+  auxC00Flp = new cplx64f*[k]; 
+  auxC11Flp = new cplx64f*[k];
+
   for(i=0;i<k;i++){
     auxC00[i] = new cplx64f[3*NCalAnt+1];
     auxC11[i] = new cplx64f[3*NCalAnt+1];
     auxC01[i] = new cplx64f[3*NCalAnt+1];
     auxC10[i] = new cplx64f[3*NCalAnt+1];
+    auxC00Flp[i] = new cplx64f[3*NCalAnt+1];
+    auxC11Flp[i] = new cplx64f[3*NCalAnt+1];
   };
   NBas = k;
   CrossSpec00 = (cplx64f **) malloc(NBas*sizeof(cplx64f*));
@@ -704,6 +711,7 @@ static PyObject *ReadData(PyObject *self, PyObject *args) {
 // Number of channels for this IF:
   CPfile.read(reinterpret_cast<char*>(&Nchan[NIF-1]), sizeof(int));
   fprintf(logFile, "IF%d has %i channels\n",IFN,Nchan[NIF-1]); fflush(logFile);
+  printf("IF%d (%i) has %i channels\n",IFN,NIF,Nchan[NIF-1]); fflush(stdout);
 
 // Maximum number of channels:
   if (Nchan[NIF-1] > MaxChan){
@@ -751,7 +759,7 @@ static PyObject *ReadData(PyObject *self, PyObject *args) {
 // eof() doesn't do what everyone thinks....
   while(!CPfile.eof() && CPfile.peek() >= 0){
     is1 = false; is2 = false;
-    CPfile.ignore(sizeof(int));
+  //  CPfile.ignore(sizeof(int));
     CPfile.ignore(sizeof(double));   // daytemp
     CPfile.read(reinterpret_cast<char*>(&AuxA1), sizeof(int));
     CPfile.read(reinterpret_cast<char*>(&AuxA2), sizeof(int));
@@ -923,7 +931,9 @@ static PyObject *ReadData(PyObject *self, PyObject *args) {
 
   while(!CPfile.eof() && CPfile.peek() >= 0){
 // CPfile timestamp is here
-    CPfile.ignore(sizeof(int));
+//    CPfile.ignore(sizeof(int));
+
+
     CPfile.read(reinterpret_cast<char*>(&AuxT), sizeof(double));
     CPfile.read(reinterpret_cast<char*>(&AuxA1), sizeof(int));
     CPfile.read(reinterpret_cast<char*>(&AuxA2), sizeof(int));
@@ -934,10 +944,14 @@ static PyObject *ReadData(PyObject *self, PyObject *args) {
     isGood = false; is1 = false; is2 = false;
     isFlipped = false;
 
+
+
     for (j=0; j<NCalAnt; j++) {
       if (AuxA1 == CalAnts[j]){is1=true;}; 
       if (AuxA2 == CalAnts[j]){is2=true;};
     };
+
+
     if (is1 && is2 && AuxA1 != AuxA2){
 
 // Both antennas HAVE to be in Circ Pol:
@@ -945,11 +959,16 @@ static PyObject *ReadData(PyObject *self, PyObject *args) {
     Exp2 = std::polar(1.0,AuxPA2);
     isFlipped = AuxA1 > AuxA2;
 
+
     Times[NIF-1][currI] = AuxT;
     isTime=false;
+
+
     for(j=0;j<NDiffTimes;j++){
       if(DiffTimes[j]==AuxT){isTime=true;break;};
     };
+
+
     if (!isTime){
       DiffTimes[NDiffTimes]=AuxT;
       NDiffTimes += 1;
@@ -958,6 +977,9 @@ static PyObject *ReadData(PyObject *self, PyObject *args) {
         DiffTimes = (double *) realloc(DiffTimes,TimeBuff*sizeof(double));
       };
     };
+
+
+
     if (isFlipped){
       Ant1[NIF-1][currI] = AuxA2;
       Ant2[NIF-1][currI] = AuxA1;
@@ -970,11 +992,16 @@ static PyObject *ReadData(PyObject *self, PyObject *args) {
       PA2[NIF-1][currI] = Exp2;
     };
 
+
     for (k=0;k<Nchan[NIF-1];k++){
+
+
       CPfile.read(reinterpret_cast<char*>(&AuxRR), sizeof(cplx32f));
       CPfile.read(reinterpret_cast<char*>(&AuxRL), sizeof(cplx32f));
       CPfile.read(reinterpret_cast<char*>(&AuxLR), sizeof(cplx32f));
       CPfile.read(reinterpret_cast<char*>(&AuxLL), sizeof(cplx32f));
+
+
       if (isFlipped){
         RR[NIF-1][currI][k] = conj((cplx64f) AuxRR);
         RL[NIF-1][currI][k] = conj((cplx64f) AuxLR);
@@ -990,6 +1017,7 @@ static PyObject *ReadData(PyObject *self, PyObject *args) {
     currI += 1; isGood = true;
   };
 
+
   if(!isGood){
     CPfile.ignore(4*Nchan[NIF-1]*sizeof(cplx32f));
   };
@@ -997,7 +1025,7 @@ static PyObject *ReadData(PyObject *self, PyObject *args) {
 
   };
 
-  printf("DONE READ!\n");
+  printf("DONE READ!\n"); fflush(stdout);
   CPfile.close();
   MPfile.close();
 
@@ -1360,6 +1388,15 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
             memcpy(&BufferC[1][NcurrVis*Nchan[i]],&LL[i][k][0],Nchan[i]*sizeof(cplx64f));
             memcpy(&BufferC[2][NcurrVis*Nchan[i]],&RL[i][k][0],Nchan[i]*sizeof(cplx64f));
             memcpy(&BufferC[3][NcurrVis*Nchan[i]],&LR[i][k][0],Nchan[i]*sizeof(cplx64f));
+
+// Apply parangle correction:
+            for(l=0;l<Nchan[i];l++){
+               BufferC[0][NcurrVis*Nchan[i]+l] *= PA1[i][k]/PA2[i][k];
+               BufferC[1][NcurrVis*Nchan[i]+l] *= PA2[i][k]/PA1[i][k];
+               BufferC[2][NcurrVis*Nchan[i]+l] *= PA1[i][k]*PA2[i][k];
+               BufferC[3][NcurrVis*Nchan[i]+l] /= (PA1[i][k]*PA2[i][k]);
+            };
+
             NcurrVis += 1;
             if (T1[j] < Times[i][k]){
               T1[j] = Times[i][k];
@@ -2029,7 +2066,7 @@ static PyObject *GetChi2(PyObject *self, PyObject *args) {
   int j= -1;
   double *CrossG;
   double dx = 1.0e-8;
-  double Drate1, Drate2, Ddelay1, Ddelay2;
+  double Drate1, Drate2, Ddelay1R, Ddelay2R, Ddelay1L, Ddelay2L;
   double *DerAux1, *DerAux2;
   DerAux1 = new double[2];
   DerAux2 = new double[2];
@@ -2045,7 +2082,7 @@ static PyObject *GetChi2(PyObject *self, PyObject *args) {
   };
 
 
-  bool useDelay = true;
+  bool useDelay = false;
 
 
   chisqcount++;
@@ -2115,8 +2152,8 @@ static PyObject *GetChi2(PyObject *self, PyObject *args) {
   cplx64f RM1, RP1; 
   cplx64f RM2, RP2; 
   cplx64f auxC1, auxC2, auxC3;
-  cplx64f *AvPA1 = new cplx64f[NBas]; 
-  cplx64f *AvPA2 = new cplx64f[NBas];
+//  cplx64f *AvPA1 = new cplx64f[NBas]; 
+//  cplx64f *AvPA2 = new cplx64f[NBas];
 
   int Nflipped = 0;
 
@@ -2162,9 +2199,11 @@ static PyObject *GetChi2(PyObject *self, PyObject *args) {
         auxC01[k][j] = cplx64f(0., 0.);
         auxC10[k][j] = cplx64f(0., 0.);
         auxC11[k][j] = cplx64f(0., 0.);
+        auxC00Flp[k][j] = cplx64f(0., 0.);
+        auxC11Flp[k][j] = cplx64f(0., 0.);
       };
       AvVis[k] = 0;
-      AvPA1[k] = oneC; AvPA2[2] = oneC;
+   //   AvPA1[k] = oneC; AvPA2[2] = oneC;
     };
     for(k=0;k<NBas;k++){
       Tm[k]=Times[currIF][0];
@@ -2178,7 +2217,7 @@ static PyObject *GetChi2(PyObject *self, PyObject *args) {
       a1 = Ant1[currIF][k];
       a2 = Ant2[currIF][k];
       currScan = Scan[currIF][k];
-      if(k<NVis[currIF]-1){nextScan=Scan[currIF][k+1];}{nextScan=currScan+1;};
+      if(k<NVis[currIF]-1){nextScan=Scan[currIF][k+1];}else{nextScan=currScan+1;};
       ac1 = -1; ac2 = -1;
       for(j=0; j<NCalAnt; j++) {
         if (a1==CalAnts[j]){ac1 = j;};
@@ -2207,6 +2246,11 @@ static PyObject *GetChi2(PyObject *self, PyObject *args) {
       if (a1==Lant[j]){is1 = true;};
       if (a2==Lant[j]){is2 = true;};
     };
+
+
+ //   if(is1 || is2){
+ //     printf("%i %i - %i %i - %i %i\n",a1,a2,is1,is2,af1,af2); fflush(stdout);
+ //   };
 
 // The crossGains at the ref. channel: 
 
@@ -2287,8 +2331,8 @@ static PyObject *GetChi2(PyObject *self, PyObject *args) {
       AvVis[BNum] += 1;
       FeedFactor1 = std::polar(1.0, feedAngle[a1-1])*PA1[currIF][k]; 
       FeedFactor2 = std::polar(1.0, feedAngle[a2-1])*PA2[currIF][k];
-      AvPA1[BNum] *= FeedFactor1;
-      AvPA2[BNum] *= FeedFactor2;
+    //  AvPA1[BNum] *= FeedFactor1;
+    //  AvPA2[BNum] *= FeedFactor2;
 
       for (j=Ch0; j<Ch1; j++){
 
@@ -2376,32 +2420,47 @@ static PyObject *GetChi2(PyObject *self, PyObject *args) {
 // NOTE: if useDelay=false, the cross-pol delays from GFF are NOT used. Only the rates:
 
   RateFactor=1.0;
-  Ddelay1 = 0.0; Drate1 = 0.0;
-  Ddelay2 = 0.0; Drate2 = 0.0;
+  Ddelay1R = 0.0; Ddelay1L = 0.0; Drate1 = 0.0;
+  Ddelay2R = 0.0; Ddelay2L = 0.0; Drate2 = 0.0;
 
-    if(ac1>=0 and !is1){
-            Ddelay1 = TWOPI*((Delays[0][0][ac1][currScan]+Delays[1][0][ac1][currScan])*0.5*(Frequencies[currIF][j]-RefNu));
-         //   Ddelay1 = TWOPI*((Delays[0][0][ac1][currScan])*(Frequencies[currIF][j]-RefNu));
-	    Drate1 = TWOPI*((Rates[0][0][ac1][currScan]+Rates[1][0][ac1][currScan])*(Times[currIF][k]-T0));
+    if(ac1>=0){ // and !is1){
+         //   Ddelay1 = TWOPI*((Delays[0][0][ac1][currScan]+Delays[1][0][ac1][currScan])*0.5*(Frequencies[currIF][j]-RefNu));
+            Ddelay1R = TWOPI*((Delays[0][0][ac1][currScan])*(Frequencies[currIF][j]-RefNu));
+            Ddelay1L = TWOPI*((Delays[1][0][ac1][currScan])*(Frequencies[currIF][j]-RefNu));
+	//    Drate1 = TWOPI*((Rates[0][0][ac1][currScan]+Rates[1][0][ac1][currScan])*(Times[currIF][k]-T0));
+	    Drate2 = TWOPI*((Rates[0][0][ac2][currScan]+Rates[1][0][ac2][currScan])*0.5*(Times[currIF][k]-T0));
     };
  
-    if(ac2>=0 and !is2){
-            Ddelay2 = TWOPI*((Delays[0][0][ac2][currScan]+Delays[1][0][ac2][currScan])*0.5*(Frequencies[currIF][j]-RefNu));
-         //   Ddelay2 = TWOPI*((Delays[0][0][ac2][currScan])*(Frequencies[currIF][j]-RefNu));
+    if(ac2>=0){ // and !is2){
+         //   Ddelay2 = TWOPI*((Delays[0][0][ac2][currScan]+Delays[1][0][ac2][currScan])*0.5*(Frequencies[currIF][j]-RefNu));
+            Ddelay2R = TWOPI*((Delays[0][0][ac2][currScan])*(Frequencies[currIF][j]-RefNu));
+            Ddelay2L = TWOPI*((Delays[1][0][ac2][currScan])*(Frequencies[currIF][j]-RefNu));
+	 //   Drate2 = TWOPI*((Rates[0][0][ac2][currScan]+Rates[1][0][ac2][currScan])*0.5*(Times[currIF][k]-T0));
 	    Drate2 = TWOPI*((Rates[0][0][ac2][currScan]+Rates[1][0][ac2][currScan])*0.5*(Times[currIF][k]-T0));
     };
 
     if(useDelay){
-      RateFactor = std::polar(1.0, Drate1-Drate2 + Ddelay1-Ddelay2);
+      RateFactor = std::polar(1.0, Drate1-Drate2 + Ddelay1R-Ddelay2R);
+      RRRate = RateFactor*FeedFactor1/FeedFactor2; 
+      RateFactor = std::polar(1.0, Drate1-Drate2 + Ddelay1R-Ddelay2L);
+      RLRate = RateFactor*FeedFactor1/FeedFactor2; 
+      RateFactor = std::polar(1.0, Drate1-Drate2 + Ddelay1L-Ddelay2R);
+      LRRate = RateFactor*FeedFactor1/FeedFactor2; 
+      RateFactor = std::polar(1.0, Drate1-Drate2 + Ddelay1L-Ddelay2L);
+      LLRate = RateFactor*FeedFactor1/FeedFactor2; 
     } else {
       RateFactor = std::polar(1.0, Drate1-Drate2);
+      RRRate = RateFactor*FeedFactor1/FeedFactor2; 
+      LLRate = RateFactor/FeedFactor1*FeedFactor2; 
+      RLRate = RateFactor*FeedFactor1*FeedFactor2; 
+      LRRate = RateFactor/FeedFactor1/FeedFactor2; 
     };
 
+//  RRRate = 1.;
+//  RLRate = 1.;
+//  LRRate = 1.;
+//  LLRate = 1.;
 
-    RRRate = RateFactor*FeedFactor1/FeedFactor2; 
-    LLRate = RateFactor/FeedFactor1*FeedFactor2; 
-    RLRate = RateFactor*FeedFactor1*FeedFactor2; 
-    LRRate = RateFactor/FeedFactor1/FeedFactor2; 
 
 
 
@@ -2426,12 +2485,15 @@ static PyObject *GetChi2(PyObject *self, PyObject *args) {
 // USE MINIMIZATION OF THE CROSS-HAND CORRELATIONS:
      if(AddCrossHand){
        if (is1 && is2){
+      //   printf("Cis12\n");fflush(stdout);
          auxC01[BNum][currDer] += (RP1*RP2*RL[currIF][k][j] + RM1*RP2*LL[currIF][k][j] + RP1*RM2*RR[currIF][k][j] + RM1*RM2*LR[currIF][k][j])*RLRate;
          auxC10[BNum][currDer] += (RP1*RP2*LR[currIF][k][j] + RM1*RP2*RR[currIF][k][j] + RP1*RM2*LL[currIF][k][j] + RM1*RM2*RL[currIF][k][j])*LRRate;
        } else if (is1){
+      //   printf("Cis1\n");fflush(stdout);
          auxC01[BNum][currDer] += (RP1*RL[currIF][k][j] + RM1*LL[currIF][k][j])*G2nu[currDer]*RLRate;
          auxC10[BNum][currDer] += (RP1*LR[currIF][k][j] + RM1*RR[currIF][k][j])*LRRate;
        } else if (is2){
+      //   printf("Cis2\n");fflush(stdout);
          auxC01[BNum][currDer] += (RP2*RL[currIF][k][j] + RM2*RR[currIF][k][j])*RLRate;
          auxC10[BNum][currDer] += (RP2*LR[currIF][k][j] + RM2*LL[currIF][k][j])*G1nu[currDer]*LRRate;
        } else {
@@ -2443,20 +2505,37 @@ static PyObject *GetChi2(PyObject *self, PyObject *args) {
 // USE GLOBAL CROSS-POLARIZATION FRINGE FITTING:
   //   if(AddParHand){
        if (is1 && is2){
-         auxC00[BNum][currDer] += (RP1*RP2*RR[currIF][k][j] + RP2*RM1*LR[currIF][k][j] + RM2*RP1*RL[currIF][k][j] + RM1*RM2*LL[currIF][k][j])*RRRate;
-         auxC11[BNum][currDer] += (RP1*RP2*LL[currIF][k][j] + RP2*RM1*RL[currIF][k][j] + RM2*RP1*LR[currIF][k][j] + RM1*RM2*RR[currIF][k][j])*LLRate;
+      //   printf("Pis12\n");fflush(stdout);
+         auxC1 = (RP1*RP2*RR[currIF][k][j] + RP2*RM1*LR[currIF][k][j] + RM2*RP1*RL[currIF][k][j] + RM1*RM2*LL[currIF][k][j])*RRRate;
+         auxC2 = (RP1*RP2*LL[currIF][k][j] + RP2*RM1*RL[currIF][k][j] + RM2*RP1*LR[currIF][k][j] + RM1*RM2*RR[currIF][k][j])*LLRate;
+         auxC00[BNum][currDer] += auxC1;
+         auxC11[BNum][currDer] += auxC2;
        } else if (is1){
-         auxC00[BNum][currDer] += (RP1*RR[currIF][k][j] + RM1*LR[currIF][k][j])*RRRate;
-         auxC11[BNum][currDer] += (RP1*LL[currIF][k][j] + RM1*RL[currIF][k][j])*G2nu[currDer]*LLRate;
+      //   printf("Pis1\n");fflush(stdout);
+         auxC1 = (RP1*RR[currIF][k][j] + RM1*LR[currIF][k][j])*RRRate;
+         auxC2 = (RP1*LL[currIF][k][j] + RM1*RL[currIF][k][j])*G2nu[currDer]*LLRate;
+         auxC00[BNum][currDer] += auxC1;
+         auxC11[BNum][currDer] += auxC2;
        } else if (is2){
-         auxC00[BNum][currDer] += (RP2*RR[currIF][k][j] + RM2*RL[currIF][k][j])*RRRate;
-         auxC11[BNum][currDer] += (RP2*LL[currIF][k][j] + RM2*LR[currIF][k][j])*G1nu[currDer]*LLRate;
+      //   printf("Pis2\n");fflush(stdout);
+         auxC1 = (RP2*RR[currIF][k][j] + RM2*RL[currIF][k][j])*RRRate;
+         auxC2 = (RP2*LL[currIF][k][j] + RM2*LR[currIF][k][j])*G1nu[currDer]*LLRate;
+         auxC00[BNum][currDer] += auxC1;
+         auxC11[BNum][currDer] += auxC2;
        } else {
-         auxC00[BNum][currDer] += RR[currIF][k][j]*RRRate;
-         auxC11[BNum][currDer] += LL[currIF][k][j]*G2nu[currDer]*G1nu[currDer]*LLRate;
+         auxC1 = RR[currIF][k][j]*RRRate;
+         auxC2 = LL[currIF][k][j]*G2nu[currDer]*G1nu[currDer]*LLRate;
+         auxC00[BNum][currDer] += auxC1;
+         auxC11[BNum][currDer] += auxC2;
        };
   //   };
 
+// Accumulate the parallel hands with the flipped parangle:
+       if(currDer==0){
+         auxC3 = (PA2[currIF][k]/PA1[currIF][k])*(PA2[currIF][k]/PA1[currIF][k]);
+         auxC00Flp[BNum][0] += auxC1*auxC3;
+         auxC11Flp[BNum][0] += auxC2/auxC3;
+       };
 
 
    };  // Comes from   for (l=0; l<Nder; l++){
@@ -2475,11 +2554,14 @@ static PyObject *GetChi2(PyObject *self, PyObject *args) {
 // 
 // 
 // Did we reach the pre-averaging time?? If so, update the covariance+residuals:
-    if ((Times[currIF][k]>=Tm[BNum] + ScanDur[currIF][currScan]/DT) || !(currScan==nextScan)){
+  //  if ((Times[currIF][k]>=Tm[BNum] + ScanDur[currIF][currScan]/DT) || !(currScan==nextScan)){
+    if ((Times[currIF][k]>=Tm[BNum] + DT) || !(currScan==nextScan)){
 
+
+    //  printf("%.3e  %.3e %i %i\n",Times[currIF][k]-Tm[BNum],ScanDur[currIF][currScan]/DT, currScan,nextScan); fflush(stdout);
 
   //  if (chisqcount==1){sprintf(message,"\n Time Acquisition %.3e: %.3e %.3e; %.3e %.3e; %.3e %.3e; %.3e %.3e\n",Times[currIF][k],auxC00[BNum][0].real(),auxC00[BNum][0].imag(),auxC01[BNum][0].real(),auxC01[BNum][0].imag(),auxC10[BNum][0].real(),auxC10[BNum][0].imag(),auxC11[BNum][0].real(),auxC11[BNum][0].imag()); fprintf(auxFile,"%s",message);};
-
+    //  printf("SCAN BOUND\n");fflush(stdout);
 
       if(k<NVis[currIF]-1){Tm[BNum] = Times[currIF][k+1];};
 
@@ -2601,8 +2683,7 @@ static PyObject *GetChi2(PyObject *self, PyObject *args) {
        for(l=0; l<NLinBas; l++){
          if (LinBasNum[l]==BNum){  
            double GoodPhase = std::arg(Error);
-           double PARatio = std::arg(AvPA2[BNum]/AvPA1[BNum])*4.;
-	   double FlippedPhase = std::arg(Error*std::polar(1.,PARatio));
+	   double FlippedPhase = std::arg(auxC00Flp[BNum][0]/auxC11Flp[BNum][0]);
            if (std::abs(FlippedPhase)<std::abs(GoodPhase)){Nflipped += 1;}else{Nflipped -= 1;};	 
   //  if (chisqcount==1){sprintf(message,"  ;  %i",Nflipped); fprintf(auxFile,"%s",message);};
            break;
@@ -2618,9 +2699,13 @@ static PyObject *GetChi2(PyObject *self, PyObject *args) {
       auxC01[BNum][j] = cplx64f(0., 0.);
       auxC10[BNum][j] = cplx64f(0., 0.);
       auxC11[BNum][j] = cplx64f(0., 0.);
+      auxC00Flp[BNum][j] = cplx64f(0., 0.);
+      auxC11Flp[BNum][j] = cplx64f(0., 0.);
+
     };
     AvVis[BNum] = 0;
-    AvPA1[BNum] = oneC; AvPA2[BNum] = oneC;
+// TODO: DIVIDE AvPA BY NUMBER OF VISIBS!!!!!
+//    AvPA1[BNum] = oneC; AvPA2[BNum] = oneC;
 
    }; // Comes from:   if (Times[currIF][k]>=Tm[BNum] + DT)
 
@@ -2706,8 +2791,8 @@ if (chisqcount==0){
     ret = Py_BuildValue("d",Chi2);
 
 
-  delete[] AvPA1;
-  delete[] AvPA2;
+//  delete[] AvPA1;
+//  delete[] AvPA2;
 
 
   return ret;

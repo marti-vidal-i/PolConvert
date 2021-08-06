@@ -40,7 +40,7 @@ sourcefiles2 = ['_PolGainSolve.cpp']
 
 sourcefiles3 = ['_getAntInfo.cpp']
 
-sourcefiles4 = ['_XPCal.cpp']
+sourcefiles4 = ['_XPCalMF.cpp']
 
 c_ext1 = Extension("_PolConvert", sources=sourcefiles1,
                   language='c++',
@@ -58,7 +58,7 @@ c_ext3 = Extension("_getAntInfo", sources=sourcefiles3,
                   include_dirs=[np.get_include()],
                   extra_link_args=["-Xlinker", "-export-dynamic"])
 
-c_ext4 = Extension("_XPCal",sources=sourcefiles4,
+c_ext4 = Extension("_XPCalMF",sources=sourcefiles4,
                   language='c++',
                   extra_compile_args=["-Wno-deprecated","-O3"],
                   include_dirs=[np.get_include()],

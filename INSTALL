@@ -1,65 +1,16 @@
+INSTRUCTION FOR THE INSTALLATION OF THE STANDALONE POLCONVERT INTERFACE
+AND THE CASA 6 INTERFACE.
+
+NOTICE THAT THE USE OF CASA CALIBRATION TABLES ONLY WORKS IN THE CASA 
+INTERFACE.
 
 
 STEPS TO INSTALL THE POLCONVERT PACKAGE:
 
-####################################################################
-###### CASE 1: PACKAGE FOR CASA USE (I.E., PHASED ALMA):
-
-0.  Install required linux packages if not already present
-    (cfitsio is in the EPEL repo):
-
-    yum install python-devel
-    yum install cfitsio cfitsio-devel
-    yum install java
-
-1.- Compile the C++ module. Just run:
-
-    python setup.py build_ext --inplace
-    
-    After this step, the file "_PolConvert.so" should have 
-    been created.  You may need to manually edit setup.py
-    to provide include locations for, e.g. fitsio.h and
-    possibly a link directive for libcfitsio.
-
-2.- Copy all the files of this directory into a destination directory. 
-    The name of the destination directory could be, e.g.
-
-         /YourHomeDir/.casa/Nordic_Tools
-
-3.- Go to that directory and execute the "buildmytasks" command.
-
-4.- Edit the file "YourHomeDirectory/.casa/init.py" and add the line
-    (create it if it doesn not already exist):
-
-    execfile("YourHomeDirectory/.casa/Nordic_Tools/mytasks.py")
-
-5.- The task should now be available. Just start CASA and write:
-
-               tget polconvert
-
-    to load the task.
- 
-6.- To restore to the distributed state:
-
-    rm -rf build _PolConvert.so *.pyc
-    rm -rf polconvert.py polconvert_cli.py mytasks.py
-
-Any feedback and bug report should be sent either to the ARC 
-Nordic Node (contact@nordic-alma.se) or to the source maintainer
-(ivan.marti-vidal@chalmers.se).
-
-
-P.S: The QA2 directory contains scripts for the proper calibration
-of the ALMA measurement sets. Specifically, the script 
-"scriptForCalibrationAPP.py" shall be run for generating the 
-calibration tables to apply PolConvert.
-
-
-
 
 
 ###############################################################
-###### CASE 2: STANDALONE PYTHON INTERFACE.
+##
 
 0.- Download PolConvert from GitHub:
 
@@ -87,6 +38,9 @@ calibration tables to apply PolConvert.
     yum install fftw-devel fftw-doc (or "libfftw-dev" or "libfftw3-dev")
 
 
+###############
+NOTE: STEPS 2 AND 3 ARE NEEDED FOR THE STANDALONE VERSION:
+
 2.- Install miniconda:
 
   2.a- Download the shell installer from
@@ -102,11 +56,11 @@ calibration tables to apply PolConvert.
 
 
 
-
 3.- Create a conda environment for polconvert. Run the command:
 
-    conda create --name PCONV python=3.9 scipy=1.6.3 numpy=1.20.2 matplotlib=3.4.1
+    conda create --name PCONV python=3.9 scipy=1.6.3 numpy=1.20.2 matplotlib=3.4.1 pyfits=3.5
 
+###############
 
 
 
@@ -132,9 +86,6 @@ calibration tables to apply PolConvert.
 
 
 
-
-
-
 6.- Compile the program:
  
    6.a- Take a look at the "setup.py" script in the PolConvert directory.
@@ -142,22 +93,50 @@ calibration tables to apply PolConvert.
 
    6.b- Delete any pre-existing *.so files in the PolConvert directory.
 
-   6.c- Load the conda environment and compile, i.e.:
+   6.c- [STANDALONE VERSION] Load the conda environment and compile, i.e.:
 
         conda activate PCONV
         python3 setup.py build_ext --inplace
 
+   6.d- [CASA VERSION] Compile using the CASA python binary:
+
+        export CASABASE=/YOUR/CASA/INSTALLATION/DIRECOTY
+        $CASABASE/bin/python3 setup.py build_ext --inplace
 
 
 
+7.- Import the PolConvert module (either in your script or in the prompt):
 
-7.- Copy the "master_*python3.py" script, located in 
+   7.1- [CASA Interface]:
+
+        from PolConvert import polconvert_CASA as PCONV
+
+        PCONV.polconvert(IDI="mydata", ...)
+
+   7.2- [Standalone Interface (i.e., under the conda environment)]:
+
+        from PolConvert import polconvert_standalone as PCONV
+
+        PCONV.polconvert(IDI="mydata", ...)
+        
+
+
+
+########################
+## EU-VGOS CALIBRATION:
+
+8.- Copy the "master_*python3.py" script, located in 
     PolConvert/EU-VGOS, into a directory where you want to
     produce the polconverted data of a given session. 
     Read the instructions in the script header and good luck.
 
 
-IMPORTANT NOTE: You will ALWAYS have to load the PCONV conda 
-                environment before you run PolConvert.
+IMPORTANT NOTES: 
+
+      1.- You want to use the standalone version for the EU-VGOS
+          calibration.
+
+      2.- You will ALWAYS have to load the PCONV conda 
+          environment before you run PolConvert.
 
 

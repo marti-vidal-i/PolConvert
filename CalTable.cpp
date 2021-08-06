@@ -34,6 +34,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>
 CalTable::~CalTable() {};
 
 
+
+// Consturctor for dummy calibration table.
+// If Nants<0, the table is considered "dummy".
+
 CalTable::CalTable(int kind, FILE *logF){
   Nants=-1;Nchan=1;logFile = logF;
   isDelay = kind==1;
@@ -48,11 +52,11 @@ CalTable::CalTable(int kind, FILE *logF){
 };
 
 
+// Constructor for normal calibration table.
 CalTable::CalTable(int kind, double **R1, double **P1,double **R2,double **P2, 
                    double *freqs, double **times, int Na, long *Nt, long Nc, 
                    bool **flag, bool islinear, FILE *logF, bool verbose)
 {
-
 
 
 // Initiate variables and declare auxiliary variables:

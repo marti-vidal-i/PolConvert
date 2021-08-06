@@ -94,7 +94,7 @@ def POL_CALIBRATE(EXPNAME='',DIFX_DIR = '', DOSCAN=-1,CHANSOL=32,USE_PCAL=True,E
     usePcal = USE_PCAL, XYadd={}, XYratio={}, XYdel={},
 # Gain-solver configuration:    
     solveAmp = DOAMP, solveMethod = 'COBYLA', #'Nelder-Mead', #'COBYLA', #"Levenberg-Marquardt",
-    doSolve=0.0,doTest=False, solint = [CHANSOL, 1])
+    doSolve=0.0,doTest=False, solint = [CHANSOL, 1],saveArgs=True)
 
  # raw_input('HOLD')
 

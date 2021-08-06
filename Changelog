@@ -1,3 +1,6 @@
+v2.0b
+- Improved the GCPFF algorithm. Implemented the interface for CASA 6.
+
 v1.9.0
 - Added new standalone interface (i.e., free of CASA!!!).
 
