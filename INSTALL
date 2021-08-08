@@ -18,7 +18,8 @@ STEPS TO INSTALL THE POLCONVERT PACKAGE:
     yum install git
 
   0.b- Download PolConvert (you may need a GitHub user account):
-    git repo clone marti-vidal-i/PolConvert
+
+    git clone git@github.com:marti-vidal-i/PolConvert
 
  - ALTERNATIVE: Just go to the GitHub website and download the tarball.
 
@@ -58,7 +59,9 @@ NOTE: STEPS 2 AND 3 ARE NEEDED FOR THE STANDALONE VERSION:
 
 3.- Create a conda environment for polconvert. Run the command:
 
-    conda create --name PCONV python=3.9 scipy=1.6.3 numpy=1.20.2 matplotlib=3.4.1 pyfits=3.5
+    conda create --name PCONV python=3.9 scipy=1.6.3 numpy=1.20.2 matplotlib=3.4.1
+    conda activate PCONV
+    pip install pyfits==3.5  [THIS MAY BE NEEDED IF YOU WANT TO CONVERT FITS-IDI]
 
 ###############
 
