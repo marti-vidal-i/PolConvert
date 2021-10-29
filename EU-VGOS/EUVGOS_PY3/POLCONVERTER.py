@@ -4,7 +4,7 @@ import pylab as pl
 import struct as stk
 import glob
 #from PolConvert import polconvert_standalone as PC
-#from PolConvert import _XPCal as XP
+from PolConvert import _XPCalMF as XP
 import pickle as pk
 import os, sys
 import multiprocessing
@@ -22,7 +22,7 @@ if __name__ == '__main__':
 
 #################################
 # COMMENT OUT THIS LINE WHEN DEBUGGING WITH execfile(...)
-def POLCONVERTER(EXPNAME = '', XYGAINS = '', ORIG_DIR='', DIFX_DIR='', SUFFIX = '_PC', SCAN_LIST = [], USE_PCAL=True, DOPLOT=False, REFANT=''):
+def POLCONVERTER(EXPNAME = '', XYGAINS = '', ORIG_DIR='', DIFX_DIR='', SUFFIX = '_PC', SCAN_LIST = [], USE_PCAL=True, DOPLOT=False, REFANT='', ZERO_PCALS={}):
  """ Converts all scans in a SWIN directory, using a cross-polarization
  gain file computed by PolConvert from a calibrator scan. It saves the new
  SWIN files in the same directory, adding SUFFIX to the *.difx subdirecotries."""
@@ -100,6 +100,8 @@ def POLCONVERTER(EXPNAME = '', XYGAINS = '', ORIG_DIR='', DIFX_DIR='', SUFFIX = 
 
 ##  for sci, scn in enumerate(SCANS):
 
+  absDiFX = os.path.abspath(DIFX_DIR)
+
   def scanPolConvert(scn, refant=REFANT):
 
    # print('POLCONVERTING SCAN %s'%scn,file=OFF)
@@ -110,6 +112,7 @@ def POLCONVERTER(EXPNAME = '', XYGAINS = '', ORIG_DIR='', DIFX_DIR='', SUFFIX = 
     print('\nDOING SCAN: %s\n'%scn)
 
     if len(ORIG_DIR)>0:
+      os.system('rm -rf %s'%DIFX)
       os.system('cp -r %s* %s/.'%(os.path.join(ORIG_DIR,scn), DIFX_DIR))
 
 
@@ -155,6 +158,11 @@ def POLCONVERTER(EXPNAME = '', XYGAINS = '', ORIG_DIR='', DIFX_DIR='', SUFFIX = 
     IFF = open('%s.ORIG'%INP,'r')
     OFF = open(INP,'w')
     for line in IFF.readlines():
+        if 'FILENAME' in line:
+           fnameOrig = os.path.basename(line.split()[-1])
+           itemOrig = line.split(':')[0]
+           line = '%s%s\n'%((itemOrig+':').ljust(20),os.path.join(absDiFX,fnameOrig))
+
         if (re.search(r'ZOOM.*POL:\s+X$', line)):
             line = re.sub(r'X$', 'R', line)
         if (re.search(r'ZOOM.*POL:\s+Y$', line)):
@@ -173,8 +181,34 @@ def POLCONVERTER(EXPNAME = '', XYGAINS = '', ORIG_DIR='', DIFX_DIR='', SUFFIX = 
     IFF.close()
     OFF.close()
 
+## UPDATE CALC FILE:
+    os.system('cp %s %s.ORIG'%(CAL,CAL))
+    IFF = open('%s.ORIG'%CAL,'r')
+    OFF = open(CAL,'w')
+    for line in IFF.readlines():
+        if 'FILENAME' in line:
+           fnameOrig = os.path.basename(line.split()[-1])
+           itemOrig = line.split(':')[0]
+           line = '%s%s\n'%((itemOrig+':').ljust(20),os.path.join(absDiFX,fnameOrig))
+        OFF.write(line)
+    IFF.close()
+    OFF.close()
+
+
+
 # Remove temporary files:
     os.system('rm -f %s/AUXSCRIPT_%s.py'%(DIFX_DIR,scn))
+
+### ZERO UNDESIRED PCALS:
+    for antenna in ZERO_PCALS.keys():
+      PCAL_FILE = glob.glob(os.path.join(DIFX,'PCAL*_%s'%antenna))
+      if len(PCAL_FILE)==0:
+        print("WARNING! PCAL FILE IN SCAN %s NOT FOUND FOR ANTENNA %s\n"%(DIFX,antenna))
+      else:
+        os.system('cp %s %s_NOZEROS'%(PCAL_FILE[0],PCAL_FILE[0]))
+        ErrCode = XP.XPCalMF(PCAL_FILE[0],ZERO_PCALS[antenna],1)
+        if ErrCode != 0:
+          print("WARNING!! XPCAL EXITED WITH ERRCODE %i ON SCAN %s (ANTENNA %s)\n"%(ErrCode,DIFX,antenna))
 
 
 
@@ -189,6 +223,7 @@ def POLCONVERTER(EXPNAME = '', XYGAINS = '', ORIG_DIR='', DIFX_DIR='', SUFFIX = 
 
   
   OFF.close()
+
 
 
 

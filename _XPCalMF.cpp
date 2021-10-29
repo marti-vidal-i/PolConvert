@@ -156,8 +156,8 @@ static PyObject *XPCalMF(PyObject *self, PyObject *args)
   
   // Function arguments:
 //  int Ref, NIFs;
-  PyObject *pFName;
-  if (!PyArg_ParseTuple(args, "Oi", &pFName,&overWrite)){printf("FAILED XPCalMF! Wrong arguments!\n"); fflush(stdout);  return ret;};
+  PyObject *pFName, *pZero;
+  if (!PyArg_ParseTuple(args, "OOi", &pFName, &pZero, &overWrite)){printf("FAILED XPCalMF! Wrong arguments!\n"); fflush(stdout);  return ret;};
 
  // if (Ref<0 || Ref>2){printf("ERROR! Ref should be >=0 and <= 2\n"); fflush(stdout); return ret;}
 
@@ -170,6 +170,7 @@ static PyObject *XPCalMF(PyObject *self, PyObject *args)
   PcalF.open(PcalFile.c_str(), std::ios::in);
 
 
+
   
  // double T, inT, Tini, Tbuf; 
   double Re=0.0, Im=0.0, nui=0.0;
@@ -179,6 +180,18 @@ static PyObject *XPCalMF(PyObject *self, PyObject *args)
 
   int NTone=0, i,j,l, Aux, Aux2, Aux3;
   long currP, lastP, Nbytes;
+
+
+// LISTs OF FREQUENCIES TO ZERO:
+  int nIFZero = PyList_Size(pZero);
+  double *IFini = new double[nIFZero];
+  double *IFend = new double[nIFZero];
+  for (i=0;i<nIFZero;i++){
+    IFini[i] = (int)PyFloat_AsDouble( PyList_GetItem(PyList_GetItem(pZero,i),0) );
+    IFend[i] = (int)PyFloat_AsDouble( PyList_GetItem(PyList_GetItem(pZero,i),1) );
+  };
+
+
 
   char Pol;
   std::string TelName, line, auxStr;
@@ -191,6 +204,7 @@ static PyObject *XPCalMF(PyObject *self, PyObject *args)
 
   double **PCalTimes= new double*[BUFF];
   double *PCalNus= new double[BUFF];
+  bool *ZeroIt = new bool[BUFF];
   int *NTimes= new int[BUFF];
 
   bool RepNu;
@@ -247,6 +261,7 @@ static PyObject *XPCalMF(PyObject *self, PyObject *args)
                    if(NTone+1>BUFF*NuOver){
                     // printf("Resizing Tones\n");fflush(stdout);
                      NuOver +=1;
+                     ZeroIt = (bool *) realloc((void *)ZeroIt, BUFF*NuOver*sizeof(bool));
                      PCalNus = (double *) realloc((void *)PCalNus, BUFF*NuOver*sizeof(double));
                      PCalsX = (cplx64d **) realloc((void *)PCalsX,  BUFF*NuOver*sizeof(cplx64d*));
                      PCalsY = (cplx64d **) realloc((void *)PCalsY,  BUFF*NuOver*sizeof(cplx64d*));
@@ -260,6 +275,11 @@ static PyObject *XPCalMF(PyObject *self, PyObject *args)
 
                    PCalNus[NTone]=nui;
                  //  printf("SET %i to %.8e\n",NTone,nui);fflush(stdout); 
+                   ZeroIt[NTone] = false;
+                   for(j=0;j<nIFZero;j++){
+                     if (PCalNus[NTone]>=IFini[j] && PCalNus[NTone]<=IFend[j]){ZeroIt[NTone] = true; break;};
+                   };                 
+  
                    PCalTimes[NTone] = new double[BUFF];
                    PCalsX[NTone] = new cplx64d[BUFF];
                    PCalsY[NTone] = new cplx64d[BUFF];
@@ -363,7 +383,7 @@ static PyObject *XPCalMF(PyObject *self, PyObject *args)
 
   if(overWrite != 0){
 
-  bool isX;
+//  bool isX;
 
 // MAKE A BACKUP OF THE PCAL FILE:
   PcalF.open(PcalFile.c_str(), std::ios::in | std::ios::binary);
@@ -375,7 +395,7 @@ static PyObject *XPCalMF(PyObject *self, PyObject *args)
   PcalF.close();
   OutPcal.close();
 
-///////////////////////////////
+////////////////////////////////
 // OPEN PHASECAL FILE:
   PcalF.open(outname.c_str(), std::ios::in);
 
@@ -384,7 +404,10 @@ static PyObject *XPCalMF(PyObject *self, PyObject *args)
   OutPcal.open(PcalFile.c_str(), std::ios::out);
 
 
-
+  
+//  for (i=0; i<NTone; i++){
+//     printf(" %i  -   %.3f  %i \n",nIFZero,PCalNus[i],ZeroIt[i]);
+//  };
 
   std::string TelName, line, auxStr;
   std::stringstream tempStr;
@@ -411,7 +434,7 @@ static PyObject *XPCalMF(PyObject *self, PyObject *args)
          tempStr >> Aux3;
 
 
-       i=0; j=0; currP = 0; isX = true;
+       i=0; j=0; currP = 0; //isX = true;
        while(std::getline(tempStr,auxStr,' ')){
          if (auxStr.length() > 0){
            switch(i){
@@ -431,17 +454,20 @@ static PyObject *XPCalMF(PyObject *self, PyObject *args)
                      if(areSame(Tbuf,PCalTimes[j][l])){break;};
                  };
                };
+
+               if(ZeroIt[j]){PCalsX[j][l]=cplx64d(-1.0,0.0); PCalsY[j][l]=cplx64d(-1.0,0.0);};
+
                i += 1; break;
 
              case 1: if(nui<=0){i+=1; break;} Pol = auxStr.c_str()[0];
 
-	       if (Pol=='X'){  // If X, keep next Re and Im; Change to R
-                 isX = true;
+	       if (Pol=='X' || Pol=='R'){  // If X, keep next Re and Im; Change to R
+               //  isX = true;
 		 currP = tempStr.tellg();
                  tempStr.seekp(currP-2);
 		 tempStr << 'R';
-	       } else if (Pol=='Y'){ // If Y, change Re and Im; Change to L
-                 isX = false;
+	       } else if (Pol=='Y' || Pol=='L'){ // If Y, change Re and Im; Change to L
+               //  isX = false;
                  currP = tempStr.tellg();
                  tempStr.seekp(currP-2);
 		 tempStr << 'L';
@@ -449,24 +475,24 @@ static PyObject *XPCalMF(PyObject *self, PyObject *args)
 	       i += 1; break;
 
              case 2: if(nui<=0){i+=1; break;};
-		if (!isX){
+	//	if (!isX){
 	          lastP = tempStr.tellg();		
                   tempStr.seekp(currP);
                   Nbytes = lastP - currP-1;
 		  currP = lastP;
 		  tempStr << std::setw(Nbytes) << std::scientific << PCalsX[j][l].real();
-		};	
+	//	};	
 		i += 1; break;
 
 
              case 3: if(nui<=0){i=0; break;};
-		if (!isX){
+	//	if (!isX){
 	          lastP = tempStr.tellg();		
                   tempStr.seekp(currP);
                   Nbytes = lastP - currP-1;
 		  currP = lastP;
 		  tempStr << std::setw(Nbytes) << std::scientific << PCalsX[j][l].imag();
-		};	
+	//	};	
 		i = 0; break;
 
            };
@@ -502,7 +528,7 @@ static PyObject *XPCalMF(PyObject *self, PyObject *args)
   };
 
   double FrAux, PhAux, AuxA; 
-
+  double ZeroAux;
 // Sort the data in order of increasing frequency:
   for (i=0; i<NTone-1; i++){
     for (j=i+1; j<NTone; j++){
@@ -510,6 +536,7 @@ static PyObject *XPCalMF(PyObject *self, PyObject *args)
         FrAux=PCalNus[i]; PCalNus[i]=PCalNus[j]; PCalNus[j]=FrAux;
         PhAux=Phases[i]; Phases[i]=Phases[j]; Phases[j]=PhAux;
         AuxA = Amps[i]; Amps[i] = Amps[j]; Amps[j] = AuxA;
+        ZeroAux = ZeroIt[i]; ZeroIt[i]=ZeroIt[j]; ZeroIt[j] = ZeroAux;
       };
     }; 
   //  printf("TONE %i: %.8e\n",i,PCalNus[i]);fflush(stdout);
@@ -602,6 +629,7 @@ static PyObject *XPCalMF(PyObject *self, PyObject *args)
     delete[] goodY;
     delete[] PCalNus;
     delete[] NTimes;
+    delete[] ZeroIt;
 
 /*
   // Arrange data for output to Python:

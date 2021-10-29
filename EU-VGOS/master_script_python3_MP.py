@@ -1,6 +1,6 @@
 #########################
 ### MASTER SCRIPT FOR EU-VGOS POLCONVERSION.
-### VERSION 01/08/2021.
+### VERSION 29/09/2021.
 ### I. MARTI-VIDAL & J. GONZALEZ.
 #########################
 
@@ -44,7 +44,7 @@ PYTHON_CALL = 'python3 %s.py'
 ######################################
 
 # List of steps to be performed:
-mysteps = [1,2]
+mysteps = [1]
 
 
 
@@ -69,6 +69,7 @@ PCONV_DIR = 'DiFX'
 
 # LIST OF IFS (STARTING FROM 1 !!!):
 DOIF = list(range(1,33))
+
 
 # FREQUENCY AVERAGING FOR CROSS-POL GAINS:
 CHAVG = 8
@@ -96,6 +97,12 @@ SOLVER = 'COBYLA'               ## GOOD
 ## AS NEW ANTENNAS ARE ADDED, SET HERE WHETHER THEIR PCALS
 ## ARE TO BE USED:
 USE_PCAL = {'OE':True, 'OW':True, 'YJ':True, 'IS':True,'WS':True}
+
+
+## LIST OF FREQUENCY RANGES TO ZERO FOR THE PCALS (in MHz):
+ZERO_PCALS = {'YJ':[[1000.,4000.]]}
+
+
 
 
 ## REFANT (FOR ASSESSMENT PLOTS):
@@ -451,6 +458,8 @@ if 1 in mysteps:
   os.system('rm -rf POLCAL_OUTPUT_SCAN*.dat')
   os.system('rm -rf STEP1_*.py')
   os.system('rm -rf STEP1B*.py')
+  os.system('rm -rf PolConvert.XYGains_IF*.dat')
+  os.system('rm -rf Cross-Gains_*_CALIB_IF*.png')
   
 
 
@@ -482,6 +491,19 @@ if 2 in mysteps:
 
   SCRIPT_NAME = 'STEP2'
   XYG = 'POLCAL_GAINS_%s.dat'%(EXPNAME)
+
+
+  if not APPLY_AMP:
+    IFF = open(XYG,'rb')
+    TEMP = pk.load(IFF)
+    IFF.close()
+    for anti in TEMP['XYratio'].keys():
+      for ki in TEMP['XYratio'][anti].keys():
+        TEMP['XYratio'][anti][ki][:] = 1.0
+    OFF = open('POLCAL_GAINS_NOAMP_%s.dat'%(EXPNAME),'wb')
+    pk.dump(TEMP,OFF)
+    OFF.close()
+    XYG = 'POLCAL_GAINS_NOAMP_%s.dat'%(EXPNAME)
 
 
   IFF = open('SOURCES_%s.txt'%EXPNAME)
@@ -522,7 +544,7 @@ if 2 in mysteps:
 
    # os.system('cp -r %s %s'%(os.path.join(DIFX_DIR,'%s_%s*'%(EXPNAME,SCAN)), PCONV_DIR))
 
-    keyw = {'EXPNAME':EXPNAME, 'ORIG_DIR':DIFX_DIR, 'DIFX_DIR':PCONV_DIR, 'XYGAINS':XYG, 'SUFFIX': SUFFIX, 'USE_PCAL':USE_PCAL,'SCAN_LIST':[SCAN]}
+    keyw = {'EXPNAME':EXPNAME, 'ORIG_DIR':DIFX_DIR, 'DIFX_DIR':PCONV_DIR, 'XYGAINS':XYG, 'SUFFIX': SUFFIX, 'USE_PCAL':USE_PCAL,'SCAN_LIST':[SCAN],'ZERO_PCALS':ZERO_PCALS}
     keys = open('keywords_%s.dat'%SCRIPT_NAME,'wb'); pk.dump(keyw, keys); keys.close()
 
     OFF = open('%s.py'%SCRIPT_NAME,'w')
@@ -536,7 +558,6 @@ if 2 in mysteps:
 
     print('GOING TO RUN %s'%filename)
     os.system(PYTHON_CALL%filename) 
- 
 
   if NCPU>1:
     pool = multiprocessing.Pool(processes=NCPU)

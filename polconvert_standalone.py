@@ -543,7 +543,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
      for line in inputlines[fr+1:]:
        if entry in line:
          index = int((line.split(':')[0]).split()[-1])
-         FrInfo[entry][index] = type(FrInfo[entry][0])(line.split()[-1])
+         FrInfo[entry][index] = type(FrInfo[entry][0])(line.split(':')[-1])
 
 # SORT OUT THE CHANNEL FREQUENCIES:
 
@@ -936,7 +936,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
           PCFile = list(filter(lambda x: x.endswith(doant+pcalSuffix),phcalscan))
           if len(PCFile)==0:
             printError("\n\n SANITY-TEST FAILURE! NO PHASECAL FILE FOR %s\n"%doant)
-          fName = XP.XPCalMF(PCFile[0],0)
+          fName = XP.XPCalMF(PCFile[0],[],0)
           IFFCP = open(fName)
           tempArr = []
           for line in IFFCP.readlines():
@@ -947,7 +947,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 
         # Update pcal files (if not doing a test):
           if not doTest:
-            ErrCode = XP.XPCalMF(PCFile[0],1)  
+            ErrCode = XP.XPCalMF(PCFile[0],[],1)  
             if ErrCode != 0:
               printError("\n\n ERROR Converting phasecal file %s\n"%os.path.basename(PCFile[0]))
 
