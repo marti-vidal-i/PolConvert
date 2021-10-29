@@ -74,7 +74,7 @@ DataIOSWIN::~DataIOSWIN() {
 
 
 DataIOSWIN::DataIOSWIN(int nfiledifx, std::string* difxfiles, int NlinAnt, 
-         int *LinAnt, double *Range, int nIF, int *nChan, int nIF2Conv, int *IF2Conv, int *NchanAC, 
+         int *LinAnt, double *Range, int nIF, int *nChan, int nIF2Conv, int *IF2Conv, int IFoffset, int *NchanAC, 
          double **FreqVal, bool Overwrite, bool doTest, bool doSolve, 
          int saveSource, double jd0, ArrayGeometry *Geom, bool doPar, FILE *logF) {
 
@@ -85,6 +85,7 @@ DataIOSWIN::DataIOSWIN(int nfiledifx, std::string* difxfiles, int NlinAnt,
 
   nDoIF = nIF2Conv;
   DoIF = IF2Conv;
+  IFOffset = IFoffset;
 
   doParang = doPar;
   logFile = logF;
@@ -462,7 +463,7 @@ void DataIOSWIN::readHeader(bool doTest, int saveSource) {
 
     isInIF = false;
     for(auxJ=0;auxJ<nDoIF;auxJ++){
-      if (fridx==DoIF[auxJ]){isInIF=true; isIFidx = auxJ; break;};
+      if (fridx==DoIF[auxJ] || fridx==DoIF[auxJ]+IFOffset){isInIF=true; isIFidx = auxJ; break;};
     };
 
 
@@ -607,6 +608,7 @@ void DataIOSWIN::readHeader(bool doTest, int saveSource) {
          Records[nrec].byteEnd = end;
          Records[nrec].Pol[0] = pol[0];
          Records[nrec].Pol[1] = pol[1];
+         Records[nrec].freqIndex = fridx;
 
 // Derive the parallactic angles:
          ParAng[0][nrec] = AuxPA1 ; ParAng[1][nrec] = AuxPA2;
@@ -621,7 +623,6 @@ void DataIOSWIN::readHeader(bool doTest, int saveSource) {
            newdifx[auxI].write(reinterpret_cast<char*>(pol),2*sizeof(char));
          };
 /////////
-         Records[nrec].freqIndex = fridx;
          nrec ++;
        };
      };

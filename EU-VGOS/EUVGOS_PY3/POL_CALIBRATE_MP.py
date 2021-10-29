@@ -29,7 +29,7 @@ if __name__=='__main__':
 
 #################################
 # COMMENT OUT THIS LINE WHEN DEBUGGING WITH execfile(...)
-def POL_CALIBRATE(EXPNAME='',DIFX_DIR = '', DOSCAN=-1,CHANSOL=32,USE_PCAL=True,EXCLUDE_BASELINES=[],DOIF=[],DOAMP=True,PLOTANT=1,APPLY_AMP=True,APPLY_POLCAL=True,SOLVER = 'COBYLA',DOSOLVE=0.0, PCAL_SUFFIX='',INTTIME=1.0):
+def POL_CALIBRATE(EXPNAME='',DIFX_DIR = '', DOSCAN=-1,CHANSOL=32,USE_PCAL=True,EXCLUDE_BASELINES=[],DOIF=[],DOAMP=True,PLOTANT=1,APPLY_AMP=True,APPLY_POLCAL=True,SOLVER = 'COBYLA',DOSOLVE=0.0, PCAL_SUFFIX='',INTTIME=1.0, IF_OFFSET=0):
  """ Estimates cross-polarization gains using a scan in a SWIN directory.
   The channel resolution is set to CHANSOL. Saves the gains in a dictionary
   that can ge used by PolConvert."""
@@ -89,7 +89,7 @@ def POL_CALIBRATE(EXPNAME='',DIFX_DIR = '', DOSCAN=-1,CHANSOL=32,USE_PCAL=True,E
     OUTPUTIDI = DIFX,
     DiFXinput = '%s_%s.input'%(os.path.join(DIFX,EXP),DOSCAN[0]),
     DiFXcalc = '%s_%s.calc'%(os.path.join(DIFX,EXP),DOSCAN[0]),
-    doIF = DOIF, plotIF = [],plotSuffix = '_IF%i'%(DOIF[0]),
+    doIF = DOIF, plotIF = [],plotSuffix = '_IF%i'%(DOIF[0]),IFoffset=IF_OFFSET,
     plotRange=[0,0,0,0,2,0,0,0], plotAnt=PLOTANT,excludeBaselines=EXCLUDE_BASELINES,
     linAntIdx = list(range(1,Nants+1)),swapXY=[False for i in range(Nants)], 
     usePcal = USE_PCAL, XYadd={}, XYratio={}, XYdel={}, pcalSuffix= PCAL_SUFFIX,
@@ -141,7 +141,7 @@ def POL_CALIBRATE(EXPNAME='',DIFX_DIR = '', DOSCAN=-1,CHANSOL=32,USE_PCAL=True,E
   #IFF.close()
   
   if APPLY_POLCAL:
-    FINAL = PC.polconvert(IDI=DIFX,
+    FINAL = PC.polconvert(IDI=DIFX, IFoffset=IF_OFFSET,
       OUTPUTIDI = '%s_POL_CALIBRATE_RESULTS'%(os.path.join(DIFX,EXP)),          
       DiFXinput = '%s_%s.input'%(os.path.join(DIFX,EXP),DOSCAN[0]),
       DiFXcalc = '%s_%s.calc'%(os.path.join(DIFX,EXP),DOSCAN[0]),

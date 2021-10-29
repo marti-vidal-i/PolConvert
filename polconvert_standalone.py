@@ -112,8 +112,8 @@ import pickle as pk
 
 
 
-def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntIdx=[], Range=[], XYadd={}, XYdel={}, XYratio={}, usePcal={}, swapXY=[], swapRL=False, feedRotation=[], correctParangle=False, IDI_conjugated=False, plotIF=[], plotRange=[], plotAnt='',excludeAnts=[],excludeBaselines=[],doSolve=-1,solint=[1,1],doTest=True,npix=-1,solveAmp=True,solveMethod='COBYLA', calstokes=[1.,0.,0.,0.], calfield=-1, plotSuffix = '', pcalSuffix = '', ALMAstuff = [], saveArgs=False, amp_norm=0.0):
-  """ POLCONVERT - STANDALONE VERSION 2.0b.
+def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntIdx=[], Range=[], XYadd={}, XYdel={}, XYratio={}, usePcal={}, swapXY=[], swapRL=False, feedRotation=[], correctParangle=False, IDI_conjugated=False, plotIF=[], plotRange=[], plotAnt='',excludeAnts=[],excludeBaselines=[],doSolve=-1,solint=[1,1],doTest=True,npix=-1,solveAmp=True,solveMethod='COBYLA', calstokes=[1.,0.,0.,0.], calfield=-1, plotSuffix = '', pcalSuffix = '', ALMAstuff = [], saveArgs=False, amp_norm=0.0, IFoffset=0):
+  """ POLCONVERT - STANDALONE VERSION 2.0.1b.
 
      Similar parameters as the method defined in polconvert_CASA. The parameters specific 
      of this task (i.e., polconvert_standalone::polconvert) may be useful to parallelize polconvert:
@@ -135,7 +135,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
           'plotAnt':plotAnt, 'excludeAnts':excludeAnts, 'excludeBaselines':excludeBaselines, 
           'doSolve':doSolve, 'solint':solint, 'doTest':doTest, 'npix':npix, 
           'solveAmp':solveAmp, 'solveMethod':solveMethod, 'calstokes':calstokes, 
-          'calfield':calfield, 'ALMAstuff':ALMAstuff}
+          'calfield':calfield, 'ALMAstuff':ALMAstuff,'IFoffset':IFoffset}
 
       OFF = open('PolConvert_standalone.last','wb')
       pk.dump(ARGS,OFF); OFF.close()
@@ -1109,7 +1109,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
   # the second argument is "PC:PolConvert::plIF" and controls whether the huge binary fringe files are written.
   try:
 
-     didit = PC.PolConvert(nALMATrue, plotIF, plotAnt, doIF, 
+     didit = PC.PolConvert(nALMATrue, plotIF, plotAnt, doIF, IFoffset,
         swapXY, OUTPUT, linAntIdxTrue, plRan, Ran, 
         doTest, doSolve, doConj, doAmpNorm, PrioriGains, metadata, 
         soucoords, antcoords, antmounts, isLinear,calfield,

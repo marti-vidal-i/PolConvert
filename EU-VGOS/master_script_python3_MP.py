@@ -44,7 +44,7 @@ PYTHON_CALL = 'python3 %s.py'
 ######################################
 
 # List of steps to be performed:
-mysteps = [1]
+mysteps = [0]
 
 
 
@@ -69,6 +69,11 @@ PCONV_DIR = 'DiFX'
 
 # LIST OF IFS (STARTING FROM 1 !!!):
 DOIF = list(range(1,33))
+
+# IF SOME AUTOCORRS ARE STORED IN DIFFERENT IFs, 
+# SET THIS VARIABLE EQUAL TO THE OFFSET IF NUMBER:
+# (IF YOU SET IT TO ZERO, IT WILL HAVE NO EFFECT).
+IF_OFFSET = 32  # (CASE OF YJ, WHERE I --->  I + 32).
 
 
 # FREQUENCY AVERAGING FOR CROSS-POL GAINS:
@@ -246,7 +251,7 @@ if 1 in mysteps:
     keyw = {'EXPNAME':EXPNAME, 'DIFX_DIR':CALDIR, 'DOSCAN':POLCAL_SCAN, 'CHANSOL': CHAVG, 
             'USE_PCAL':USE_PCAL, 'INTTIME':INTTIME, 'EXCLUDE_BASELINES':EXCLUDE_BASELINE, 
             'DOAMP':SOLVE_AMP,'DOIF':[CURRIF],'PLOTANT':REFANT, 'APPLY_AMP':APPLY_AMP, 
-            'SOLVER':SOLVER, 'APPLY_POLCAL':False, 'PCAL_SUFFIX':'_IF%i'%CURRIF}
+            'SOLVER':SOLVER, 'APPLY_POLCAL':False, 'PCAL_SUFFIX':'_IF%i'%CURRIF, 'IF_OFFSET':IF_OFFSET}
 
     keys = open('keywords_%s.dat'%SCRIPT_NAME,'wb'); pk.dump(keyw, keys,protocol=0); keys.close()
 
@@ -317,7 +322,7 @@ if 1 in mysteps:
   
   SCRIPT_NAME = 'STEP1B'
   XYG = 'POLCAL_GAINS_%s.dat'%(EXPNAME)
-  keyw = {'EXPNAME':EXPNAME, 'DIFX_DIR':CALDIR, 'XYGAINS':XYG, 'SUFFIX': SUFFIX, 
+  keyw = {'EXPNAME':EXPNAME, 'DIFX_DIR':CALDIR, 'XYGAINS':XYG, 'SUFFIX': SUFFIX, 'IF_OFFSET':IF_OFFSET, 
           'USE_PCAL':USE_PCAL, 'DOPLOT':True, 'SCAN_LIST':[POLCAL_SCAN[0]], 'REFANT':REFANT}
   keys = open('keywords_%s.dat'%SCRIPT_NAME,'wb'); pk.dump(keyw, keys); keys.close()
   OFF = open('%s.py'%SCRIPT_NAME,'w')
@@ -544,7 +549,7 @@ if 2 in mysteps:
 
    # os.system('cp -r %s %s'%(os.path.join(DIFX_DIR,'%s_%s*'%(EXPNAME,SCAN)), PCONV_DIR))
 
-    keyw = {'EXPNAME':EXPNAME, 'ORIG_DIR':DIFX_DIR, 'DIFX_DIR':PCONV_DIR, 'XYGAINS':XYG, 'SUFFIX': SUFFIX, 'USE_PCAL':USE_PCAL,'SCAN_LIST':[SCAN],'ZERO_PCALS':ZERO_PCALS}
+    keyw = {'EXPNAME':EXPNAME, 'ORIG_DIR':DIFX_DIR, 'DIFX_DIR':PCONV_DIR, 'XYGAINS':XYG, 'SUFFIX': SUFFIX, 'USE_PCAL':USE_PCAL,'SCAN_LIST':[SCAN],'ZERO_PCALS':ZERO_PCALS, 'IF_OFFSET':IF_OFFSET}
     keys = open('keywords_%s.dat'%SCRIPT_NAME,'wb'); pk.dump(keyw, keys); keys.close()
 
     OFF = open('%s.py'%SCRIPT_NAME,'w')

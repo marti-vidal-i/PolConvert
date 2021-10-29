@@ -216,6 +216,7 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
 
   long i,j,k,auxI;
   int ii, ij, ik, il, im;
+  int IFoffset;
 
   PyObject *ngain, *nsum, *gains, *ikind, *dterms, *plotRange;
   PyObject *IDI, *antnum, *tempPy, *ret; 
@@ -233,13 +234,13 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
 
 
 
-  if (!PyArg_ParseTuple(args, "iOiOOOOOOidiiOOOOOOiOiiOO",
-    &nALMA, &plIF, &plAnt, &doIF,                               // 0-3
-    &SWAP, &IDI, &antnum, &plotRange,                           // 4-7
-    &Range, &doTest, &doSolve, &doConj,                         // 8-11
-    &doNorm, &XYaddObj, &metadata, &soucoordObj,                // 12-15
-    &antcoordObj, &antmountObj, &isLinearObj, &calField,        //16-19
-    &ACorrPy, &doParI, &verbose, &logNameObj, &ALMAstuff)) {    //20-24
+  if (!PyArg_ParseTuple(args, "iOiOiOOOOOidiiOOOOOOiOiiOO",
+    &nALMA, &plIF, &plAnt, &doIF, &IFoffset,                    // 0-4
+    &SWAP, &IDI, &antnum, &plotRange,                           // 5-8
+    &Range, &doTest, &doSolve, &doConj,                         // 9-12
+    &doNorm, &XYaddObj, &metadata, &soucoordObj,                // 13-16
+    &antcoordObj, &antmountObj, &isLinearObj, &calField,        //17-20
+    &ACorrPy, &doParI, &verbose, &logNameObj, &ALMAstuff)) {    //21-25
       printf("FAILED PolConvert! Unable to parse arguments!\n");
       fflush(stdout);
       ret = Py_BuildValue("i",-1);
@@ -712,7 +713,7 @@ if(PCMode){
     sprintf(message,"\n\n Opening and preparing SWIN files.\n");
     fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
     DifXData = new DataIOSWIN(nSWINFiles, SWINFiles, nALMA, 
-           almanums, doRange, SWINnIF, SWINnchan, nIFconv, IFs2Conv, ACorrs, SWINFreqs, 
+           almanums, doRange, SWINnIF, SWINnchan, nIFconv, IFs2Conv, IFoffset, ACorrs, SWINFreqs, 
            OverWrite, doTest, iDoSolve, calField, jd0, Geometry, doParang, logFile);
   } else {
     sprintf(message,"\n\n Opening FITS-IDI file and reading header.\n");
@@ -1318,6 +1319,8 @@ if(PCMode){
              //indent level if dt or g changed
              NormFac[0]=((float) nchans[ii]); 
              NormFac[1]=((float) nchans[ii]);
+
+
            }; // Comes from the else of "if(dtchanged||gchanged)"
 
 
@@ -1337,6 +1340,19 @@ if(PCMode){
            };
            //indent level within time range
 
+
+  // Correct for amplitude ratios (put amplitudes back):
+           if(!PCMode){
+          //   printf("%.2f %i |",std::abs(gainRatio[10]),currAntIdx);fflush(stdout);
+             for(j=0; j<nchans[ii]; j++){
+                AntTab = std::abs(gainRatio[j]); //std::abs(Ktotal[currAntIdx][0][0][j]*Ktotal[currAntIdx][1][1][j] - Ktotal[currAntIdx][0][1][j]*Ktotal[currAntIdx][1][0][j]);
+             //   if(j==0 && currAntIdx==2){printf("%.2e ",AntTab);fflush(stdout);};
+                Ktotal[currAntIdx][0][0][j] *= AntTab;
+                Ktotal[currAntIdx][0][1][j] *= AntTab;
+                Ktotal[currAntIdx][1][0][j] *= AntTab;
+                Ktotal[currAntIdx][1][1][j] *= AntTab;
+             };
+           };
 
 // Calibrate and convert to circular:
 
