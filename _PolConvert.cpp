@@ -228,19 +228,20 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
   int currFile;
   double doSolve;
   bool isSWIN, doParang; 
-   
+  int AutoCorrMedianWindow;   
+
   printf("Parsing arguments\n");
  
 
 
 
-  if (!PyArg_ParseTuple(args, "iOiOiOOOOOidiiOOOOOOiOiiOO",
-    &nALMA, &plIF, &plAnt, &doIF, &IFoffset,                    // 0-4
-    &SWAP, &IDI, &antnum, &plotRange,                           // 5-8
-    &Range, &doTest, &doSolve, &doConj,                         // 9-12
-    &doNorm, &XYaddObj, &metadata, &soucoordObj,                // 13-16
-    &antcoordObj, &antmountObj, &isLinearObj, &calField,        //17-20
-    &ACorrPy, &doParI, &verbose, &logNameObj, &ALMAstuff)) {    //21-25
+  if (!PyArg_ParseTuple(args, "iOiOiiOOOOOidiiOOOOOOiOiiOO",
+    &nALMA, &plIF, &plAnt, &doIF, &IFoffset, &AutoCorrMedianWindow,  // 0-5
+    &SWAP, &IDI, &antnum, &plotRange,                                // 6-9
+    &Range, &doTest, &doSolve, &doConj,                              // 10-13
+    &doNorm, &XYaddObj, &metadata, &soucoordObj,                     // 14-17
+    &antcoordObj, &antmountObj, &isLinearObj, &calField,             //18-21
+    &ACorrPy, &doParI, &verbose, &logNameObj, &ALMAstuff)) {         //22-26
       printf("FAILED PolConvert! Unable to parse arguments!\n");
       fflush(stdout);
       ret = Py_BuildValue("i",-1);
@@ -713,7 +714,7 @@ if(PCMode){
     sprintf(message,"\n\n Opening and preparing SWIN files.\n");
     fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
     DifXData = new DataIOSWIN(nSWINFiles, SWINFiles, nALMA, 
-           almanums, doRange, SWINnIF, SWINnchan, nIFconv, IFs2Conv, IFoffset, ACorrs, SWINFreqs, 
+           almanums, doRange, SWINnIF, SWINnchan, nIFconv, IFs2Conv, IFoffset, AutoCorrMedianWindow, ACorrs, SWINFreqs, 
            OverWrite, doTest, iDoSolve, calField, jd0, Geometry, doParang, logFile);
   } else {
     sprintf(message,"\n\n Opening FITS-IDI file and reading header.\n");
@@ -1345,7 +1346,8 @@ if(PCMode){
            if(!PCMode){
           //   printf("%.2f %i |",std::abs(gainRatio[10]),currAntIdx);fflush(stdout);
              for(j=0; j<nchans[ii]; j++){
-                AntTab = std::abs(gainRatio[j]); //std::abs(Ktotal[currAntIdx][0][0][j]*Ktotal[currAntIdx][1][1][j] - Ktotal[currAntIdx][0][1][j]*Ktotal[currAntIdx][1][0][j]);
+              //  AntTab = std::abs(gainRatio[j]); 
+                AntTab = 1./std::abs(Ktotal[currAntIdx][0][0][j]*Ktotal[currAntIdx][1][1][j] - Ktotal[currAntIdx][0][1][j]*Ktotal[currAntIdx][1][0][j]);
              //   if(j==0 && currAntIdx==2){printf("%.2e ",AntTab);fflush(stdout);};
                 Ktotal[currAntIdx][0][0][j] *= AntTab;
                 Ktotal[currAntIdx][0][1][j] *= AntTab;

@@ -22,7 +22,7 @@ if __name__ == '__main__':
 
 #################################
 # COMMENT OUT THIS LINE WHEN DEBUGGING WITH execfile(...)
-def POLCONVERTER(EXPNAME = '', XYGAINS = '', ORIG_DIR='', DIFX_DIR='', SUFFIX = '_PC', SCAN_LIST = [], USE_PCAL=True, DOPLOT=False, REFANT='', ZERO_PCALS={},IF_OFFSET=0):
+def POLCONVERTER(EXPNAME = '', XYGAINS = '', ORIG_DIR='', DIFX_DIR='', SUFFIX = '_PC', SCAN_LIST = [], USE_PCAL=True, DOPLOT=False, REFANT='', ZERO_PCALS={},IF_OFFSET=0, AC_WINDOW=0):
  """ Converts all scans in a SWIN directory, using a cross-polarization
  gain file computed by PolConvert from a calibrator scan. It saves the new
  SWIN files in the same directory, adding SUFFIX to the *.difx subdirecotries."""
@@ -134,6 +134,7 @@ def POLCONVERTER(EXPNAME = '', XYGAINS = '', ORIG_DIR='', DIFX_DIR='', SUFFIX = 
     command +="  DiFXinput = \'%s\',\n"%INP
     command +="  DiFXcalc = \'%s\',\n"%CAL
     command +="  IFoffset = %i,\n"%IF_OFFSET
+    command +="  AC_MedianWindow= %i,\n"%AC_WINDOW
     command +="  doIF = [%s], solveMethod = \'COBYLA\', solveAmp = False,\n"%(','.join(map(str,doIF)))
     command +="  linAntIdx = [%s],swapXY=[%s],XYadd=XYG[\'XYadd\'],\n"%(','.join(['\'%s\''%NAM for NAM in NAMS]), ','.join(['False' for i in range(NANT)]))
     if DOPLOT:

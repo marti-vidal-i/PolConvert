@@ -55,7 +55,7 @@ class DataIOSWIN: public DataIO {
 
    ~DataIOSWIN();
 
-   DataIOSWIN(int nSWIN, std::string* outputfiles, int Nant, int *Ants, double *doRange, int nIF, int *nChan, int nIF2Conv, int *IF2Conv, int IFoffset, int *nChanACorr, double **Freqs, bool Overwrite, bool doTest, bool doSolve, int saveSource, double jd0, ArrayGeometry *Geom, bool doPar, FILE *logF);
+   DataIOSWIN(int nSWIN, std::string* outputfiles, int Nant, int *Ants, double *doRange, int nIF, int *nChan, int nIF2Conv, int *IF2Conv, int IFoffset, int Afilt, int *nChanACorr, double **Freqs, bool Overwrite, bool doTest, bool doSolve, int saveSource, double jd0, ArrayGeometry *Geom, bool doPar, FILE *logF);
 
    bool setCurrentIF(int i);
 
@@ -107,6 +107,7 @@ class DataIOSWIN: public DataIO {
 ////////
 
 //    char polOrder[4];
+    int AutoCorrMedianFilter;
     int IFOffset;
     int nDoIF;
     int *DoIF;

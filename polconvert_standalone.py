@@ -50,8 +50,8 @@
 
 from __future__ import absolute_import
 from __future__ import print_function
-__version__ = "2.0b  "  # 7 characters
-date = 'Aug 4, 2021'     
+__version__ = "2.0.2b "  # 7 characters
+date = 'Nov 2, 2021'     
 
 
 ################
@@ -112,7 +112,7 @@ import pickle as pk
 
 
 
-def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntIdx=[], Range=[], XYadd={}, XYdel={}, XYratio={}, usePcal={}, swapXY=[], swapRL=False, feedRotation=[], correctParangle=False, IDI_conjugated=False, plotIF=[], plotRange=[], plotAnt='',excludeAnts=[],excludeBaselines=[],doSolve=-1,solint=[1,1],doTest=True,npix=-1,solveAmp=True,solveMethod='COBYLA', calstokes=[1.,0.,0.,0.], calfield=-1, plotSuffix = '', pcalSuffix = '', ALMAstuff = [], saveArgs=False, amp_norm=0.0, IFoffset=0):
+def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntIdx=[], Range=[], XYadd={}, XYdel={}, XYratio={}, usePcal={}, swapXY=[], swapRL=False, feedRotation=[], correctParangle=False, IDI_conjugated=False, plotIF=[], plotRange=[], plotAnt='',excludeAnts=[],excludeBaselines=[],doSolve=-1,solint=[1,1],doTest=True,npix=-1,solveAmp=True,solveMethod='COBYLA', calstokes=[1.,0.,0.,0.], calfield=-1, plotSuffix = '', pcalSuffix = '', ALMAstuff = [], saveArgs=False, amp_norm=0.0, IFoffset=0, AC_MedianWindow=0):
   """ POLCONVERT - STANDALONE VERSION 2.0.1b.
 
      Similar parameters as the method defined in polconvert_CASA. The parameters specific 
@@ -121,6 +121,16 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
         plotSuffix: Suffix to add to the names of the plot files.
         pcalSuffix: Suffix to add to the names of the original pcal files in the difx directories.
         ALMAstuff: List of ALMA-specific parameters passed by polconvert_CASA::polconvert.
+
+    Other new parameters are:
+
+       IFoffset: treats the IF with index "i" as the same IF with index "i+IFoffset". This is 
+                 useful to process correctly the autocorrelations with multi-file has been 
+                 used in the observations.
+
+       AC_MedianWindow: Size (in channels) of a median window filter to be applied to the 
+                        autocorrelations. This is useful if we want to filter out phasecal peaks 
+                        (for a better fringe normalization).
 
   """
 
@@ -135,7 +145,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
           'plotAnt':plotAnt, 'excludeAnts':excludeAnts, 'excludeBaselines':excludeBaselines, 
           'doSolve':doSolve, 'solint':solint, 'doTest':doTest, 'npix':npix, 
           'solveAmp':solveAmp, 'solveMethod':solveMethod, 'calstokes':calstokes, 
-          'calfield':calfield, 'ALMAstuff':ALMAstuff,'IFoffset':IFoffset}
+          'calfield':calfield, 'ALMAstuff':ALMAstuff,'IFoffset':IFoffset,'AC_MedianWindow':AC_MedianWindow}
 
       OFF = open('PolConvert_standalone.last','wb')
       pk.dump(ARGS,OFF); OFF.close()
@@ -1110,7 +1120,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
   try:
 
      didit = PC.PolConvert(nALMATrue, plotIF, plotAnt, doIF, IFoffset,
-        swapXY, OUTPUT, linAntIdxTrue, plRan, Ran, 
+        AC_MedianWindow, swapXY, OUTPUT, linAntIdxTrue, plRan, Ran, 
         doTest, doSolve, doConj, doAmpNorm, PrioriGains, metadata, 
         soucoords, antcoords, antmounts, isLinear,calfield,
         UseAutoCorrs,bool(correctParangle),DEBUG, logName, ALMAstuff)

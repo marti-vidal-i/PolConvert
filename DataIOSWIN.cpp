@@ -18,7 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>
   
 */
 
-
+#include <algorithm>
 #include <sys/types.h>
 #include <iostream> 
 #include <fstream>
@@ -74,7 +74,7 @@ DataIOSWIN::~DataIOSWIN() {
 
 
 DataIOSWIN::DataIOSWIN(int nfiledifx, std::string* difxfiles, int NlinAnt, 
-         int *LinAnt, double *Range, int nIF, int *nChan, int nIF2Conv, int *IF2Conv, int IFoffset, int *NchanAC, 
+         int *LinAnt, double *Range, int nIF, int *nChan, int nIF2Conv, int *IF2Conv, int IFoffset, int Afilt, int *NchanAC, 
          double **FreqVal, bool Overwrite, bool doTest, bool doSolve, 
          int saveSource, double jd0, ArrayGeometry *Geom, bool doPar, FILE *logF) {
 
@@ -83,6 +83,7 @@ DataIOSWIN::DataIOSWIN(int nfiledifx, std::string* difxfiles, int NlinAnt,
   nfiles = nfiledifx;
   int i, j;
 
+  AutoCorrMedianFilter = Afilt/2;
   nDoIF = nIF2Conv;
   DoIF = IF2Conv;
   IFOffset = IFoffset;
@@ -463,7 +464,7 @@ void DataIOSWIN::readHeader(bool doTest, int saveSource) {
 
     isInIF = false;
     for(auxJ=0;auxJ<nDoIF;auxJ++){
-      if (fridx==DoIF[auxJ] || fridx==DoIF[auxJ]+IFOffset){isInIF=true; isIFidx = auxJ; break;};
+      if (fridx==DoIF[auxJ] || fridx==DoIF[auxJ]+IFOffset){isInIF=true; isIFidx = auxJ; fridx = DoIF[auxJ]; break;};
     };
 
 
@@ -717,7 +718,7 @@ bool DataIOSWIN::getNextMixedVis(double &JDTime, int &antenna, int &otherAnt, bo
 
       idx = 0;
       for (rec=0; rec<nrec; rec++) {
-        if (Records[rec].notUsed && Records[rec].freqIndex==currFreq) {
+        if (Records[rec].notUsed && (Records[rec].freqIndex==currFreq)) {
           indices[idx] = rec;
           complete = !(is1[rec] && is2[rec]) ; 
           if(!complete){isTwoLinear=true;};
@@ -825,19 +826,15 @@ bool DataIOSWIN::getNextMixedVis(double &JDTime, int &antenna, int &otherAnt, bo
         newdifx[fnum].seekg(Records[rec].byteIni, newdifx[fnum].beg);
         newdifx[fnum].sync();
         newdifx[fnum].read(reinterpret_cast<char*>(currentVis[i]),Records[rec].byteEnd-Records[rec].byteIni);
-      } else {
-
-        for (k=0; k<Freqs[currFreq].Nchan; k++) {
-          currentVis[i][k] = (std::complex<float>)0;
-        };
       };
     };
 
 
 // Case of auto-correlations (in the 2nd round of conversion):
     isAutoCorr = antenna == otherAnt;
-
     if (complete) {
+// Recover the fringe after the 1st round (since sometimes the 
+// file is not flushed properly, so we need an "aux" variable):
       if (isAutoCorr || isTwoLinear){
         for (k=0;k<Freqs[currFreq].Nchan; k++) {
           currentVis[3][k] = auxVis[3][k];
@@ -846,12 +843,33 @@ bool DataIOSWIN::getNextMixedVis(double &JDTime, int &antenna, int &otherAnt, bo
           currentVis[1][k] = auxVis[1][k];
         };
       };
+    }; 
+
+
+
+    if (isAutoCorr && !complete){
+// 1st round of autocorrs. Zero the cross-terms (XY and YX):
+        for (k=0;k<Freqs[currFreq].Nchan; k++) {
+          currentVis[2][k] = 0.0;
+          currentVis[3][k] = 0.0;
+        };
     };
 
+
+
+/*
+else if (isAutoCorr) {
+        for (k=0;k<Freqs[currFreq].Nchan; k++) {
+          currentVis[2][k] = 0.0;
+          currentVis[1][k] = 0.0;
+        };
+    };
+*/
    calField = field; 
    JDTime = time;
    currConj = conj ;
 
+ 
    return true;
 
 };
@@ -886,9 +904,32 @@ int DataIOSWIN::getFileNumber(){
 bool DataIOSWIN::setCurrentMixedVis() { 
 
   long rec;
-  int i, fnum = 0;
+  int i, j, k,l,fnum = 0;
+
+      if (isAutoCorr){
+       int TotMedianWindow = 2*AutoCorrMedianFilter+1;
+       float *auxMedian = new float[TotMedianWindow];
+
+// 2nd round of autocorrs -> apply median filter.
+        if(AutoCorrMedianFilter>0 && AutoCorrMedianFilter<Freqs[currFreq].Nchan){
+          for (k=0;k<AutoCorrMedianFilter;k++){bufferVis[2][k] = 0.0; bufferVis[3][k]=0.0;};
+          for (k=Freqs[currFreq].Nchan-AutoCorrMedianFilter;k<Freqs[currFreq].Nchan;k++){bufferVis[2][k] = 0.0; bufferVis[3][k]=0.0;};
+
+          for (k=AutoCorrMedianFilter;k<Freqs[currFreq].Nchan-AutoCorrMedianFilter; k++) {
+             for(l=0;l<TotMedianWindow;l++){
+                auxMedian[l] = (std::abs(bufferVis[0][k-AutoCorrMedianFilter+l])+std::abs(bufferVis[1][k-AutoCorrMedianFilter+l]))/2.;
+             };
+             std::sort(auxMedian,auxMedian+TotMedianWindow);
+             bufferVis[0][k] = auxMedian[AutoCorrMedianFilter];
+             bufferVis[1][k] = bufferVis[0][k];
+             bufferVis[2][k] = 0.0; bufferVis[3][k]=0.0;
+          };
+        };
+        delete[] auxMedian;
+      }; 
 
 // Write:
+
 
   for (i=0; i<4; i++) {
     if (currEntries[currFreq][i]>=0){
@@ -949,6 +990,8 @@ void DataIOSWIN::applyMatrix(std::complex<float> *M[2][2], bool swap,
   ca12 = 2;
   ca21 = 3;
 
+
+
   for (k=0; k<Freqs[currFreq].Nchan; k++) {
 
     if (currConj) {
@@ -976,7 +1019,6 @@ void DataIOSWIN::applyMatrix(std::complex<float> *M[2][2], bool swap,
         bufferVis[ca22][k] *= auxVisApply;
       };
     };
-
 
  //  rec = currEntries[currFreq][0];
 
@@ -1055,7 +1097,7 @@ for (i=0; i<4; i++) {
     };
   } else {
     for(k=0;k<Freqs[currFreq].Nchan; k++) {
-      auxVis[i][k] = (std::complex<float>)0;
+      auxVis[i][k] = (std::complex<float>)0.0;
     };
     if(i==3){isTwoLinear=false;};
   };
@@ -1064,9 +1106,9 @@ for (i=0; i<4; i++) {
 ///////////////////////////////////
 
 
+//  if(isAutoCorr){printf("B: %i  | %.3e %.3e  |  %.3e %.3e  |  %.3e %.3e  | %.3e %.3e \n",canPlot,bufferVis[0][10].real(),bufferVis[0][10].imag(),bufferVis[1][10].real(),bufferVis[1][10].imag(),bufferVis[2][10].real(),bufferVis[2][10].imag(),bufferVis[3][10].real(),bufferVis[3][10].imag()); fflush(stdout);};
 
-
-
+//  if(isAutoCorr){printf("C: %i  | %.3e %.3e  |  %.3e %.3e  |  %.3e %.3e  | %.3e %.3e \n",canPlot,currentVis[0][10].real(),currentVis[0][10].imag(),currentVis[1][10].real(),currentVis[1][10].imag(),currentVis[2][10].real(),currentVis[2][10].imag(),currentVis[3][10].real(),currentVis[3][10].imag()); fflush(stdout);};
 };
 
 
