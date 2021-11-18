@@ -146,6 +146,7 @@ static PyObject *XPCalMF(PyObject *self, PyObject *args)
   double R2D = 180./PI; 
 
   int overWrite;
+  int iMode;
 //  double PI = 3.1415926535; 
 //  double R2D = 180./PI; 
 //  double GrDel;
@@ -157,13 +158,16 @@ static PyObject *XPCalMF(PyObject *self, PyObject *args)
   // Function arguments:
 //  int Ref, NIFs;
   PyObject *pFName, *pZero;
-  if (!PyArg_ParseTuple(args, "OOi", &pFName, &pZero, &overWrite)){printf("FAILED XPCalMF! Wrong arguments!\n"); fflush(stdout);  return ret;};
+  if (!PyArg_ParseTuple(args, "OOii", &pFName, &pZero, &overWrite, &iMode)){printf("FAILED XPCalMF! Wrong arguments!\n"); fflush(stdout);  return ret;};
 
  // if (Ref<0 || Ref>2){printf("ERROR! Ref should be >=0 and <= 2\n"); fflush(stdout); return ret;}
 
   
   // GrDel *= 1.e-3*(2.*PI);
-  
+
+  bool connectPhase = iMode<=0;
+  if(iMode <0){iMode = -iMode;}; 
+ 
 // OPEN PHASECAL FILE:
   std::string PcalFile = PyString_AsString(pFName);
   std::ifstream PcalF;
@@ -360,14 +364,26 @@ static PyObject *XPCalMF(PyObject *self, PyObject *args)
     //  printf("TONE %i; TIME %i of %i \n",j,i,NTimes[j]);fflush(stdout);
       if(goodX[j][i] && goodY[j][i]){
         NPCals += 1;
-        PCalTemp += PCalsY[j][i]/PCalsX[j][i];
+        switch (iMode) {
+          case 0:
+            PCalTemp += PCalsY[j][i]/PCalsX[j][i]; break;
+          case 1:
+            PCalTemp += PCalsX[j][i]; break;
+          default: PCalTemp += PCalsY[j][i]/PCalsX[j][i];
+        };
         AmpsX += std::abs(PCalsX[j][i]);
         AmpsY += std::abs(PCalsY[j][i]);
       };
     };
     if(NPCals>0){
       Phases[j] = (double) std::arg(PCalTemp);
-      Amps[j] = AmpsY/AmpsX;
+      switch (iMode){
+        case 0:
+          Amps[j] = AmpsY/AmpsX; break;
+        case 1:
+          Amps[j] = AmpsX; break;
+        default: Amps[j] = AmpsY/AmpsX;
+      };
     } else {
       Phases[j] = 0.0; Amps[j] = 1.;
     };
@@ -554,6 +570,7 @@ static PyObject *XPCalMF(PyObject *self, PyObject *args)
   double *NWrap = new double[NTone];
 
 
+
   for (i=0; i<NTone-1; i++){
     /////////////////////////	  
     // First, a simple connection between neighoring tones:	
@@ -566,6 +583,7 @@ static PyObject *XPCalMF(PyObject *self, PyObject *args)
     };
     /////////////////////////
 
+  if(connectPhase){
 
     ///////////////////////////////////////////////////////////////
     // Between IFs, we extrapolate the phase from the edge tone using the
@@ -596,6 +614,9 @@ static PyObject *XPCalMF(PyObject *self, PyObject *args)
       for(j=i+1;j<NTone;j++){Phases[j] += 2.*PI*IntP;};
 
     };
+
+  };
+
   };
 
 

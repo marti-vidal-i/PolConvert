@@ -36,7 +36,8 @@
 
 thesteps = {0: 'Source scanner',
             1: 'Estimate cross-polarization gains',
-            2: 'PolConvert the whole experiment'}
+            2: 'PolConvert the whole experiment',
+            3: 'Estimate additive phases & write CF file'}
 
 PYTHON_CALL = 'python3 %s.py'
 
@@ -44,15 +45,15 @@ PYTHON_CALL = 'python3 %s.py'
 ######################################
 
 # List of steps to be performed:
-mysteps = [2]
+mysteps = [3]
 
 
 
 
 
 ######################################
-
-
+#####################
+##### INVOLVING ALL STEPS: 
 # Number of processes allowed to run simultaneously:
 NCPU = 11
 
@@ -72,6 +73,22 @@ DOIF = list(range(1,33))
 
 # IF SOME AUTOCORRS ARE STORED IN DIFFERENT IFs, SET THIS TO THE OFFSET IF NUMBER:
 IF_OFFSET = 32  # (CASE OF YJ, WHERE I --->  I + 32
+
+
+## REFANT (FOR ASSESSMENT PLOTS AND ADDITIVE-PHASE ESTIMATES):
+REFANT = 'WS'
+
+#####################
+######################################
+
+
+
+
+
+
+######################################
+#####################
+##### INVOLVING STEPS 1 AND 2: 
 
 # FREQUENCY AVERAGING FOR CROSS-POL GAINS:
 CHAVG = 8
@@ -104,15 +121,8 @@ SOLVER = 'COBYLA'               ## GOOD
 ## ARE TO BE USED:
 USE_PCAL = {'OE':True, 'OW':True, 'YJ':True, 'IS':True,'WS':True}
 
-
 ## LIST OF FREQUENCY RANGES TO ZERO FOR THE PCALS (in MHz):
 ZERO_PCALS = {'YJ':[[1000.,4000.]]}
-
-
-
-
-## REFANT (FOR ASSESSMENT PLOTS):
-REFANT = 'YJ'
 
 ## LIST OF ANTENNAS AND BASELINES TO EXCLUDE FROM THE
 ## GAIN SOLUTIONS. IN PRINCIPLE, ALL THE INTRA-SITE BASELINES
@@ -124,12 +134,45 @@ EXCLUDE_BASELINE = [['OE','OW']]
 # COVERING A RANGE OF PARALLACTIC ANGLES, WITH GOOD SNRs 
 # ***AND*** WITH THE SAME ANTENNA CONFIGURATION!!!!
 POLCAL_SCAN = ['030','031','079'] # Little difference if we add more scans, e.g.:
-#POLCAL_SCAN = ['030','031','079','112','129','146']
-
-#POLCAL_SCAN = ['267','266','268', '237', '166', '080']
-
-## SUFFIX TO ADD TO THE ORIGINAL COPY OF THE DATA:
 SUFFIX = ''
+#####################
+######################################
+
+
+
+
+
+######################################
+#####################
+##### INVOLVING STEP 3: 
+
+# SCAN TO USE FOR THE PHASE ALIGNMENT AMONG IFs:
+ADDITIVE_PHASE_SCAN = POLCAL_SCAN[0] 
+# (by default, we use the first scan in the lust of "POLCAL_SCAN").
+
+# TRANSLATION OF ANTENNA NAMES (FROM SWIN TO MRK4):
+HOPSNAMES={'OE':'S', 'OW':'T', 'WS':'V', 'YJ':'Y'}
+
+# IF NAMES USED BY FOURFIT (long string, in freq. order):
+IFNAMES = 'abcdefghijklmnopqrstuvwxyzABCDEF'
+
+# Frequency range (in MHz) and IF names where the instrumental delay
+# is going to be extrapolated from the other frequencies:
+PCAL_DELAYS = {'YJ':[1000. ,4000., 'abcdefgh']}
+# (this is where the pcals are not usable; e.g.; YJ in S band).
+
+# SUN FOLLOW-UP FACTOR OF IONOSPHERE:
+LDFAC = 1.0
+# (should be between 0 and 1; 1.0 is the "sensible" value).
+
+# KIND OF IONEX IMAGE TO DOWNLOAD:
+IONEX = 'jplg'
+
+#####################
+######################################
+
+
+
 
 
 
@@ -158,6 +201,7 @@ Start = 'import pickle as pk\n'
 Start += 'from EUVGOS_PY3 import SOURCE_SCANNER as Sscan\n'
 Start += 'from EUVGOS_PY3 import POL_CALIBRATE_MP as PolCal\n'
 Start += 'from EUVGOS_PY3 import POLCONVERTER as PConv\n'
+Start += 'from EUVGOS_PY3 import PY_PHASES as PYF\n'
 Start += 'from PolConvert import polconvert_standalone as PC\n'
 
 # Loads the keywords for the execution of the corresponding task:
@@ -588,6 +632,37 @@ if 2 in mysteps:
   if os.path.exists('POLCONVERTER.FAILED'):
      raise Exception('STEP 2 FAILED!') 
 
+
+
+
+
+
+
+
+
+
+
+
+# STEP 3: PREPARE CF FILE:
+if 3 in mysteps:
+
+  if len(list(filter(lambda x: 'PY_PHASES' not in x, glob.glob('*.FAILED'))))>0:
+    raise Exception('ANOTHER TASK FAILED PREVIOUSLY. WILL ABORT UNTIL YOU SOLVE IT!')      
+
+
+  SCRIPT_NAME = 'STEP3'
+  SCAN = os.path.join(PCONV_DIR,'%s_%s.difx'%(EXPNAME,ADDITIVE_PHASE_SCAN))
+
+  keyw = {'SCAN':SCAN, 'HOPSNAMES': HOPSNAMES, 'IFNAMES': IFNAMES, 'FLAGBAS': EXCLUDE_BASELINE,
+          'PCALDELAYS': PCAL_DELAYS, 'REFANT':REFANT}
+
+  keys = open('keywords_%s.dat'%SCRIPT_NAME,'wb'); pk.dump(keyw, keys,protocol=0); keys.close()
+
+  OFF = open('%s.py'%SCRIPT_NAME,'w')
+  print(Start%SCRIPT_NAME,file=OFF)
+  print('PYF.GET_FOURFIT_PHASES(**kww)',file=OFF)
+  OFF.close()
+  os.system(PYTHON_CALL%SCRIPT_NAME)
 
 
 

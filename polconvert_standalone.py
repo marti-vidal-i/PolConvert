@@ -946,7 +946,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
           PCFile = list(filter(lambda x: x.endswith(doant+pcalSuffix),phcalscan))
           if len(PCFile)==0:
             printError("\n\n SANITY-TEST FAILURE! NO PHASECAL FILE FOR %s\n"%doant)
-          fName = XP.XPCalMF(PCFile[0],[],0)
+          fName = XP.XPCalMF(PCFile[0],[],0,0)
           IFFCP = open(fName)
           tempArr = []
           for line in IFFCP.readlines():
@@ -957,7 +957,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 
         # Update pcal files (if not doing a test):
           if not doTest:
-            ErrCode = XP.XPCalMF(PCFile[0],[],1)  
+            ErrCode = XP.XPCalMF(PCFile[0],[],1,0)  
             if ErrCode != 0:
               printError("\n\n ERROR Converting phasecal file %s\n"%os.path.basename(PCFile[0]))
 
