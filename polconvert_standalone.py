@@ -113,6 +113,7 @@ import pickle as pk
 
 
 def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntIdx=[], Range=[], XYadd={}, XYdel={}, XYratio={}, usePcal={}, swapXY=[], swapRL=False, feedRotation=[], correctParangle=False, IDI_conjugated=False, plotIF=[], plotRange=[], plotAnt='',excludeAnts=[],excludeBaselines=[],doSolve=-1,solint=[1,1],doTest=True,npix=-1,solveAmp=True,solveMethod='COBYLA', calstokes=[1.,0.,0.,0.], calfield=-1, plotSuffix = '', pcalSuffix = '', ALMAstuff = [], saveArgs=False, amp_norm=0.0, IFoffset=0, AC_MedianWindow=0):
+
   """ POLCONVERT - STANDALONE VERSION 2.0.1b.
 
      Similar parameters as the method defined in polconvert_CASA. The parameters specific 
@@ -820,7 +821,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 
   else:
     metadata = []
-    OUTPUT = OUTPUTIDI
+    OUTPUT = [OUTPUTIDI]
 
 
 
@@ -933,10 +934,12 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
     #printMsg('keys of XYratio:' + str(XYratio.keys())+'\n')
 
 
-    for i,doant in enumerate(linAntNamTrue):
+  for i,doant in enumerate(linAntNamTrue):
           
 #########################
 #### CORRECTIONS BASED ON PHASECAL TONES:
+
+    if isPcalUsed:
 
       if usePcal[doant]:
         printMsg("Using Pcal for %s" % doant)
@@ -986,12 +989,12 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 ##################################
 
 
-      if doant not in XYadd.keys():
+    if doant not in XYadd.keys():
          printMsg('ANTENNA %s DOES NOT HAVE XYadd INFO.'%doant)
 
-      else:
+    else:
 
-        TOADD = {}        
+        TOADD = {}       
         if type(XYadd[doant]) is list:
           for ifi in range(len(XYadd[doant])):
             TOADD[ifi+1] = XYadd[doant][ifi]
@@ -1004,8 +1007,11 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
               arrSize = np.shape(np.array(TOADD[j]))
               if len(arrSize)!=1 or arrSize[0] != IFchan:
                 printError("Shape of XYadd array(s) does not coincide with number of IF channels\n")
-              else:
+              else: 
                 for dfile in range(len(OUTPUT)):
+               #   print(dfile,doant,i,jid, OUTPUT)
+               #   print(TOADD)
+               #   print(XYaddF[dfile][i])
                   XYaddF[dfile][i][jid] += np.array(TOADD[j])*np.pi/180.
             else:
               try:
@@ -1027,7 +1033,6 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 
 
 #  raw_input('HOLD')
-
 
   UseAutoCorrs = np.zeros(nALMATrue,dtype=np.int32,order='C')
   
@@ -1092,6 +1097,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
         PrioriGains[dfile][i].append(np.array(XYratioF[dfile][i][j]*np.exp(1.j*XYaddF[dfile][i][j]),dtype=np.complex64,order='C'))
 
 
+ # print(XYaddF)
 
 
 
@@ -1115,6 +1121,9 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
 
   doAmpNorm = amp_norm>0.0
   didit = -10
+
+  if not isSWIN:
+    OUTPUT = OUTPUT[0]
   # plotAnt is no longer used by PC.PolConvert(), but is required by doSolve
   # the second argument is "PC:PolConvert::plIF" and controls whether the huge binary fringe files are written.
   try:
