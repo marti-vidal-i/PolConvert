@@ -469,7 +469,10 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
     printMsg('\n\nYou have asked to convert a FITS-IDI file.')
     printMsg('Reading array geometry...')
     try:
-      import pyfits as pf
+      try:
+        from astropy.io import fits as pf
+      except:
+        import pyfits as pf
       ffile = pf.open(IDI)
       for ii,group in enumerate(ffile):
         if group.name == 'ARRAY_GEOMETRY':
@@ -592,7 +595,10 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
   else:
 
 # READ FREQUENCY INFO:
-    import pyfits as pf
+    try:
+      from astropy.io import fits as pf
+    except:
+      import pyfits as pf
     fitsf = pf.open(IDI)
     nu0 = fitsf['FREQUENCY'].header['REF_FREQ']
     bw = fitsf['FREQUENCY'].header['CHAN_BW']
