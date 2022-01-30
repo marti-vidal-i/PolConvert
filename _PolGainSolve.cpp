@@ -500,7 +500,7 @@ static PyObject *PolGainSolve(PyObject *self, PyObject *args){
   for(i=0;i<MaxAnt;i++){
     for(j=i+1;j<MaxAnt;j++){
        BNum = BasNum[i][j];
-       if (BNum>0){ //printf("Weighting baselines %i\n",BNum); 
+       if (BNum>=0){ //printf("Weighting baselines %i\n",BNum); 
            BasWgt[BNum] = 1.0;} else {BasWgt[BNum]=0.0;};
        for(l=0;l<Ntwin;l++){
          if((Twins[0][l]==i+1 && Twins[1][l]==j+1)||(Twins[0][l]==j+1 && Twins[1][l]==i+1)){
@@ -1667,6 +1667,17 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
 ////////////////////////////////////
 // AT THE MOMENT, WE COMBINE ALL IFS FOR THE SAME RATES AND DELAYS:
 
+ for(i=0; i<NIF; i++){
+   printf("For IF %i:\n",IFNum[i]);fflush(stdout);
+   for (a1=0; a1<NCalAnt; a1++){
+     for (a2=a1+1;a2<NCalAnt;a2++){
+        BNum = BasNum[CalAnts[a1]-1][CalAnts[a2]-1];
+        printf("Bas: %i-%i | Rates: %.2e %.2e %.2e %.2e | Delays: %.2e %.2e %.2e %.2e\n",CalAnts[a1],CalAnts[a2],BLRates[0][i][BNum],BLRates[1][i][BNum],BLRates[2][i][BNum],BLRates[3][i][BNum],BLDelays[0][i][BNum],BLDelays[1][i][BNum],BLDelays[2][i][BNum],BLDelays[3][i][BNum]);fflush(stdout);
+     };
+   };
+ };
+
+
     if (NantFit>1){
 
       for (i=0; i<NIF; i++){
@@ -1688,7 +1699,7 @@ static PyObject *DoGFF(PyObject *self, PyObject *args) {
               };
             };
 
-            if (BNum>0 && BLWeights[0][i][BNum]>0.0 && BLWeights[1][i][BNum]>0.0){
+            if (BNum>=0 && BLWeights[0][i][BNum]>0.0 && BLWeights[1][i][BNum]>0.0){
 
               if (af1>=0){
                 for(m=0;m<4;m++){
@@ -1968,7 +1979,7 @@ static PyObject *SetFit(PyObject *self, PyObject *args) {
     delete[] DerIdx;
     delete[] AvVis;
     sprintf(message,"Clearing previous allocation objects\n");
-    fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
+    fprintf(logFile,"%s",message); // std::cout<<message; fflush(logFile);
   };
 
   Tm = new double[NBas];

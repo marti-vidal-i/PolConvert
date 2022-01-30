@@ -414,7 +414,14 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
   if os.path.isdir(IDI):
     isSWIN = True
     printMsg('\n\nYou have asked to convert a set of SWIN files.')
-    if len(DiFXinput)==0 or not os.path.exists(DiFXinput) or not os.path.isfile(DiFXinput):
+
+    if len(DiFXinput)==0:
+      DiFXinput = IDI[:-4]+'input'
+    if len(DiFXcalc)==0:
+      DiFXcalc = IDI[:-4]+'calc'
+
+
+    if not os.path.exists(DiFXinput) or not os.path.isfile(DiFXinput):
       printError("Invalid DiFX input file! %s"%DiFXinput)
 
 
