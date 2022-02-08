@@ -8,15 +8,24 @@
     echo you need to source setup first
     exit 1
 }
-echo hacking up $DIFXROOT
+branch=branches/py3temp
 svn=`dirname $DIFXROOT`/difx-svn
 bld=${DIFXROOT/root/bld}
+echo 
+echo hacking up $DIFXROOT
 echo using $svn/setup/install-difx
-echo to reinstall from $bld
+echo to reinstall from $bld using $branch
 echo
 cd $bld
 pwd
+
 echo
+echo cleaning up ...
+echo cd $bld/applications/polconvert/$branch \&\& make clean
+( cd $bld/applications/polconvert/$branch ; make clean )
+echo rm -rf $DIFXROOT/share/polconvert
+
+echo build and install
 
 $svn/setup/install-difx \
     --doonly polconvert --newver=polconvert:branches/py3temp --nodoc
