@@ -30,10 +30,8 @@ action=${1-'help'} ; shift
     exit 1
 }
 
-skip='build mytasks.py polconvert_cli.py polconvert.py'
-skip="$skip build/temp.linux-x86_64-2.7"
-skip="$skip QA2/scriptForCalibrationAPP_C4.py"
-skip="$skip result_ALL.txt TODO.txt setup.py TOP/contents"
+skip="INSTALL build QA2 TODO.txt setup.py TOP/contents"
+skip="$skip __init__.py polconvert_CASA.py polconvert_standalone.py"
 
 [ $# -eq 0 ] && set -- 'no-such-file'
 
@@ -48,8 +46,10 @@ do
   $punt && echo skipping $f && continue
   F=$f
   [ `expr $F : 'TOP.*'` -ge 3 ] && F=../`basename $f`
-  # pretty dodgy
+  # pretty dodgy way to put TOP things into src
   [ "$F" = "../setup.py" ] && F=setup.py
+  [ "$F" = "../polconvert.xml" ] && F=polconvert.xml
+  [ "$F" = "../task_polconvert.py" ] && F=task_polconvert.py
   # decide what to do
   case $action in
   dir)

@@ -1,7 +1,11 @@
 This directory contains top-level files in DiFX that either have
-no place on launchpad or else conflict.
+no corresponding file in git or else conflict (same name).
 
 AUTHORS
 ChangeLog
+configure.ac
+contents
+Copyright
 README
 setup.py
+
