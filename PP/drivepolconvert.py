@@ -60,7 +60,7 @@ def parseOptions():
     epi += 'but all of the diagnostic plots are made and saved. '
     epi += 'This is useful to manually tweak things prior to committing. '
     use = '%(prog)s [options] [input_file [...]]\n  Version'
-    use += '$Id: drivepolconvert.py 9857 2020-12-10 16:36:29Z GeoffreyCrew $'
+    use += '$Id: drivepolconvert.py 10372 2022-02-04 16:47:08Z GeoffreyCrew $'
     parser = argparse.ArgumentParser(epilog=epi, description=des, usage=use)
     primary = parser.add_argument_group('Primary Options')
     secondy = parser.add_argument_group('Secondary Options')
@@ -617,7 +617,7 @@ def getInputTemplate(o):
     plotAntList=%s
     numFrPltPix=%d
     doTest=%s
-    # timeRange=[]                      # don't care
+    timeRange=[]                        # don't care, but must be defined
     %stimeRange = [0,0,0,0, 14,0,0,0]   # first 14 days
     #
     spwToUse = %d

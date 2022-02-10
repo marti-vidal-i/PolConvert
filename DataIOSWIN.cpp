@@ -358,7 +358,7 @@ void DataIOSWIN::readHeader(bool doTest, int saveSource) {
   double AuxPA1, AuxPA2;
 
   bool isInIF = false;
-  bool isIFidx = 0;
+  int isIFidx = 0;
 
 // AUXILIARY BINARY FILES TO STORE CIRCULAR VISIBILITIES:
   FILE **circFile = new FILE*[nDoIF];
@@ -426,7 +426,7 @@ void DataIOSWIN::readHeader(bool doTest, int saveSource) {
   fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
 
   long bperp;
-  long RecordSize = 5*sizeof(int) + sizeof(double) + 2*sizeof(char) + endhead;
+  long RecordSize = 5*sizeof(int) + 2*sizeof(double) + 2*sizeof(char) + endhead;
 
   for (auxI=0; auxI<nfiles; auxI++) {
 
