@@ -1,8 +1,8 @@
 #!/bin/bash
 #
-# A script that can be used to switch an existing nightly build
-# to one that uses the branches/py3temp sources.  Useful to destroy
-# a previous nightly build and save the time of a complete rebuild.
+# A script that can be used to switch an existing nightly build to one
+# that uses e.g. branches/py3temp sources.  Useful to destroy a previous
+# nightly build and save the time of a complete DIFX rebuild.
 #
 [ -n "$DIFXROOT" ] || {
     echo you need to source setup first
@@ -28,7 +28,7 @@ echo rm -rf $DIFXROOT/share/polconvert
 echo build and install
 
 $svn/setup/install-difx \
-    --doonly polconvert --newver=polconvert:branches/py3temp --nodoc
+    --doonly polconvert --newver=polconvert:$branch --nodoc
 
 echo installed share polcovert, these should all be new
 ls -l $DIFXROOT/share/polconvert

@@ -34,7 +34,7 @@ def parseOptions():
     epi += 'option.  You will need to provide the VEX *.vex.obs file '
     epi += 'separately if you plan to use difx2mark4.'
     use = '%(prog)s [options] [input_file] [...]\n  Version'
-    use += ' $Id: prepolconvert.py 9824 2020-11-16 20:07:16Z GeoffreyCrew $'
+    use += ' $Id: prepolconvert.py 10384 2022-02-08 21:29:38Z GeoffreyCrew $'
     parser = argparse.ArgumentParser(epilog=epi, description=des, usage=use)
     primary = parser.add_argument_group('Primary Options')
     secondy = parser.add_argument_group('Secondary Options')

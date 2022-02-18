@@ -30,6 +30,7 @@ action=${1-'help'} ; shift
     exit 1
 }
 
+# things that do not end up in DiFX vendor branch
 skip="INSTALL build QA2 TODO.txt setup.py TOP/contents"
 skip="$skip __init__.py polconvert_CASA.py polconvert_standalone.py"
 
@@ -55,6 +56,10 @@ do
   dir)
     ls -ld $git
     ls -ld $dfx
+    ;;
+  cmpls)
+    cmp $git/$f $dfx/$F 2>&- ||
+    ls -l $git/$f $dfx/$F 2>&- | sed -e "s+$git+\$git+" -e "s+$dfx+\$dfx+"
     ;;
   ls)
     ls -l $git/$f $dfx/$F 2>&- | sed -e "s+$git+\$git+" -e "s+$dfx+\$dfx+"
@@ -95,6 +100,7 @@ do
     Legal actions are
       dir   -- list dirs
       ls    -- list the files
+      cmpls -- list the files with cmp issues
       cmp   -- run cmp (and echo cmp cmd if it fails)
       diff  -- run diff ( and echo diff cmd if it fails)
       sdif  -- run sdiff (you will need window width 164)
