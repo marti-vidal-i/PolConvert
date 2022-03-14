@@ -23,7 +23,6 @@
 
 from __future__ import print_function
 import pylab as pl
-#import matplotlib as pl
 from PolConvert import _XPCalMF as XP
 import numpy as np
 import struct as stk
@@ -37,28 +36,38 @@ from ftplib import FTP_TLS
 import scipy.interpolate as spint
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
+import pickle as pk
+
+__version__ = '1.1b (08 Mar 2022)'
 
 
-__version__ = '0.9b (18 Nov 2021)'
+def getTEC(SCAN, subplots=[], SET='jplg', LFACT=1.0):
 
+  """ Compute the TEC content in the line of sight of each antenna for a 
+      given scan. The estimates are taken from IONEX maps. 
 
-def getTEC(SCAN, fig, SET='jplg', LFACT=1.0):
+      SCAN: Name of scan SWIN directory.
+      subplots: two subplots (for the TEC World map and the TEC model phase correction).
+      SET: origin of the IONEX maps.
+      LFACT: Sun follow-up interpolation factor.
+  """
 
+## Load the Earth map:
   K = list(filter(lambda x: "EU-VGOS" in x, sys.path))
   for ki in K:
     fname = os.path.join(ki,'EUVGOS_PY3','World_Map.png')
     if os.path.exists(fname):
        break
-
   if os.path.exists(fname):
     World = mpimg.imread(fname)
   else:
     raise Exception("EU-VGOS library path not set correctly")
 
-#  SET = 'jplg'
+
+## Set some constants:
   REARTH = 6371.e3
   SPEED_OF_LIGHT = 2.99458792e8
-#  LFACT = 1.0
+
 
 ## Parse CALC file:
   TELS = {}
@@ -95,7 +104,11 @@ def getTEC(SCAN, fig, SET='jplg', LFACT=1.0):
         RA = float(temp[-1])
       if temp[2]=='DEC:':
         DEC = float(temp[-1])
-
+      if temp[2]=='NAME:':
+        NAME = str(temp[-1])
+        
+        
+  SOURCE_INFO = [NAME,hh,mm,ss]      
   IFF.close()
 
 
@@ -154,7 +167,7 @@ def getTEC(SCAN, fig, SET='jplg', LFACT=1.0):
 # Get the map times bracketing the scan:
   found = False
   for ti in range(len(TIMES)-1):
-    if TIMES[TS[ti]][1]<hh+mm/60. and TIMES[TS[ti+1]][1]>hh+mm/60.:
+    if TIMES[TS[ti]][1]<=hh+mm/60. and TIMES[TS[ti+1]][1]>=hh+mm/60.:
       found = True
       break
 
@@ -162,12 +175,9 @@ def getTEC(SCAN, fig, SET='jplg', LFACT=1.0):
     raise Exception("ERROR! IONEX MAP DOES NOT CONTAIN OBSERVING TIME!")
 
 # Interpolation times:
-  #DT = (TIMES[TS[ti+1]][1]-(hh+mm/60.))/(TIMES[TS[ti+1]][1]-TIMES[TS[ti]][1])
   DT1 = (hh+mm/60.) - TIMES[TS[ti]][1]
   DT2 = TIMES[TS[ti+1]][1]-(hh+mm/60.)
 
-#  DT2 = 0.
-#  DT1 = 1.0
 
 ## Prepare memory for maps:
   NLAT = int((LAT2-LAT1)/DLAT) ; NLON = int((LON2-LON1)/DLON)
@@ -214,7 +224,7 @@ def getTEC(SCAN, fig, SET='jplg', LFACT=1.0):
   t = (MJD-51544.0)/36525.
   Hh = (MJD - np.floor(MJD))
   GMsec = 24110.54841 + 8640184.812866*t + 0.093104*t*t - 0.0000062*t*t*t
-  GMST = (GMsec/86400. + Hh)*2.*np.pi #- 0.047*np.pi/12.
+  GMST = (GMsec/86400. + Hh)*2.*np.pi
 
   CosDec = np.cos(DEC)
   SinDec = np.sin(DEC)
@@ -226,7 +236,6 @@ def getTEC(SCAN, fig, SET='jplg', LFACT=1.0):
   for ant in TELS.keys():
 
 ## Get Antenna pointing direction and intersection with Ionosphere:
-
     TNAM = TELS[ant][0]
     LAT = np.arctan2(TELS[ant][3],np.sqrt(TELS[ant][2]**2.+TELS[ant][1]**2.))
     LON = np.arctan2(TELS[ant][2],TELS[ant][1])
@@ -245,8 +254,6 @@ def getTEC(SCAN, fig, SET='jplg', LFACT=1.0):
 
     if AZIM<0.0:
       AZIM += 2.*np.pi
-
-
 
     ZAION = np.arcsin(REARTH*np.sin(ZANG)/(REARTH+HGT1))
     THETA = ZANG - ZAION
@@ -295,57 +302,64 @@ def getTEC(SCAN, fig, SET='jplg', LFACT=1.0):
 
     print('%s: LAT: %.3f (%.3f)  LON: %.3f (%.3f) | EL: %.3f  AZ: %.3f | TEC: %.3f '%(TNAM,LAT*180./np.pi,DLATI*180./np.pi,LON*180./np.pi,DLONG*180./np.pi,ELEV*180./np.pi, AZIM*180/np.pi,TEPATH))
 
-
-  PLOTLON1 = LONGRID + 360.0/24.*DT1*LFACT
-  PLOTLON2 = LONGRID - 360.0/24.*DT2*LFACT
-  PLOTLON1[PLOTLON1>180.] -= 360.
-  PLOTLON1[PLOTLON1<-180.] += 360.
-  PLOTLON2[PLOTLON2>180.] -= 360.
-  PLOTLON2[PLOTLON2<-180.] += 360.
-
-  MAP2PLOT = np.zeros(np.shape(MAP1))
-  for i,li in enumerate(PLOTLON1):
-    MAP2PLOT[:,i] = ((MapInterp1(LATGRID,li)*DT2 + MapInterp2(LATGRID,PLOTLON2[i])*DT1)/(DT1+DT2))[:,0]
-
-
- # fig = pl.figure(figsize=(20,5))
-  sub= fig.add_subplot(221)  
-  sub.imshow(World,extent=[-180,180,-90,90])
-  cbp = sub.imshow(MAP2PLOT[:,:],origin='lower',extent=[-180,180,LAT2,LAT1],alpha=0.5)
-  sub.set_title('IONEX MAP (INTERPOLATED)')
-  cb = pl.colorbar(cbp)
-  cb.set_label('TECU')
-
-  sub2 = fig.add_subplot(223)
-  NuFreq = np.linspace(2.0,12.0,512)
-  telnam = sorted(TECORR.keys())
-
-  fig.subplots_adjust(left=0.04,right=0.99,wspace=0.126)
-
-  for t1 in range(len(telnam)):
-    for t2 in range(len(telnam)):
-      if t1>t2:
-        DTEC = TECORR[telnam[t1]][1]-TECORR[telnam[t2]][1]
-        Phases = DTEC/(NuFreq*1.e9)
-     #   Phases = np.mod(Phases,360.)
-        sub2.plot(NuFreq,Phases,'.',label='%s-%s'%(telnam[t1],telnam[t2]))
-        DELAY = (Phases[1]-Phases[0])/((NuFreq[1]-NuFreq[0])*1.e9)/360.
-  sub2.legend(numpoints=1)
-  sub2.set_xlabel('Frequency (GHz)')
-  sub2.set_ylabel('TEC Phase (cycles)')
-  sub2.set_title('IONEX PREDICTION')
-  #print(np.shape(MAP1))
- # print(np.shape(MAP2PLOT))
+  TECORR['SOURCE'] = SOURCE_INFO
 
 
 
 
-  for tel in TELCOORDS.keys():
-    sub.plot(TELCOORDS[tel][1],TELCOORDS[tel][0],'.w')
-    sub.text(TELCOORDS[tel][1]+2.,TELCOORDS[tel][0]+2.,tel,color='w')
-    sub.plot(np.array([TELCOORDS[tel][1],TELCOORDS[tel][1]+TECORR[tel][2]]),np.array([TELCOORDS[tel][0],TELCOORDS[tel][0]+TECORR[tel][3]]),'-w')
 
-  fig.suptitle(os.path.basename(SCAN),fontsize=20)
+
+
+
+## Prepare image:
+
+  if len(subplots)>0:
+    sub,sub2 = subplots
+    doPlots = True
+  else:
+    doPlots = False
+ 
+
+  if doPlots:
+
+    PLOTLON1 = LONGRID + 360.0/24.*DT1*LFACT
+    PLOTLON2 = LONGRID - 360.0/24.*DT2*LFACT
+    PLOTLON1[PLOTLON1>180.] -= 360.
+    PLOTLON1[PLOTLON1<-180.] += 360.
+    PLOTLON2[PLOTLON2>180.] -= 360.
+    PLOTLON2[PLOTLON2<-180.] += 360.
+
+    MAP2PLOT = np.zeros(np.shape(MAP1))
+    for i,li in enumerate(PLOTLON1):
+      MAP2PLOT[:,i] = ((MapInterp1(LATGRID,li)*DT2 + MapInterp2(LATGRID,PLOTLON2[i])*DT1)/(DT1+DT2))[:,0]
+
+    sub.imshow(World,extent=[-180,180,-90,90])
+    cbp = sub.imshow(MAP2PLOT[:,:],origin='lower',extent=[-180,180,LAT2,LAT1],alpha=0.5)
+    sub.set_title('IONEX MAP (INTERPOLATED)')
+    cb = pl.colorbar(cbp)
+    cb.set_label('TECU')
+
+    NuFreq = np.linspace(2.0,12.0,512)
+    telnam = sorted(TECORR.keys())
+
+
+    for t1 in range(len(telnam)):
+      for t2 in range(len(telnam)):
+        if t1>t2:
+          DTEC = TECORR[telnam[t1]][1]-TECORR[telnam[t2]][1]
+          Phases = DTEC/(NuFreq*1.e9)
+          sub2.plot(NuFreq,Phases,'.',label='%s-%s'%(telnam[t1],telnam[t2]))
+          DELAY = (Phases[1]-Phases[0])/((NuFreq[1]-NuFreq[0])*1.e9)/360.
+    sub2.legend(numpoints=1)
+    sub2.set_xlabel('Frequency (GHz)')
+    sub2.set_ylabel('TEC Phase (cycles)')
+    sub2.set_title('IONEX PREDICTION')
+
+    for tel in TELCOORDS.keys():
+      sub.plot(TELCOORDS[tel][1],TELCOORDS[tel][0],'.w')
+      sub.text(TELCOORDS[tel][1]+2.,TELCOORDS[tel][0]+2.,tel,color='w')
+      sub.plot(np.array([TELCOORDS[tel][1],TELCOORDS[tel][1]+TECORR[tel][2]]),np.array([TELCOORDS[tel][0],TELCOORDS[tel][0]+TECORR[tel][3]]),'-w')
+
 
   return TECORR
 
@@ -391,11 +405,23 @@ def Quinn(FFT):
 
 #PCALPLOT = [['OW','YJ']]
 
-def GET_FOURFIT_PHASES(SCAN='',HOPSNAMES={'OE':'S','OW':'T','WS':'V','YJ':'Y'}, 
-                       IFNAMES = 'abcdefghijklmnopqrstuvwxyzABCDEF', FLAGBAS = [['OE','OW']],
-                       PCALDELAYS = {'YJ':[1000.,4000.,'abcdefgh']}, REFANT='WS'):
 
 
+
+
+
+
+
+
+
+
+
+def getPCALS(SCAN='',REFANT='',PCALDELAYS = {'YJ':[1000.,4000.,'abcdefgh']}, FLAG_PCALS = {}):
+
+  """ Read the DiFX PCAL files and derive the instrumental delays and pcal phases.
+      Returns the Pcal informacion, the antenna names and the channel frequencies
+      of all IFs.
+  """
 
   if os.path.isdir(SCAN):
     print('Path is a directory. Will look for SWIN files.')
@@ -403,7 +429,6 @@ def GET_FOURFIT_PHASES(SCAN='',HOPSNAMES={'OE':'S','OW':'T','WS':'V','YJ':'Y'},
     inputFile = '.'.join(SCAN.split('.')[:-1])+'.input'
   else:
     raise Exception("Argument must be a difx directory")
-
 
 
 ## READ BANDWIDTH AND (CENTER) FREQUENCY OF EACH IF:
@@ -442,16 +467,6 @@ def GET_FOURFIT_PHASES(SCAN='',HOPSNAMES={'OE':'S','OW':'T','WS':'V','YJ':'Y'},
 
 
 
-
-
-## Get Ionospheric Electron Content:
-  fig = pl.figure(figsize=(15,10))
-  TECOR = getTEC(SCAN,fig)
-
-
-
-
-
 ## READ ANTENNA NAMES AND PHASECALS:    
   REFID = -1
   ANAMES = {}
@@ -474,12 +489,25 @@ def GET_FOURFIT_PHASES(SCAN='',HOPSNAMES={'OE':'S','OW':'T','WS':'V','YJ':'Y'},
             tempArr = []
             for line in IFFCP.readlines():
               temp = line.split()
-              tempArr.append([float(temp[0])*1.e6, float(temp[1])*np.pi/180.,float(temp[2])])
+              toAdd = [float(temp[0])*1.e6, float(temp[1])*np.pi/180.,float(temp[2])]
+              if ANAMES[ID] in FLAG_PCALS.keys():
+                isBad = False
+                for wi in FLAG_PCALS[ANAMES[ID]]:
+                  if np.abs(toAdd[0]*1.e-6-wi)<1.0:
+                    isBad = True
+                    break
+              else:
+                isBad=False
+
+              if not isBad:
+                tempArr.append(toAdd)
+              else:
+                print('Flagging tone %.1f MHz for %s'%(toAdd[0]*1.e-6,ANAMES[ID]))
             IFFCP.close()
 
             tempArr = np.array(tempArr)
 
-            if ANAMES[ID] in PCALDELAYS:
+            if ANAMES[ID] in PCALDELAYS.keys():
               PCALADDITIVE[ANAMES[ID]] = np.copy(tempArr)
 
 # Fit tone delay for each IF:
@@ -488,83 +516,49 @@ def GET_FOURFIT_PHASES(SCAN='',HOPSNAMES={'OE':'S','OW':'T','WS':'V','YJ':'Y'},
               NuAv = (Nu1+Nu0)/2.
               mask = np.logical_and(tempArr[:,0]>=Nu0,tempArr[:,0]<=Nu1)
               Ntone = int(np.sum(mask))
-
-              Phases = tempArr[mask,1] 
-          #    for tii in range(Ntone-1):
-          #      if Phases[tii+1]-Phases[tii]>np.pi:
-          #        Phases[tii+1:] -= 2.*np.pi
-          #      if Phases[tii+1]-Phases[tii]<-np.pi:
-          #        Phases[tii+1:] += 2.*np.pi
-
-              Freqs = tempArr[mask,0]
-              Weights = tempArr[mask,2]
+              Phases = np.copy(tempArr[mask,1])
+              Freqs = np.copy(tempArr[mask,0])
+#              Weights = tempArr[mask,2]
               ToneDel = np.sum((Freqs-np.average(Freqs))*(Phases-np.average(Phases)))/np.sum(np.power(Freqs-np.average(Freqs),2.))/(2.*np.pi)
+              PcalZPad = 256
+              NuOrder = np.argsort(Freqs)
+              nu0 = np.min(Freqs); nu1 = np.max(Freqs)
+              if False:
+                PcalFringe = np.zeros(Ntone*PcalZPad,dtype=np.complex64)
+                PcalFringe[Ntone*(PcalZPad-1)//2:Ntone*(PcalZPad-1)//2+Ntone] = np.exp(1.j*Phases[NuOrder])
+
+                if bool(Ntone%2):
+                   ToneDel = (np.argmax(np.abs(np.fft.fftshift(np.fft.fft(PcalFringe)))) - (Ntone-1)*PcalZPad/2.)/((nu1-nu0)*PcalZPad)
+                else:
+                   ToneDel = (np.argmax(np.abs(np.fft.fftshift(np.fft.fft(PcalFringe)))) - (Ntone)*PcalZPad/2.)/((nu1-nu0)*PcalZPad)
+
+         #     PcalFringe = np.exp(1.j*Phases[NuOrder])
+         #     PcalFFT = np.fft.fftshift(np.fft.fft(PcalFringe)); Peak = int(np.argmax(np.abs(PcalFFT)))
+         #     Daround = [Peak-1,Peak,Peak+1]
+         #     if Daround[0]<0:
+         #       Daround[0] = Ntone-1
+         #     if Daround[2]>Ntone-1:
+         #       Daround[2] = 0
+         #     if bool(Ntone%2):
+         #       ToneDel = (Peak - (Ntone-1)/2. + Quinn(PcalFFT[Daround]))
+         #     else:
+         #       ToneDel = (Peak - Ntone/2. + Quinn(PcalFFT[Daround]))
+         #     
+         #     ToneDel /= (nu1-nu0)
+ 
+         #     print(ANAMES[ID], spi, (Phases-Phases[0])*180./np.pi)
+         #     print(Freqs*1.e-6, np.min(CHANFREQ[spi])*1.e-6, np.max(CHANFREQ[spi])*1.e-6)
+
+
+#  BLDelay = (peak - n_nu*PADDING_FACTOR/2.)
+#    BLDelay /= (nu_max-nu_min)*PADDING_FACTOR
+
+
               Phasors = np.exp(1.j*tempArr[mask,1])
-
-          #    TECDel = TECOR[ANAMES[ID]][1]/NuAv**2.
-          #    TECPhas = -TWOPI*TECOR[ANAMES[ID]][1]/NuAv
-
               ResPhase = np.angle(np.sum(Phasors*np.exp(-1.j*TWOPI*(ToneDel)*(Freqs-NuAv))))
-
               PCALS[ID][spi] = [ToneDel,ResPhase,NuAv] #,TECDel,TECPhas]
 
           PCALS[ID] = np.array(PCALS[ID])
-
-
-#            Dnu = np.abs(tempArr[1][0]-tempArr[0][0])
-#
-#            AddPcals = []
-#            AddNus = []
-#       ## Fill phasecals at edge frequencies:
-#            for spi in CHANFREQ.keys():
-#              tini = -1; tend = -1
-#              Nu0 = np.min(CHANFREQ[spi]) ; Nu1 = np.max(CHANFREQ[spi])
-#              if ID==4: print('FREQS for IF %i: %.1f - %.1f'%(spi,Nu0,Nu1))
-#
-#              if Nu1 > tempArr[-1][0]: 
-#                 if Nu1 not in AddNus:
-#                   AddPcals.append([Nu1,tempArr[-1][1]+(tempArr[-1][1]-tempArr[-2][1])/Dnu*(Nu1-tempArr[-1][0])])
-#                   AddNus.append(Nu1)
-#                   if ID==4: print('END: ', AddPcals[-1], 'TOT')
-#              if Nu0 < tempArr[0][0]: 
-#                 if Nu0 not in AddNus:
-#                   AddPcals.append([Nu0,tempArr[0][1]-(tempArr[1][1]-tempArr[0][1])/Dnu*(tempArr[0][0]-Nu0)])
-#                   AddNus.append(Nu0)
-#                   if ID==4: print('INI: ',AddPcals[-1], 'TOT')
-#              
-#              for ti in range(1,len(tempArr)):
-#                if tempArr[ti-1][0]<Nu0 and tempArr[ti][0]>Nu0:
-#                  tini = ti
-#                  break
-#              for ti in range(1,len(tempArr)):
-#                if tempArr[ti-1][0]<Nu1 and tempArr[ti][0]>Nu1:
-#                  tend = ti
-#                  break
-#
-#              if tini>=0 and Nu0 not in AddNus:
-#                AddPcals.append([Nu0,tempArr[tini][1]-(tempArr[tini+1][1]-tempArr[tini][1])/Dnu*(tempArr[tini][0]-Nu0)])
-#                AddNus.append(Nu0)
-#                if ID==4: print('INI: ',AddPcals[-1],tini)
-#              if tend>=0 and Nu1 not in AddNus:
-#                AddPcals.append([Nu1,tempArr[tend-1][1]+(tempArr[tend-1][1]-tempArr[tend-2][1])/Dnu*(Nu1 - tempArr[tend-1][0])])
-#                AddNus.append(Nu1)
-#                if ID==4: print('END: ',AddPcals[-1],tend)
-#
-#
-#            tempArr2 = np.array(tempArr+AddPcals)
-#            SORT = np.argsort(tempArr2[:,0])
-#            tempArr3 = np.copy(tempArr2[SORT,:])
-#
-#          #  for ti in range(len(tempArr3)-1):
-#          #    if tempArr3[ti+1,1]-tempArr3[ti,1]>np.pi:
-#          #      tempArr3[ti+1:,1] -= 2.*np.pi
-#          #    if tempArr3[ti+1,1]-tempArr3[ti,1]<-np.pi:
-#          #      tempArr3[ti+1:,1] += 2.*np.pi
-#
-#
-#            PCALS[ID] = spint.interp1d(tempArr3[:,0],tempArr3[:,1],kind='linear',bounds_error=False,fill_value = 'extrapolate')
-#          else:
-#            PCALS[ID] = lambda x: 0.0
 
 
 
@@ -581,55 +575,43 @@ def GET_FOURFIT_PHASES(SCAN='',HOPSNAMES={'OE':'S','OW':'T','WS':'V','YJ':'Y'},
     raise Exception("Reference antenna %s not found!\n"%REFANT)
 
 
-  pcalNu = np.zeros(2*len(NUs.keys())) #len(NUs.keys()))
-  pcalPlot1 = np.zeros(2*len(NUs.keys())) #len(NUs.keys()))
-  pcalPlot2 = np.zeros(2*len(NUs.keys())) #len(NUs.keys()))
+  pcalNu = np.zeros(2*len(NUs.keys())) 
+  pcalPlot1 = np.zeros(2*len(NUs.keys())) 
+  pcalPlot2 = np.zeros(2*len(NUs.keys())) 
 
   for i in range(len(NUs.keys())):   
     pcalNu[2*i] = SORTEDIF[i]
     pcalNu[2*i+1] = SORTEDIF[i]+1
 
 
-  if False:
-   for plpair in PCALPLOT:
-    pc1 = -1; pc2 = -1
-    for aid in ANAMES.keys():
-      if ANAMES[aid]==plpair[0]:
-        pc1 = int(aid)
-      if ANAMES[aid]==plpair[1]:
-        pc2 = int(aid)
 
-    fig2 = pl.figure(figsize=(15,3))
-    sub = fig2.add_subplot(111)
-    fig2.subplots_adjust(left=0.05,right=0.983)
-    for i in range(len(NUs.keys())):   
-      pcalPlot1[2*i:2*i+2] = PCALS[pc1][i][1]*180./np.pi
-      pcalPlot2[2*i:2*i+2] = PCALS[pc2][i][1]*180./np.pi
-
-
-    for i in range(len(NUs.keys())):
-      sub.plot(pcalNu[2*i:2*i+2],-pcalPlot1[2*i:2*i+2],'-g')
-      sub.plot(pcalNu[2*i:2*i+2],-pcalPlot2[2*i:2*i+2],'-m')
-      sub.plot(np.array([pcalNu[2*i],pcalNu[2*i]]),np.array([-180.,180.]),':k')
-      sub.plot(np.array([pcalNu[2*i+1],pcalNu[2*i+1]]),np.array([-180.,180.]),':k')
-      if pc1 > 0:
-        sub.text(pcalNu[2*i],-240.,'%.1f'%(PCALS[pc1][int(i)][0]*1.e9),color='g')
-      if pc2 > 0:
-        sub.text(pcalNu[2*i],-220.,'%.1f'%(PCALS[pc2][int(i)][0]*1.e9),color='m')
-    sub.set_ylim((-250,185))
-    pl.text(10,200,plpair[0],color='g')
-    pl.text(12,200,plpair[1],color='m')
-
-    pl.savefig('PCALS_%s-%s.png'%(plpair[0],plpair[1]))
- # pl.show()
-
+  return [PCALS,CHANFREQ,ANAMES,BWs,NUs,REFID,SORTEDIF]
  
 
 
 
 
 
+
+
+
+
+
+
+
+
+
+
+def getDATA(SCAN=''):
+
+
 ## READ VISIBILTIES:
+  filename = glob.glob(os.path.join(SCAN,'DIFX_*'))
+  if len(filename)==0:
+    raise Exception('File (or dir) not found.\n')
+  else:
+    filename = filename[0]
+
 
   frfile = open(filename,"rb")
 
@@ -714,10 +696,38 @@ def GET_FOURFIT_PHASES(SCAN='',HOPSNAMES={'OE':'S','OW':'T','WS':'V','YJ':'Y'},
   for key in DATA.keys():
     DATA[key] = np.array(DATA[key])
 
+  return [DATA,NCHAN]
 
 
 
-# DETERMINE SET OF ANTENNAS, BASELINES AND IFs:
+
+
+
+
+def GET_FOURFIT_PHASES(SCAN='',HOPSNAMES={'OE':'S','OW':'T','WS':'V','YJ':'Y'},FLAG_PCALS={}, 
+                       IFNAMES = 'abcdefghijklmnopqrstuvwxyzABCDEF', FLAGBAS = [['OE','OW']],
+                       PCALDELAYS = {'YJ':[1000.,4000.,'abcdefgh']}, REFANT='WS'):
+
+
+## Get Ionospheric Electron Content (and plot TEC image):
+  fig = pl.figure(figsize=(15,10))
+  sub= fig.add_subplot(221)  
+  sub2 = fig.add_subplot(223)
+  fig.subplots_adjust(left=0.04,right=0.99,wspace=0.126)
+  fig.suptitle(os.path.basename(SCAN),fontsize=20)
+
+  TECOR = getTEC(SCAN,[sub,sub2])
+
+
+## Get Pcals and metadata:
+  PCALS,CHANFREQ,ANAMES,BWs,NUs,REFID,SORTEDIF = getPCALS(SCAN,REFANT,PCALDELAYS,FLAG_PCALS)
+
+
+## Get DATA;
+  DATA,NCHAN = getDATA(SCAN)
+
+
+# DETERMINE SET OF GOOD ANTENNAS, BASELINES AND IFs:
 
   ALLBASNOFLAG = np.unique(DATA['ANTS'],axis=0)
   ALLBAS = []
@@ -730,63 +740,34 @@ def GET_FOURFIT_PHASES(SCAN='',HOPSNAMES={'OE':'S','OW':'T','WS':'V','YJ':'Y'},
     if good:
       ALLBAS.append(bif)
 
-
-
-
   ALLANTS = list(np.unique(ALLBAS))
   ALLSPW = np.unique(DATA['IF'])
 
 
 ## Apply PCALS and Ionosphere corrections!
-
-#  for bi in ALLBAS:
-#    mask = np.logical_and(DATA['ANTS'][:,0]==bi[0],DATA['ANTS'][:,1]==bi[1])
-#    for spi in ALLSPW:
-#      mask2 = np.logical_and(mask,DATA['IF']==int(spi))
-#      DATA['VIS'][mask2,:] *= np.exp(1.j*(PCALS[bi[0]](CHANFREQ[spi])-PCALS[bi[1]](CHANFREQ[spi])))
-#      del mask2
-#      gc.collect()
-#    del mask
-#    gc.collect()
-
+  NuAv = [np.average(CHANFREQ[spi]) for spi in range(len(CHANFREQ))]
   for bi in ALLBAS:
     mask = np.logical_and(DATA['ANTS'][:,0]==bi[0],DATA['ANTS'][:,1]==bi[1])
     for spi in ALLSPW:
       mask2 = np.logical_and(mask,DATA['IF']==int(spi))
-      DATA['VIS'][mask2,:] *= np.exp(1.j*( TWOPI*(PCALS[bi[0]][spi][0]-PCALS[bi[1]][spi][0])*(CHANFREQ[spi]-np.average(CHANFREQ[spi])) + PCALS[bi[0]][spi][1] - PCALS[bi[1]][spi][1] + TWOPI*(TECOR[ANAMES[bi[0]]][1]-TECOR[ANAMES[bi[1]]][1])/CHANFREQ[spi]  ))
+      DATA['VIS'][mask2,:] *= np.exp(1.j*( TWOPI*(PCALS[bi[0]][spi][0]-PCALS[bi[1]][spi][0])*(CHANFREQ[spi]-NuAv[spi]) + PCALS[bi[0]][spi][1] - PCALS[bi[1]][spi][1] + TWOPI*(TECOR[ANAMES[bi[0]]][1]-TECOR[ANAMES[bi[1]]][1])/CHANFREQ[spi]  ))
       del mask2
       gc.collect()
     del mask
     gc.collect()
 
 
-
-
-## ESTIMATE TEC OVER EACH STATION:
-#  TECS = getTEC(filename)
-
-
-
-
-## REMOVE DIFFERENTIAL TEC FROM ALL BASELINES:
-
-
-
-
-
-
+###########################################################
+#############################
 ### PERFORM A GLOBAL FRINGE FITTING (PER IF):
-
 
   maskRR = DATA['POL']=='RR'
   maskLL = DATA['POL']=='LL'
 
-
-
   RESIDUALS = {}
-
   OBSTIMES = {}
 
+## First, a baseline-based fringe fitting (per IF):
   for bi in ALLBAS:
     mask = np.logical_and(DATA['ANTS'][:,0]==bi[0],DATA['ANTS'][:,1]==bi[1])
     bistr = '%i-%i'%(bi[0],bi[1])
@@ -795,46 +776,41 @@ def GET_FOURFIT_PHASES(SCAN='',HOPSNAMES={'OE':'S','OW':'T','WS':'V','YJ':'Y'},
     SCTIMES = DATA['JDT'][mask]
     SCDUR = np.max(SCTIMES) - np.min(SCTIMES)
     for si in ALLSPW:
-   #   sys.stdout.write('\r IF %02i'%si); sys.stdout.flush()
       mask2 = np.logical_and(mask,DATA['IF']==int(si))
       VIS = np.copy(DATA['VIS'][mask2*maskRR,:]+DATA['VIS'][mask2*maskLL,:])
       FR = np.fft.fftshift(np.fft.fft2(VIS))
       FRA = np.abs(FR)
       Nt,Nch = np.shape(VIS)
-    #  print(Nt,Nch)
       if si==ALLSPW[0]:
         OBSTIMES[bistr] = np.linspace(-SCDUR/2.,SCDUR/2.,Nt)
-        
       Ntot = Nt*Nch
       PEAK = np.unravel_index(np.argmax(FRA),np.shape(FR))
       RMS = np.sqrt(((np.std(FRA)**2. + np.mean(FRA)**2.) - np.sum(np.power(FRA[PEAK[0]-1:PEAK[0]+2,PEAK[1]-1:PEAK[1]+2],2.))/Ntot))
       SNR= FRA[PEAK[0],PEAK[1]]/RMS
-
       Taround = [PEAK[0]-1,PEAK[0],PEAK[0]+1]
       Faround = [PEAK[1]-1,PEAK[1],PEAK[1]+1]
       if Taround[1]==0: Taround[0]=Nt-1
       if Taround[1]==Nt-1: Taround[2]=0
       if Faround[1]==0: Faround[0]=Nch-1
       if Faround[1]==Nch-1: Faround[2]=0
-
       BLDelay = (PEAK[1] - Nch/2. + Quinn(FR[PEAK[0],Faround]))
       if bool(Nt%2):
         BLRate = (PEAK[0] - (Nt-1)/2. + Quinn(FR[Taround,PEAK[1]]))
       else:
         BLRate = (PEAK[0] - Nt/2. + Quinn(FR[Taround,PEAK[1]]))
-
       if BLDelay > Nch/2.0: BLDelay -= Nch
       if BLRate > Nt/2.0: BLRate -= Nt
-
       BLDelay /= BWs[int(si)]*Nch/(Nch-1.)
       BLRate /= SCDUR
-
       RESIDUALS[bistr][si] = [BLDelay,BLRate,1., SNR]
-
       del VIS,FR,FRA,Taround,Faround,PEAK,mask2
       gc.collect()
     del SCTIMES,mask
     gc.collect()
+
+
+#########
+## Now, we globalize the delays and rates:
 
 # Code for globalization:
   HESSIAN = np.zeros((len(ALLANTS)-1,len(ALLANTS)-1))
@@ -852,8 +828,8 @@ def GET_FOURFIT_PHASES(SCAN='',HOPSNAMES={'OE':'S','OW':'T','WS':'V','YJ':'Y'},
     HESSIAN[:] = 0.0 ; DELRES[:] = 0.0 ; RATRES[:] = 0.0
     for bi in ALLBAS:
       bistr = '%i-%i'%(bi[0],bi[1])
-      a1o = int(bi[0]) ## ALLANTS.index(bi[0])+1
-      a2o = int(bi[1]) ## ALLANTS.index(bi[1])+1
+      a1o = int(bi[0])
+      a2o = int(bi[1])
 
       if a1o<REFID:
         a1 = a1o-1
@@ -888,63 +864,63 @@ def GET_FOURFIT_PHASES(SCAN='',HOPSNAMES={'OE':'S','OW':'T','WS':'V','YJ':'Y'},
         GAINS[ai][0][si] = -DELAYS[ai-2]
         GAINS[ai][1][si] = -RATES[ai-2]
 
-
-
   NuPlot = np.zeros(len(ALLSPW))
   for i in range(len(ALLSPW)):
     NuPlot[i] = NUs[i]
 
 
-
 ## DETERMINE PHASES OF EACH IF AND BASELINE (AFTER DELAY-RATE CORRECTIONS):
-### El delay the antenna 1 se suma para corregir la franja
-    
-
-
-
+## We also estimate the bandpass phases.
 
   AUXVIS = {}
   AUXVIS2 = {}
   AUXVIS3 = {}
 
   PHASES = {}
+  PHASE_SPECTRUM = {}
   WEIGHTS = {}
   colors = {'1-3':'r','1-4':'b','2-3':'g','3-4':'k','2-4':'c'}
-
-  if False:
-    fig3 = pl.figure(figsize=(15,5))
-    sub = fig3.add_subplot(111)
 
   for bi in ALLBAS:
     bistr = '%i-%i'%(bi[0],bi[1])
     mask = np.logical_and(DATA['ANTS'][:,0]==bi[0],DATA['ANTS'][:,1]==bi[1])
     PHASES[bistr] = []
+    PHASE_SPECTRUM[bistr] = []
+
     for si in ALLSPW:
       mask2 = np.logical_and(mask,DATA['IF']==int(si))
       VIS = np.copy(DATA['VIS'][mask2*maskRR,:]+DATA['VIS'][mask2*maskLL,:])
-    #  if si==20:
-    #    AUXVIS[bistr] = np.copy(VIS)
       VIS *= np.exp(1.j*TWOPI*(GAINS[bi[0]][0][si]-GAINS[bi[1]][0][si])*(CHANFREQ[si]-NUs[si]))[np.newaxis,:]
-    #  if si==20:
-    #    AUXVIS3[bistr] = np.copy(VIS)
       VIS *= np.exp(1.j*TWOPI*(GAINS[bi[0]][1][si]-GAINS[bi[1]][1][si])*OBSTIMES[bistr])[:,np.newaxis]
-      PHASES[bistr].append(np.angle(np.average(VIS)))
-      CHPLOT = si*NCHAN + NCHAN*np.linspace(0,1,NCHAN)
-   #   sub.plot(CHPLOT,180./np.pi*np.angle(np.average(VIS,axis=0)),'.%s'%colors[bistr])
+      TAVER = np.average(VIS,axis=0)
+      PHASE_SPECTRUM[bistr].append(np.angle(TAVER))
+      PHASES[bistr].append(np.angle(np.average(TAVER)))
 
+    #  CHPLOT = si*NCHAN + NCHAN*np.linspace(0,1,NCHAN)
       if si==20:
         AUXVIS2[bistr] = np.copy(VIS)
 
     PHASES[bistr] = np.array(PHASES[bistr])
-
-  #pl.show()
-
+   # PHASE_SPECTRUM[bistr] = [np.array(bis) for bis in PHASE_SPECTRUM[bistr]]
 
 
-  def globPhases(p,IF):
+
+
+
+
+  def globPhases(p,IF,chan=-1):
+    """ Self-calibrates phases, either with 1 gain per IF (chan<0; default) or
+        in bandpass mode (if chan>=0)."""
+
     ChiSq = 0.0
     resid = []
-    for bistr in PHASES.keys():
+
+    if chan<0:
+      phase2fit = PHASES
+    else:
+      phase2fit = PHASE_SPECTRUM
+
+    for bistr in phase2fit.keys():
       bi0,bi1=map(int,bistr.split('-'))
 
       if bi0<REFID:
@@ -957,37 +933,58 @@ def GET_FOURFIT_PHASES(SCAN='',HOPSNAMES={'OE':'S','OW':'T','WS':'V','YJ':'Y'},
       elif bi1>REFID:
         p2 = bi1-2
 
-
       if bi0 == REFID:
         GainPh = -p[p2]
       elif bi1 == REFID:
         GainPh = p[p1]
       else:
         GainPh = p[p1] - p[p2]
-      ObsPh = PHASES[bistr][IF]
+
+      if chan<0:
+        ObsPh = phase2fit[bistr][IF]
+      else:
+        ObsPh = phase2fit[bistr][IF][chan]
+
       resid += [np.cos(ObsPh)-np.cos(GainPh), np.sin(ObsPh)-np.sin(GainPh)]
-      ChiSq += resid[-2]**2. + resid[-1]**2. #(np.cos(ObsPh)-np.cos(GainPh))**2. + (np.sin(ObsPh)-np.sin(GainPh))**2.
+      ChiSq += resid[-2]**2. + resid[-1]**2.
     return resid
 
+
+
+
+
+
+
+
   GlobalPhases = {}
+  GlobalBandpass = {}
   for ai in ALLANTS:
-      GlobalPhases[ai] = np.zeros(len(ALLSPW)) #[0. for spi in range(len(ALLSPW))] 
+      GlobalPhases[ai] = np.zeros(len(ALLSPW))
+      GlobalBandpass[ai] = np.zeros((len(ALLSPW),Nch))
 
 
   for spi in ALLSPW:
-#    myfit = spopt.fmin(globPhases,[0. for i in range(len(ALLANTS)-1)],args=(spi,))
     pini = [0. for i in range(len(ALLANTS)-1)]
     for i in ALLANTS:
       bistr = '%i-%i'%(REFID,i)
+      bistr2 = '%i-%i'%(i,REFID)
       if bistr in PHASES.keys():
-
         if i<REFID:
           pi = i-1
+          pini[pi] = PHASES[bistr][spi]
         elif i>REFID:
           pi = i-2
-        pini[pi] = PHASES[bistr][spi]
+          pini[pi] = -PHASES[bistr][spi]
+      elif bistr2 in PHASES.keys():
+        if i<REFID:
+          pi = i-1
+          pini[pi] = PHASES[bistr2][spi]
+        elif i>REFID:
+          pi = i-2
+          pini[pi] = -PHASES[bistr2][spi]
 
-    myfit = spopt.leastsq(globPhases,pini,args=(spi,))[0]
+
+    myfit = spopt.leastsq(globPhases,pini,args=(spi,-1))[0]
     for ai in ALLANTS:
       if ai<REFID:
         aig = ai-1
@@ -995,44 +992,71 @@ def GET_FOURFIT_PHASES(SCAN='',HOPSNAMES={'OE':'S','OW':'T','WS':'V','YJ':'Y'},
         aig = ai-2
       if ai!=REFID:
         GlobalPhases[ai][spi] = myfit[aig]*180./np.pi
-    #  GlobalPhases[ai+2][spi] += 360.*np.median(GAINS[ai+2][0])*(NUs[spi]-6.e9)
+        
+## TODO: Understand why this line worsens the fringe symmetry:
+## Add the median of the antenna's SBD, referred to 6GHz:
+    #    GlobalPhases[ai][spi] += 360.*np.median(GAINS[ai][0])*(NUs[spi]-6.e9)
+
+## NOW, ESTIMATE THE BANDPASS:
+ # for spi in ALLSPW:
+    for chi in range(Nch):
+      pini = [ph for ph in myfit]
+      myfitBP = spopt.leastsq(globPhases,pini,args=(spi,chi))[0]
+      for ai in ALLANTS:
+        if ai<REFID:
+          aig = ai-1
+        elif ai>REFID:
+          aig = ai-2
+        if ai!=REFID:
+          GlobalBandpass[ai][spi][chi] = (myfitBP[aig]-myfit[aig])*180./np.pi - 360.*(GAINS[ai][0][spi])*(CHANFREQ[spi][chi]-NUs[spi])
+
+
+  figB = pl.figure(figsize=(15,5))
+  subB=figB.add_subplot(111)
+  for ai in ALLANTS:
+    subB.cla()
+    for si in ALLSPW:
+      subB.plot(np.arange(Nch*si,Nch*(si+1)),GlobalBandpass[ai][si],'.')
+    subB.set_ylim((-180,180));
+    pl.savefig('BandPass_ANT%i.png'%ai)
+  
 
 
 
-  if False:
-    fig4 = pl.figure(figsize=(15,5))
-    sub = fig4.add_subplot(111)
 
+## Write additive phases into external file:
+  PHSOFF = open(os.path.basename(SCAN)[:-5]+'_AD-HOC_PHASES.dat','wb')
+  pk.dump([GlobalPhases,GlobalBandpass,ANAMES],PHSOFF)
+  PHSOFF.close()
+
+### END OF CODE FOR GLOBAL (PER-IF) FRINGE FITTING
+##############################################################
+
+
+
+
+
+### Correct visibilities with GFF gains:
+  figC = pl.figure(figsize=(15,5))
+  subC=figC.add_subplot(111)
   for bi in ALLBAS:
+    subC.cla()
     bistr = '%i-%i'%(bi[0],bi[1])
     mask = np.logical_and(DATA['ANTS'][:,0]==bi[0],DATA['ANTS'][:,1]==bi[1])
     WEIGHTS[bistr] = []
     for si in ALLSPW:
       mask2 = np.logical_and(mask,DATA['IF']==int(si))
       VIS = np.copy(DATA['VIS'][mask2*maskRR,:]+DATA['VIS'][mask2*maskLL,:])
-      VIS *= np.exp(1.j*TWOPI*(GAINS[bi[0]][0][si]-GAINS[bi[1]][0][si])*(CHANFREQ[si]-NUs[si])-1.j*(GlobalPhases[bi[0]][si]-GlobalPhases[bi[1]][si])*np.pi/180.)[np.newaxis,:]
+      VIS *= np.exp(1.j*0.*TWOPI*(GAINS[bi[0]][0][si]-GAINS[bi[1]][0][si])*(CHANFREQ[si]-NUs[si])-1.j*(GlobalPhases[bi[0]][si]-GlobalPhases[bi[1]][si])*np.pi/180.-1.j*(GlobalBandpass[bi[0]][si]-GlobalBandpass[bi[1]][si])*np.pi/180.)[np.newaxis,:]
       VIS *= np.exp(1.j*TWOPI*(GAINS[bi[0]][1][si]-GAINS[bi[1]][1][si])*OBSTIMES[bistr])[:,np.newaxis]
       WEIGHTS[bistr].append(1./np.std(np.angle(np.average(VIS,axis=0)))**2.)
-
+      subC.plot(np.arange(Nch*si,Nch*(si+1)), 180/np.pi*np.angle(np.average(VIS,axis=0)),'.k')
+    pl.savefig('CALIBRATED_DATA_%s.png'%bistr)  
     WEIGHTS[bistr] = np.array(WEIGHTS[bistr])
 
-    #  CHPLOT = si*NCHAN + NCHAN*np.linspace(0,1,NCHAN)
-    #  if si==ALLSPW[0]:
-    #    sub.plot(CHPLOT,180./np.pi*np.angle(np.average(VIS,axis=0)),'.%s'%colors[bistr],label='%s-%s'%(ANAMES[bi[0]],ANAMES[bi[1]]))
-    #  else:
-    #    sub.plot(CHPLOT,180./np.pi*np.angle(np.average(VIS,axis=0)),'.%s'%colors[bistr])
-    
-
-  if False:
-    sub.set_xlabel('Channel #')
-    sub.set_ylabel('Residual Phase (deg)')
-    sub.set_ylim((-181.,181.))
-    pl.legend(numpoints=1)
- # pl.show()
 
 
-
-
+### Write additive phases into CF file:
 
   K = list(filter(lambda x: "EU-VGOS" in x, sys.path))
 
@@ -1050,6 +1074,8 @@ def GET_FOURFIT_PHASES(SCAN='',HOPSNAMES={'OE':'S','OW':'T','WS':'V','YJ':'Y'},
 
   print('\n\n  *** ADDITIVE PHASES ESTIMATED WITH PyPhases. VERSION %s ***\n\n'%__version__, file=IFF)
 
+
+## Add estimated instrumental delay for IFs with no valid pcals:
   for ant in PCALDELAYS.keys():
     Iant = -1
     for ID in ANAMES.keys():
@@ -1078,8 +1104,6 @@ def GET_FOURFIT_PHASES(SCAN='',HOPSNAMES={'OE':'S','OW':'T','WS':'V','YJ':'Y'},
 
       AddPhase =  np.angle(np.sum(np.exp(1.j*TWOPI*INST_DELAY*(1.e-9)*(Freqs-AvFreq))))*180/np.pi
       GlobalPhases[Iant][spi] -= AddPhase
-#      print('Pcal phase for %s %s: %.2f deg.'%(ant,IFNAMES[SORTEDIF[spi]],AddPhase))
-
 
   for spi in ALLSPW:
     for ai in range(len(ALLANTS)):
@@ -1129,51 +1153,792 @@ def GET_FOURFIT_PHASES(SCAN='',HOPSNAMES={'OE':'S','OW':'T','WS':'V','YJ':'Y'},
   sub.set_ylim((-10,10))
   pl.legend(numpoints=1)
 
-#  NUMI2 = 1./(NuPlot**2.)
-#  for bi in ALLBAS:
-#    bistr = '%i-%i'%(bi[0],bi[1])
-#    TOFIT = np.zeros(len(ALLSPW))
-#    for si in ALLSPW:
-#      TOFIT[si] = RESIDUALS[bistr][si][0]
-#    SUMWGT = np.sum(WEIGHTS[bistr])
-#    SUMXY = np.sum(WEIGHTS[bistr]*TOFIT*NUMI2)
-#    SUMX = np.sum(WEIGHTS[bistr]*NUMI2)
-#    SUMY = np.sum(WEIGHTS[bistr]*TOFIT)
-#    SUMXX = np.sum(WEIGHTS[bistr]*NUMI2*NUMI2)
-#
-#    DET = SUMWGT*SUMXX - SUMX**2.
-#
-#    SLOPE = (SUMWGT*SUMXY - SUMX*SUMY)/DET
-#    SBD0 =  (SUMXX*SUMY-SUMX*SUMXY)/DET
-# 
-#    CHI2 = np.sum(WEIGHTS[bistr]*np.power(TOFIT - (SLOPE*NUMI2+SBD0),2.))
-#    ERROR = np.sqrt(SUMWGT*CHI2/DET)
-#
-#    sub.errorbar(NuPlot/1.e9,(TOFIT-SBD0)*1.e9,1./np.sqrt(WEIGHTS[bistr]),fmt='k',linestyle='none')  
-#
-#    sub.plot(NuPlot/1.e9,(TOFIT-SBD0)*1.e9,'o',label='%s: %.2f +/- %.2f TECU'%(ANAMES[i],SLOPE*TFAC,ERROR*TFAC))  
-#    sub.set_title('RESIDUAL SBDs vs. FREQUENCY')
-#
-#  sub.set_xlabel('Frequency (GHz)')
-#  sub.set_ylabel('Residual Antenna SBD (ns)')
-#  pl.sca(sub)
-#  sub.set_ylim((-10,10))
-#  pl.legend(numpoints=1)
-#
-
-
-
-
-## DETERMINE ADDITIVE PHASES FOR IF ALIGNMENT:
-#TOPLOT = '2-4'
-
-#pl.plot(180./np.pi*np.angle(np.average(AUXVIS[TOPLOT],axis=0)),'ok'); pl.plot(180./np.pi*np.angle(np.average(AUXVIS2[TOPLOT],axis=0)),'or'); pl.show()
-
-#pl.plot(180./np.pi*np.angle(np.average(AUXVIS3[TOPLOT],axis=1)),'ok'); pl.plot(180./np.pi*np.angle(np.average(AUXVIS2[TOPLOT],axis=1)),'or'); pl.show()
-
-#pl.plot(NuPlot,PHASES[TOPLOT],'ok'); 
   pl.savefig(os.path.basename(SCAN)[:-5]+'_TEC.png')
 
-
   IFF.close()
+
+
+
+
+
+#if __name__=='__main__':
+###################
+### FOR TESTING:
+#  SCAN = '/home/marti/WORKAREA/VGOS/EV9217/DATA_PCONV/ev9217_076.difx'
+#  OUTDIR = 'DiFX_BPCal'
+#  REFANT = 'WS' ; PCALDELAYS={}
+#  PCALS,CHANFREQ,ANAMES,BWs,NUs,REFID,SORTEDIF = getPCALS(SCAN,REFANT,PCALDELAYS)
+#  fig = pl.figure(figsize=(15,10))
+#  sub= fig.add_subplot(211)  
+#  sub2 = fig.add_subplot(212)
+#  TECOR = getTEC(SCAN,[sub,sub2])
+#
+#  PHSIN = open(os.path.basename(SCAN)[:-5]+'_AD-HOC_PHASES.dat','rb')
+#  GlobalPhases,GlobalBandpass = pk.load(PHSIN)
+#  PHSIN.close()
+####################
+  
+  
+def writeSWIN(SCAN='',OUTDIR='',bandPass = [], FOR_TEC = [], PHASECALS=0):
+
+  TECOR,ANAMES,CHANFREQ = FOR_TEC
+  
+
+## Copy visibilities:
+  if not os.path.exists(OUTDIR):
+    os.system('mkdir %s'%OUTDIR)
+  os.system('rm -rf %s'%os.path.join(OUTDIR,os.path.basename(SCAN)))
+  os.system('cp -r %s %s'%(SCAN,OUTDIR))
+
+
+  
+  NEWSCAN = os.path.join(OUTDIR,os.path.basename(SCAN))
+  
+  Extensions = ['calc','difxlog','flag','im','threads','input','machines']
+
+
+  for extension in Extensions: 
+    if extension in ['input','calc','im']:
+      IFF = open('%s.%s'%(SCAN[:-5],extension),'r')
+      OFF = open('%s.%s'%(NEWSCAN[:-5],extension),'w')
+      for line in IFF.readlines():
+        if 'FILENAME:' in line:
+          item = line.split(':')[0]+':'
+          fname = os.path.basename(line.split()[-1])
+          line = '%s%s '%(item.ljust(20),os.path.join(os.path.abspath(OUTDIR),fname))
+        print(line[:-1],file=OFF)
+      OFF.close()
+
+    else:
+      os.system('cp -r %s.%s %s.%s'%(SCAN[:-5],extension,NEWSCAN[:-5],extension))
+
+
+
+
+## READ VISIBILTIES:
+  filename1 = glob.glob(os.path.join(SCAN,'DIFX_*'))
+  filename2 = glob.glob(os.path.join(NEWSCAN,'DIFX_*'))
+  if len(filename1)==0:
+    raise Exception('File (or dir) not found.\n')
+  else:
+    filename1 = filename1[0]
+    filename2 = filename2[0]
+    
+  frfile1 = open(filename1,"rb")
+  frfile2 = open(filename2,"wb")
+  
+  
+  WORD = b'\x00\xff\x00\xff\x01\x00\x00\x00'
+
+## Figure out number of channels:
+  temp = frfile1.read(8+4+4+8+4+4+4+2+4+8+8*3)
+  for i in range(4096):
+    test = frfile1.read(8)
+    if test==WORD:
+      break
+
+  NCHAN = i
+  print("There seem to be %i channels.\n"%i)
+  frfile1.close()
+  
+
+## Read data:
+
+  frfile1 = open(filename1,"rb")
+  alldats = frfile1.read(8)
+  frfile2.write(alldats)
+  
+  i=0
+  DATA = {'ANTS':[],'JDT':[],'IF':[],'POL':[],'VIS':[],'UVW':[]}
+  ALLANTS = []
+  
+  NuAv = [np.average(CHANFREQ[SPI]) for SPI in range(len(CHANFREQ))]
+  
+#  fig = pl.figure()
+#  sub = fig.add_subplot(111)
+#  toplot = [np.zeros(128,dtype=np.complex64) for i in range(32)]
+  
+  while True:
+    if i%1024==0:
+      sys.stdout.write('\r Reading/Writing VIS %i'%i)
+      sys.stdout.flush()
+      
+    alldats = frfile1.read(4+4+8+4+4+4)
+    frfile2.write(alldats)
+    if not alldats: break
+    BASEL,MJD,SEC,CFI,SI,SPI = stk.unpack("iidiii",alldats)
+    A1 = BASEL//256
+    A2 = BASEL%256
+
+   # if i==0:
+   #   MJD0 = MJD
+
+   # if A1 not in ALLANTS:
+   #   ALLANTS.append(A1)
+   # if A2 not in ALLANTS:
+   #   ALLANTS.append(A2)
+
+    alldats = frfile1.read(38)
+    frfile2.write(alldats)
+    
+    if A1==A2:
+      alldats = frfile1.read(8*NCHAN)
+      frfile2.write(alldats)
+    else: 
+      i+=1 
+      for chi in range(NCHAN):
+        alldats = frfile1.read(8)
+        Re,Im = stk.unpack("ff",alldats)
+        visib = Re + 1.j*Im
+      ### CALIBRATE!
+        if PHASECALS==0:
+          visib *= np.exp(1.j*(-np.pi/180.*(bandPass[ANAMES[A1]][SPI][chi] - bandPass[ANAMES[A2]][SPI][chi]) + 2.*np.pi*(TECOR[ANAMES[A1]][1]-TECOR[ANAMES[A2]][1])/CHANFREQ[SPI][chi]))
+        else:
+          visib *= np.exp(1.j*(-np.pi/180.*(bandPass[ANAMES[A1]][SPI][chi] - bandPass[ANAMES[A2]][SPI][chi]) + 2.*np.pi*(TECOR[ANAMES[A1]][1]-TECOR[ANAMES[A2]][1])/CHANFREQ[SPI][chi] + 2.*np.pi*(PHASECALS[A1][SPI][0]-PHASECALS[A2][SPI][0])*(CHANFREQ[SPI][chi]-NuAv[SPI]) + PHASECALS[A1][SPI][1] - PHASECALS[A2][SPI][1]  ))
+        
+  #      if A1==1 and A2==3:
+  #        toplot[SPI][chi] += visib
+          
+      ### WRITE!
+       # print(type(visib.real))
+        alldats = stk.pack("ff",visib.real,visib.imag)
+        frfile2.write(alldats)
+    hola = frfile1.read(8)
+    frfile2.write(hola)
+    
+ # for i in range(32):
+ #     sub.plot(np.arange(i*128,(i+1)*128),180./np.pi*np.angle(toplot[i]),'.')
+      
+ # pl.ylim((-180,180))
+ # pl.savefig('TOTO.png')
+    
+    
+  frfile1.close()
+  frfile2.close()
+
+
+
+
+
+
+
+
+#if __name__=='__main__':
+########################
+#  WRITE_DATA = False
+#  SCAN='/home/marti/WORKAREA/VGOS/EV9217/DATA_PCONV/ev9217_076.difx'
+#  REFSCAN=SCAN; FLAGBAS = [['OE','OW']]; REFANT='WS'; PCALDELAYS={}
+#  APPLY_BANDPASS = True
+#  PADDING_FACTOR = 8
+########################
+
+
+def removeTEC(ORIG_DIR = '', DEST_DIR = '', SCAN='001', REFSCAN='', FLAG_PCALS={},
+              FLAGBAS = [['OE','OW']], REFANT='WS', EXPNAME='', DO_GFF=True, 
+              WRITE_DATA=True, APPLY_PHASECAL = False, MAX_TEC = 7.5,  # 5 is kind of working!
+              PCALDELAYS={}, APPLY_BANDPASS = True, PADDING_FACTOR=32):
+  SCAN = os.path.join(ORIG_DIR, '%s_%s.difx'%(EXPNAME,SCAN))
+  REFSCAN = os.path.join(ORIG_DIR, '%s_%s.difx'%(EXPNAME,REFSCAN))
+
+  CHORIZO = -40.28*1.e16/2.99458792e8
+
+## Get Ionospheric Electron Content (and plot TEC image):
+#  fig = pl.figure(figsize=(15,10))
+#  sub= fig.add_subplot(211)  
+#  sub2 = fig.add_subplot(212)
+  TECOR = getTEC(SCAN)
+
+#  pl.savefig('%s_TEC_IONEX.png'%os.path.basename(SCAN)[:-5])
+  
+
+## Get Pcals and metadata:
+  PCALS,CHANFREQ,ANAMES,BWs,NUs,REFID,SORTEDIF = getPCALS(SCAN,REFANT,PCALDELAYS,FLAG_PCALS)
+
+
+
+
+## Get Instrumental (additive) phases:
+  PHSIN = open(os.path.basename(REFSCAN)[:-5]+'_AD-HOC_PHASES.dat','rb')
+  GlobalPhases,GlobalBandpass,refNames = pk.load(PHSIN)
+  PHSIN.close()
+
+
+
+  if not APPLY_BANDPASS:
+    for key in GlobalBandpass.keys():
+      for spi in range(len(GlobalBandpass[key])):
+        GlobalBandpass[key][spi][:] = 0.0
+
+
+
+
+## Re-define possible changes in antenna indices:
+  bandPass = {}
+  additivePhase = {}
+  for ai in refNames.keys():
+    bandPass[refNames[ai]] = GlobalBandpass[ai]
+    for si in range(len(bandPass[refNames[ai]])):
+      if np.max(np.abs(bandPass[refNames[ai]][si]))>135.:
+         bandPass[refNames[ai]][si]==0.0 # Do not apply too large BP solutions.
+    additivePhase[refNames[ai]] = GlobalPhases[ai]
+
+
+
+  if WRITE_DATA:
+    if APPLY_PHASECAL:
+      writeSWIN(SCAN, OUTDIR=DEST_DIR, FOR_TEC = [TECOR,ANAMES,CHANFREQ], bandPass=bandPass,PHASECALS=PCALS)
+    else:
+      writeSWIN(SCAN, OUTDIR=DEST_DIR, FOR_TEC = [TECOR,ANAMES,CHANFREQ], bandPass=bandPass)
+  
+
+  if not DO_GFF:
+    return
+
+
+
+## Get DATA;
+  DATA,NCHAN = getDATA(SCAN)
+
+
+
+# DETERMINE SET OF GOOD ANTENNAS, BASELINES AND IFs:
+
+  ALLBASNOFLAG = np.unique(DATA['ANTS'],axis=0)
+  ALLBAS = []
+
+  for bif in ALLBASNOFLAG:
+    good = True
+    for bi in FLAGBAS:
+      if ANAMES[int(bif[0])] in bi and ANAMES[int(bif[1])] in bi:
+        good = False ; break
+    if good:
+      ALLBAS.append(bif)
+
+  ALLANTS = list(np.unique(ALLBAS))
+  ALLSPW = np.unique(DATA['IF'])
+
+
+
+## MEMORY FOR GLOBALIZATION ALGORITHM:
+  HESSIAN = np.zeros((len(ALLANTS)-1,len(ALLANTS)-1))
+  DELRES = np.zeros(len(ALLANTS)-1)
+  COVMAT = np.copy(HESSIAN)
+  DELAYS = np.copy(DELRES)
+  RATRES = np.copy(DELRES)
+  RATES = np.copy(DELRES)
+  GAINS = {}
+  GlobalTEC = {}
+  GlobalDelay = {}
+  GlobalPhase = {}
+  GlobalRate = {}
+  phini = {}
+  for ai in ALLANTS:
+    GAINS[ai] = 0.0
+    GlobalTEC[ANAMES[ai]] = 0.0
+    GlobalDelay[ANAMES[ai]] = 0.0
+    GlobalPhase[ANAMES[ai]] = 0.0
+    GlobalRate[ANAMES[ai]] = 0.0
+
+
+
+
+  maskRR = DATA['POL']=='RR' ; maskLL = DATA['POL']=='LL'
+
+  maskI = np.logical_or(maskRR,maskLL)
+  avg_vis = {}
+  Nch = len(CHANFREQ[0])
+  NuAv = [np.average(CHANFREQ[spi]) for spi in range(len(CHANFREQ))]
+  
+
+
+
+#####################################
+#########  LINES FOR TESTING
+### THE FOLLOWING COMBINATIONS WORKS WELL FOR SCAN 076:
+  if False:  
+    TECOR['OE'][1] += -3.80*CHORIZO
+    TECOR['OW'][1] += 2.70*CHORIZO
+    TECOR['YJ'][1] += 4.0*CHORIZO
+    for i in range(32):
+      PCALS[1][i][0] -= 2.e-10
+      PCALS[1][i][1] -= 2.*np.pi*2.e-10*(NuAv[i]-6.e9)
+      PCALS[2][i][0] += 2.e-9
+      PCALS[2][i][1] += 2.*np.pi*2.e-9*(NuAv[i]-6.e9)
+      PCALS[4][i][0] += 1.e-9
+      PCALS[4][i][1] += 2.*np.pi*1.e-9*(NuAv[i]-6.e9)
+#####################################
+
+
+
+
+
+
+## Estiamte the delay rate by stacking IFs:
+  BLRates = {}
+  IFRATES = np.zeros(len(CHANFREQ))
+  mask = np.zeros(len(DATA['JDT']),dtype=np.bool)
+  mask2 = np.zeros(len(DATA['JDT']),dtype=np.bool)
+
+  SCANTIMES = {}
+
+  for bi in ALLBAS:
+    bistr = '%i-%i'%(bi[0],bi[1])
+    IFRATES[:] = 0.0
+    mask[:] = np.logical_and(DATA['ANTS'][:,0]==bi[0],DATA['ANTS'][:,1]==bi[1])
+    SCTIMES = DATA['JDT'][mask]
+    UTIMES = np.unique(SCTIMES); Nt = np.unique(UTIMES)
+    SCDUR = np.max(UTIMES) - np.min(UTIMES)
+    SCAV = (np.max(UTIMES) + np.min(UTIMES))/2.
+    SCANTIMES[bistr]=[]
+    for spi in ALLSPW:
+      mask2[:] = np.logical_and(mask,DATA['IF']==int(spi))
+      IStokes = DATA['VIS'][mask2*maskRR,:] + DATA['VIS'][mask2*maskLL,:]
+      toFringe = np.fft.fftshift(np.fft.fft2((IStokes*np.exp(1.j*( TWOPI*(PCALS[bi[0]][spi][0]-PCALS[bi[1]][spi][0])*(CHANFREQ[spi]-NuAv[spi]) + PCALS[bi[0]][spi][1] - PCALS[bi[1]][spi][1] - (bandPass[ANAMES[bi[0]]][spi]-bandPass[ANAMES[bi[1]]][spi])*np.pi/180. - (additivePhase[ANAMES[bi[0]]][spi]-additivePhase[ANAMES[bi[1]]][spi])*np.pi/180. + TWOPI*(TECOR[ANAMES[bi[0]]][1]-TECOR[ANAMES[bi[1]]][1])/CHANFREQ[spi]  )))))
+      Nt,Nch = np.shape(toFringe)
+      SCANTIMES[bistr].append(np.copy( DATA['JDT'][mask2]-SCAV ))
+      PEAK = np.unravel_index(np.argmax(np.abs(toFringe)),(Nt,Nch))
+      Taround = [PEAK[0]-1,PEAK[0],PEAK[0]+1]
+      if Taround[1]==0: Taround[0]=Nt-1
+      if Taround[1]==Nt-1: Taround[2]=0
+      if bool(Nt%2):
+        BLRate = (PEAK[0] - (Nt-1)/2. + Quinn(toFringe[Taround,PEAK[1]]))
+      else:
+        BLRate = (PEAK[0] - Nt/2. + Quinn(toFringe[Taround,PEAK[1]]))
+      if BLRate > Nt/2.0: BLRate -= Nt
+      IFRATES[spi] = BLRate/SCDUR/NuAv[spi]
+      del toFringe, IStokes
+ #     print(bistr,spi,SCANTIMES[bistr][spi])
+    BLRates[bistr] = np.median(IFRATES)
+ #   print(bistr,IFRATES*6.e9,BLRates[bistr]*6.e9)
+
+  gc.collect()
+
+
+## Globalize rates:
+
+  HESSIAN[:] = 0.0 ; RATRES[:] = 0.0
+  for bi in ALLBAS:
+    bistr = '%i-%i'%(bi[0],bi[1])
+    a1o = int(bi[0])
+    a2o = int(bi[1])
+    if a1o<REFID:
+      a1 = a1o-1
+    elif a1o>REFID:
+      a1 = a1o-2
+    if a2o<REFID:
+      a2 = a2o-1
+    elif a2o>REFID:
+      a2 = a2o-2
+    if a1o!=REFID:
+      RATRES[a1] += BLRates[bistr]
+      HESSIAN[a1,a1] += 1
+    if a2o!= REFID:
+      RATRES[a2] -= BLRates[bistr]
+      HESSIAN[a2,a2] += 1
+    if a1o!=REFID and a2o!=REFID:
+      HESSIAN[a1,a2] -= 1
+      HESSIAN[a2,a1] -= 1
+  COVMAT[:] = np.linalg.inv(HESSIAN)
+  RATES[:] = COVMAT.dot(RATRES)
+  for ai in ALLANTS:
+    if ai<REFID:
+      GlobalRate[ANAMES[ai]] = -RATES[ai-1]
+    elif ai>REFID:
+      GlobalRate[ANAMES[ai]] = -RATES[ai-2]
+
+      
+
+  print(GlobalRate)
+
+## Apply PCALS, rates, additive phases, and a-priori Ionosphere corrections!
+## Then, average in time:
+  for bi in ALLBAS:
+    bistr = '%i-%i'%(bi[0],bi[1])
+    avg_vis[bistr]=[]
+    mask = np.logical_and(DATA['ANTS'][:,0]==bi[0],DATA['ANTS'][:,1]==bi[1])
+    for spi in ALLSPW:
+      mask2 = np.logical_and(mask,DATA['IF']==int(spi))
+      DATA['VIS'][mask2,:] *= np.exp(1.j*( TWOPI*(PCALS[bi[0]][spi][0]-PCALS[bi[1]][spi][0])*(CHANFREQ[spi][np.newaxis,:]-NuAv[spi]) + PCALS[bi[0]][spi][1] - PCALS[bi[1]][spi][1] - (bandPass[ANAMES[bi[0]]][spi][np.newaxis,:]-bandPass[ANAMES[bi[1]]][spi][np.newaxis,:])*np.pi/180. - (additivePhase[ANAMES[bi[0]]][spi]-additivePhase[ANAMES[bi[1]]][spi])*np.pi/180. + TWOPI*(TECOR[ANAMES[bi[0]]][1]-TECOR[ANAMES[bi[1]]][1])/CHANFREQ[spi] + TWOPI*NuAv[spi]*(GlobalRate[ANAMES[bi[0]]]-GlobalRate[ANAMES[bi[1]]])*SCANTIMES[bistr][spi][:,np.newaxis] ))
+
+      avg_vis[bistr].append(np.average(DATA['VIS'][mask2*maskI,:],axis=0))
+      del mask2
+      gc.collect()
+    del mask
+    gc.collect()
+
+
+
+
+
+#Find out the lowest frequency and prepare multiband array
+  nu_min = CHANFREQ[SORTEDIF[0]][0]
+  nu_max = CHANFREQ[SORTEDIF[-1]][-1]
+  n_chan = len(CHANFREQ[0])
+  delta_nu = CHANFREQ[SORTEDIF[0]][1]-nu_min
+  n_nu = int((nu_max-nu_min)/delta_nu)
+  
+  padded_vis = np.zeros((n_nu*PADDING_FACTOR),dtype=np.complex64)
+  padded_fringe = np.zeros((n_nu*PADDING_FACTOR),dtype=np.complex64)
+  
+  if n_nu%2:
+    n_nu += 1
+  all_nu = np.linspace(nu_min, nu_max, n_nu)
+  n_nu = len(all_nu)
+  all_vis = np.zeros(len(all_nu), dtype=np.complex64)
+  all_mbfringe = np.copy(all_vis)
+  start_chan = []
+  for spi in ALLSPW:
+    start_chan.append(np.argmin(np.abs(all_nu-CHANFREQ[spi][0])))
+  
+  
+  
+
+#Memory for zero-padding MBD estimates:
+  del_tau = 1/(nu_max-nu_min)/PADDING_FACTOR
+  tau_min = -del_tau * n_nu/2*PADDING_FACTOR
+  tau_max = -tau_min
+  tau_array = np.linspace(tau_min,tau_max,n_nu*PADDING_FACTOR)
+
+  tau_m = {}
+  ObsPhases = {}
+  for bi in ALLBAS:
+    bistr = '%i-%i'%(bi[0],bi[1])
+    tau_m[bistr] = 0.0
+    ObsPhases[bistr] = []
+    for si in range(len(CHANFREQ)):
+      ObsPhases[bistr].append(np.zeros(Nch))
+  
+
+
+
+#  numsq = 0.0
+#  num_tot_chan = 0
+#  for spi in ALLSPW:
+#    num_tot_chan += len(CHANFREQ[spi]) 
+#    numsq += np.sum(CHANFREQ[spi]**2.)
+#  numsq /= num_tot_chan
+  ndof = len(ALLANTS)-1
+#
+#  if False:
+#    numsq = 0.0
+#    for spi in ALLSPW:
+#      num_tot_chan += len(CHANFREQ[spi]) 
+#      numsq += np.sum(1./CHANFREQ[spi])
+#    numsq /= num_tot_chan
+#    numsq = (1./numsq)**2.
+
+
+
+  print('Determining TEC sidelobe ambiguities.')
+
+## Find out the sidelobe ambiguities:
+  TECtests = np.arange(-MAX_TEC,MAX_TEC,0.5)
+  Peaks = np.zeros(len(TECtests))
+  for bi in ALLBAS:
+    isREF = False
+    bistr = '%i-%i'%(bi[0],bi[1])
+    if bi[1]==REFID:
+      aiT = bi[0]
+      aiS = 1.0
+      isREF = True
+    elif bi[0]==REFID:
+      aiT = bi[1]
+      aiS = -1.0
+      isREF = True
+    if isREF:
+      for tii,ti in enumerate(TECtests):
+        all_vis[:] = 0.0
+     ## Rellenar ALLVIS. Hacer FFT. 
+        for spi in ALLSPW:
+          all_vis[start_chan[spi]:start_chan[spi]+n_chan] = avg_vis[bistr][spi]*np.exp(1.j*TWOPI*ti*CHORIZO/CHANFREQ[spi])
+        padded_vis[:] = 0.0
+        padded_vis[(PADDING_FACTOR-1)*n_nu//2:(PADDING_FACTOR+1)*n_nu//2] = all_vis
+        padded_fringe[:]=np.fft.fft(padded_vis)
+        Peaks[tii] = np.max(np.abs(padded_fringe))
+      GlobalTEC[ANAMES[aiT]] = aiS*TECtests[np.argmax(Peaks)]
+  #    print(ANAMES[aiT],GlobalTEC[ANAMES[aiT]],Peaks)
+
+
+
+
+
+# Determine TEC-related delay bias:
+  bias = []
+  all_vis[:] = 0
+  teci = 1.0
+  for spi in ALLSPW:
+      all_vis[start_chan[spi]:start_chan[spi]+n_chan] = np.exp(1.j*TWOPI*teci*CHORIZO/CHANFREQ[spi])      
+  padded_vis[:] = 0.0
+  padded_vis[(PADDING_FACTOR-1)*n_nu//2:(PADDING_FACTOR+1)*n_nu//2] = all_vis
+  padded_fringe[:]=np.fft.fftshift(np.fft.fft(padded_vis))
+  FRINGE_AMP = np.abs(padded_fringe)
+  peak=np.argmax(FRINGE_AMP)
+  BLDelay = (peak - n_nu*PADDING_FACTOR/2.) 
+  BLDelay /= (nu_max-nu_min)*PADDING_FACTOR
+  numsq = -CHORIZO/BLDelay
+
+
+
+## Function to estimate Global TECs:
+  def globTEC(p):
+    ChiSq = 0.0
+    resid = []
+    for bistr in avg_vis.keys():
+      bi0,bi1=map(int,bistr.split('-'))
+      Tec0min = -GlobalTEC[ANAMES[bi0]]-MAX_TEC
+      Tec0max = -GlobalTEC[ANAMES[bi0]]+MAX_TEC
+      Tec1min = -GlobalTEC[ANAMES[bi1]]-MAX_TEC
+      Tec1max = -GlobalTEC[ANAMES[bi1]]+MAX_TEC
+      Kmin0 = (Tec0max-Tec0min)/2.
+      Kmin1 = (Tec1max-Tec1min)/2.
+
+      if bi0<REFID:
+        p1 = bi0-1
+      elif bi0>REFID:
+        p1 = bi0-2
+
+      if bi1<REFID:
+        p2 = bi1-1
+      elif bi1>REFID:
+        p2 = bi1-2
+
+      if bi0 == REFID:
+        dTEC = - ( Tec1min + Kmin1*(np.sin(p[p2]) + 1.))
+      #  dTEC = -p[p2]
+        phi0 = -p[p2+ndof]
+      elif bi1 == REFID:
+        dTEC = ( Tec0min + Kmin0*(np.sin(p[p1])+1.))
+      #  dTEC = p[p1]
+        phi0 = p[p1+ndof]
+      else:
+        dTEC = ( Tec0min + Kmin0*(np.sin(p[p1])+1.)) - ( Tec1min + Kmin1*(np.sin(p[p2]) + 1.))
+      #  dTEC = p[p1]-p[p2]
+        phi0 = p[p1+ndof] - p[p2+ndof]
+
+    #  if bi0==1 and bi1==3:
+    #    print(dTEC, Tec0min,Tec0max, pini[p1],REFID)
+     
+      for IF in ALLSPW:
+        ObsPh = ObsPhases[bistr][IF]
+       # GainPh = phi0 + taum*(CHANFREQ[IF] - 6.e9) + dTEC*CHORIZO*2*np.pi*(1./CHANFREQ[IF] +CHANFREQ[IF]/numsq)
+        GainPh = phi0 - dTEC*CHORIZO*TWOPI*(1./CHANFREQ[IF]  + CHANFREQ[IF]/numsq)
+       # GainPh = dTEC*CHORIZO*TWOPI*(1./CHANFREQ[IF]  + CHANFREQ[IF]/numsq)
+        resid += [np.cos(ObsPh)-np.cos(GainPh), np.sin(ObsPh)-np.sin(GainPh)]
+       # resid += [np.exp(1.j*(ObsPh-GainPh))]
+      ChiSq += np.sum(resid[-2]**2. + resid[-1]**2.)
+#TODO Explore the effects of outliers (L1R)
+    return np.concatenate(resid)
+   # return -np.abs(np.average(resid))
+#    return ChiSq
+
+
+
+
+
+
+  testTEC = np.zeros(len(ALLANTS))
+
+#  for atest in range(len(ALLANTS)-1):
+   # for ai in range(len(ALLANTS)):
+   #   testTEC[ai] = np.abs(GlobalTEC[ANAMES[ai+1]])
+   # goods = testTEC.argsort()
+  #  for ai in range(atest+1,len(ALLANTS)):
+  #    GlobalTEC[ANAMES[goods[ai]+1]] = 0.0
+
+  print('Fitting global TECs and MBDs')
+
+  if True:   
+            
+    for tecIter in range(10):  
+  
+      for bi in ALLBAS:
+        bistr = '%i-%i'%(bi[0],bi[1])
+        all_vis[:] = 0
+        for spi in ALLSPW:
+          all_vis[start_chan[spi]:start_chan[spi]+n_chan] = avg_vis[bistr][spi]*np.exp(1.j*TWOPI*CHORIZO*(GlobalTEC[ANAMES[bi[0]]]-GlobalTEC[ANAMES[bi[1]]])/CHANFREQ[spi])
+        
+        padded_vis[:] = 0.0
+        padded_vis[(PADDING_FACTOR-1)*n_nu//2:(PADDING_FACTOR+1)*n_nu//2] = all_vis
+    
+        padded_fringe[:]=np.fft.fftshift(np.fft.fft(padded_vis))
+        FRINGE_AMP = np.abs(padded_fringe)
+        peak=np.argmax(FRINGE_AMP)
+
+        if bi[0]==ALLBAS[0][0] and bi[1]==ALLBAS[0][1] and tecIter==0:
+          print(ANAMES[bi[0]],ANAMES[bi[1]], FRINGE_AMP[peak])
+
+        BLDelay = (peak - n_nu*PADDING_FACTOR/2.) 
+        BLDelay /= (nu_max-nu_min)*PADDING_FACTOR
+        tau_m[bistr] = BLDelay
+      
+
+
+
+# Code for globalization:
+
+
+      HESSIAN[:] = 0.0 ; DELRES[:] = 0.0
+      for bi in ALLBAS:
+        bistr = '%i-%i'%(bi[0],bi[1])
+        a1o = int(bi[0])
+        a2o = int(bi[1])
+
+        if a1o<REFID:
+          a1 = a1o-1
+        elif a1o>REFID:
+          a1 = a1o-2
+
+        if a2o<REFID:
+          a2 = a2o-1
+        elif a2o>REFID:
+          a2 = a2o-2
+
+        if a1o!=REFID:
+          DELRES[a1] += tau_m[bistr]
+          HESSIAN[a1,a1] += 1
+        if a2o!= REFID:
+          DELRES[a2] -= tau_m[bistr]
+          HESSIAN[a2,a2] += 1
+        if a1o!=REFID and a2o!=REFID:
+          HESSIAN[a1,a2] -= 1
+          HESSIAN[a2,a1] -= 1
+
+      COVMAT[:] = np.linalg.inv(HESSIAN)
+      DELAYS[:] = COVMAT.dot(DELRES)
+      for ai in ALLANTS:
+        if ai<REFID:
+          GlobalDelay[ANAMES[ai]] = -DELAYS[ai-1]
+        elif ai>REFID:
+          GlobalDelay[ANAMES[ai]] = -DELAYS[ai-2]
+
+
+
+
+## Apply tau_m to the data:
+
+      for bistr in avg_vis.keys():
+        bi0,bi1=map(int,bistr.split('-'))
+        for si in range(len(avg_vis[bistr])):
+          ObsPhases[bistr][si][:] = np.angle(avg_vis[bistr][si]*np.exp(1.j*TWOPI*(CHORIZO*(GlobalTEC[ANAMES[bi0]]-GlobalTEC[ANAMES[bi1]])/CHANFREQ[si] + (GlobalDelay[ANAMES[bi0]]-GlobalDelay[ANAMES[bi1]])*(CHANFREQ[si]-6.e9)))  )
+
+
+      pini = [0. for i in range(2*(len(ALLANTS)-1))]
+      for ai in ALLANTS:
+        Tec0min = -GlobalTEC[ANAMES[ai]]-MAX_TEC
+        Tec0max = -GlobalTEC[ANAMES[ai]]+MAX_TEC    
+        Kmin0 = (Tec0max-Tec0min)/2.   
+        if ai<REFID:
+          pini[ai-1] = np.arcsin(-Tec0min/Kmin0-1.) 
+        elif ai>REFID:
+          pini[ai-2] = np.arcsin(-Tec0min/Kmin0-1.) 
+   # print('pini:',pini)
+
+ 
+ 
+
+#### SCAN 1:
+  # OE - WS:   -2.606 TEC -0.000503  (SV)
+  # OW - WS:   -2.344 TEC -0.000258  (TV)
+  # YJ - WS:   -2.324 TEC -0.003913  (VY)
+      myfit = spopt.leastsq(globTEC,pini)[0]
+   #   myfit = spopt.minimize(globTEC,pini)['x']
+  #  print('FITTING: ',myfit)
+  #  print('Chorizo/numsq: %.4e'%(CHORIZO/numsq))
+
+      for ai in ALLANTS:
+        Tec0min = -GlobalTEC[ANAMES[ai]]-MAX_TEC
+        Tec0max = -GlobalTEC[ANAMES[ai]]+MAX_TEC   
+
+        if ai<REFID:
+          aig = ai-1
+        elif ai>REFID:
+          aig = ai-2
+   #   print('FITTED',ANAMES[ai], GlobalTEC[ANAMES[ai]], Tec0min, Tec0max, Tec0min + (Tec0max-Tec0min)/2.*(np.sin(myfit[aig])+1.))
+        if ai!=REFID:
+          GlobalTEC[ANAMES[ai]] += (Tec0min + (Tec0max-Tec0min)/2.*(np.sin(myfit[aig])+1.))
+       # GlobalTEC[ANAMES[ai]] += myfit[aig]
+          GlobalPhase[ANAMES[ai]] =  -myfit[aig + ndof]*360./np.pi
+    #      print('%s: TEC = %.3e ; MBD = %.3e'%(ANAMES[ai],GlobalTEC[ANAMES[ai]],GlobalDelay[ANAMES[ai]]))
+
+
+## Write additive TEC into external file:
+  for ai in ALLANTS:
+    GlobalTEC[ANAMES[ai]] *= -1.0
+
+  TECOFF = open(os.path.basename(SCAN)[:-5]+'_Global_Fringe_Fitting.dat','wb')
+  pk.dump([TECOR,GlobalTEC,GlobalDelay,GlobalPhase],TECOFF)
+  TECOFF.close()
+
+
+
+
+  fig = pl.figure(figsize=(8,8))
+  colors = ['r','g','b','m','c','k']
+  sub0 = fig.add_subplot(211)
+  sub0.cla()
+  sub1 = fig.add_subplot(212)
+  sub1.cla()
+  calibrated = np.zeros(Nch,dtype=np.complex64)
+  for bii,bi in enumerate(ALLBAS):
+    bistr = '%i-%i'%(bi[0],bi[1])
+    all_vis[:] = 0
+    for spii,spi in enumerate(SORTEDIF):
+      calibrated[:] = avg_vis[bistr][spi]*np.exp(1.j*(TWOPI*(-CHORIZO*(GlobalTEC[ANAMES[bi[0]]]-GlobalTEC[ANAMES[bi[1]]])/CHANFREQ[spi] +(GlobalDelay[ANAMES[bi[0]]] - GlobalDelay[ANAMES[bi[1]]])*(CHANFREQ[spi]-6.e9)) + np.pi/360.*(GlobalPhase[ANAMES[bi[0]]] - GlobalPhase[ANAMES[bi[1]]]) ))
+      all_vis[start_chan[spi]:start_chan[spi]+n_chan] = avg_vis[bistr][spi]*np.exp(1.j*(-TWOPI*(CHORIZO*(GlobalTEC[ANAMES[bi[0]]]-GlobalTEC[ANAMES[bi[1]]])/CHANFREQ[spi]))) #calibrated[:]
+      sub1.plot(np.arange(Nch*spii,Nch*(spii+1)),np.angle(calibrated)*180./np.pi,'.',c=colors[bii])
+            
+    padded_vis[:] = 0.0
+    padded_vis[(PADDING_FACTOR-1)*n_nu//2:(PADDING_FACTOR+1)*n_nu//2] = all_vis
+    
+    padded_fringe[:]=np.fft.fftshift(np.fft.fft(padded_vis))
+    FRINGE_AMP = np.abs(padded_fringe)
+    peak=np.argmax(FRINGE_AMP)
+
+    BLDelay = (peak - n_nu*PADDING_FACTOR/2.) 
+    BLDelay /= (nu_max-nu_min)*PADDING_FACTOR
+    tau_m[bistr] = BLDelay
+      
+
+
+    sub0.plot(tau_array*1e9,FRINGE_AMP/FRINGE_AMP[peak],'-',c=colors[bii],label='%s-%s'%(ANAMES[bi[0]],ANAMES[bi[1]]))
+    sub0.set_xlabel(r'$\tau$ (ns)')
+    sub0.set_xlim((-15.,15.))
+    sub0.set_ylabel(r'FRINGE AMP. (Norm.)')
+    sub1.set_ylabel(r'PHASE (deg.)')
+    sub0.set_ylim((0.,1.05))
+    sub0.plot(np.array([0.,0.]),np.array([0.,1.05]),':k')
+    
+  fig.subplots_adjust(top=0.92,right=0.98,wspace=0.15,hspace=0.15,bottom=0.02)  
+  pl.setp(sub1.get_xticklabels(),'visible',False)
+  pl.setp(sub0.get_yticklabels(),'visible',False)
+
+  for ai in ALLANTS:
+    sub0.text(1.5,1.00-0.05*ai,'%s: %+.3f ns; (%+.2f TEC; %+.2f mHz)'%(ANAMES[ai],1.e9*GlobalDelay[ANAMES[ai]],GlobalTEC[ANAMES[ai]],6.e9*1.e3*GlobalRate[ANAMES[ai]]),family='monospace')  
+  #  delaround=[peak-1,peak,peak+1]
+  #  if delaround[1]==0: delaround[0]=n_nu-1
+  #  if delaround[1]==n_nu-1: delaround[2]=0
+
+  SS = TECOR['SOURCE']
+  sub1.set_ylim((-180.,180.))
+  fig.suptitle('%s  at  %02i:%02i:%02i'%(SS[0],SS[1],SS[2],SS[3]))
+  sub1.text(Nch,160.,'Phase spectra')
+
+  pl.sca(sub0)
+  pl.legend(loc=2)
+  #fig.sup_title(r'%s %s: %.3e $\mu$as'%(bistr,os.path.basename(SCAN[:-5]),BLDelay*1.e6))
+  pl.savefig('%s_WB-GFF.png'%os.path.basename(SCAN[:-5]))
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
 

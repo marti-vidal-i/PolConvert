@@ -184,7 +184,7 @@ def POLCONVERTER(EXPNAME = '', XYGAINS = '', ORIG_DIR='', DIFX_DIR='', SUFFIX = 
         if 'FILENAME' in line:
            fnameOrig = os.path.basename(line.split()[-1])
            itemOrig = line.split(':')[0]
-           line = '%s%s\n'%((itemOrig+':').ljust(20),os.path.join(absDiFX,fnameOrig))
+           line = '%s%s \n'%((itemOrig+':').ljust(20),os.path.join(absDiFX,fnameOrig))
 
         if (re.search(r'ZOOM.*POL:\s+X$', line)):
             line = re.sub(r'X$', 'R', line)
@@ -212,7 +212,7 @@ def POLCONVERTER(EXPNAME = '', XYGAINS = '', ORIG_DIR='', DIFX_DIR='', SUFFIX = 
         if 'FILENAME' in line:
            fnameOrig = os.path.basename(line.split()[-1])
            itemOrig = line.split(':')[0]
-           line = '%s%s\n'%((itemOrig+':').ljust(20),os.path.join(absDiFX,fnameOrig))
+           line = '%s%s \n'%((itemOrig+':').ljust(20),os.path.join(absDiFX,fnameOrig))
         OFF.write(line)
     IFF.close()
     OFF.close()

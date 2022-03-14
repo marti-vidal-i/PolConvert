@@ -37,7 +37,8 @@
 thesteps = {0: 'Source scanner',
             1: 'Estimate cross-polarization gains',
             2: 'PolConvert the whole experiment',
-            3: 'Estimate additive phases & write CF file'}
+            3: 'Estimate additive phases & write CF file',
+            4: 'Calibrate bandpass and remove IONEX TEC'}
 
 PYTHON_CALL = 'python3 %s.py'
 
@@ -45,7 +46,7 @@ PYTHON_CALL = 'python3 %s.py'
 ######################################
 
 # List of steps to be performed:
-mysteps = [3]
+mysteps = [0]
 
 
 
@@ -59,24 +60,38 @@ NCPU = 11
 
 
 # Params about the dataset to process (USED BY ALL STEPS):
-EXPNAME = 'ev0287'
+EXPNAME = 'ev9217'
 
 # Directory with the ORIGINAL data:
-DIFX_DIR = 'DiFX_ORIG'
+DIFX_DIR = 'DATA_ORIG'
 
 # Destionation directory of the POLCONVERTED data (difx + metadata):
-PCONV_DIR = 'DiFX'
-
+PCONV_DIR = 'DATA_PCONV'
 
 # LIST OF IFS (STARTING FROM 1 !!!):
 DOIF = list(range(1,33))
 
 # IF SOME AUTOCORRS ARE STORED IN DIFFERENT IFs, SET THIS TO THE OFFSET IF NUMBER:
-IF_OFFSET = 32  # (CASE OF YJ, WHERE I --->  I + 32
+IF_OFFSET = 32  # (CASE OF YJ, WHERE I --->  I + 32)
 
 
 ## REFANT (FOR ASSESSMENT PLOTS AND ADDITIVE-PHASE ESTIMATES):
 REFANT = 'WS'
+
+
+## Bad phasecals (value for EV9217):
+FLAG_PCALS = {'OW':[10235]}
+
+
+#######
+# Destination directory of the BP+IONEX corrected data (difx + metadata):
+BPCAL_DIR = 'DATA_BPCAL'
+
+# Shall we also perform Wideband Global Fringe Fitting of the whole experiment?
+DOGFF = True
+#######
+
+
 
 #####################
 ######################################
@@ -110,19 +125,23 @@ APPLY_AMP = True
 
 #'Nelder-Mead', #'COBYLA', #"Levenberg-Marquardt"
 
-#SOLVER = 'BFGS'                 ## NO SO GOOD
+#SOLVER = 'BFGS'                 ## NOT SO GOOD
+SOLVER = 'COBYLA'               ## GOOD
 #SOLVER = 'Levenberg-Marquardt'  ## BROKEN
 #SOLVER = 'gradient'             ## BROKEN
-SOLVER = 'COBYLA'               ## GOOD
 #SOLVER = 'Newton-CG'            ## BAD
 #SOLVER = 'SLSQP'                ## BAD
+
 
 ## AS NEW ANTENNAS ARE ADDED, SET HERE WHETHER THEIR PCALS
 ## ARE TO BE USED:
 USE_PCAL = {'OE':True, 'OW':True, 'YJ':True, 'IS':True,'WS':True}
 
+
 ## LIST OF FREQUENCY RANGES TO ZERO FOR THE PCALS (in MHz):
-ZERO_PCALS = {'YJ':[[1000.,4000.]]}
+#ZERO_PCALS = {'YJ':[[1000.,4000.]]} ## YJ S-band Pcals with lots of RFI.
+ZERO_PCALS = {}
+
 
 ## LIST OF ANTENNAS AND BASELINES TO EXCLUDE FROM THE
 ## GAIN SOLUTIONS. IN PRINCIPLE, ALL THE INTRA-SITE BASELINES
@@ -130,10 +149,11 @@ ZERO_PCALS = {'YJ':[[1000.,4000.]]}
 EXCLUDE_ANTENNA = []
 EXCLUDE_BASELINE = [['OE','OW']]
 
+
 # SCANS TO USE FOR THE POL. CALIBRATION. IDEALLY, SHOULD BE SCANS 
 # COVERING A RANGE OF PARALLACTIC ANGLES, WITH GOOD SNRs 
 # ***AND*** WITH THE SAME ANTENNA CONFIGURATION!!!!
-POLCAL_SCAN = ['030','031','079'] # Little difference if we add more scans, e.g.:
+POLCAL_SCAN = ['003','033','037','076','115','150'] # Little difference if we add more scans.
 SUFFIX = ''
 #####################
 ######################################
@@ -147,25 +167,30 @@ SUFFIX = ''
 ##### INVOLVING STEP 3: 
 
 # SCAN TO USE FOR THE PHASE ALIGNMENT AMONG IFs:
-ADDITIVE_PHASE_SCAN = POLCAL_SCAN[0] 
-# (by default, we use the first scan in the lust of "POLCAL_SCAN").
+ADDITIVE_PHASE_SCAN = POLCAL_SCAN[3] 
+# (by default, we use the first scan in the list of "POLCAL_SCAN").
+
 
 # TRANSLATION OF ANTENNA NAMES (FROM SWIN TO MRK4):
 HOPSNAMES={'OE':'S', 'OW':'T', 'WS':'V', 'YJ':'Y'}
 
-# IF NAMES USED BY FOURFIT (long string, in freq. order):
+
+# "IF" LABELS USED BY FOURFIT (long string, in freq. order):
 IFNAMES = 'abcdefghijklmnopqrstuvwxyzABCDEF'
+
 
 # Frequency range (in MHz) and IF names where the instrumental delay
 # is going to be extrapolated from the other frequencies:
-PCAL_DELAYS = {'YJ':[1000. ,4000., 'abcdefgh']}
+PCAL_DELAYS = {} #'YJ':[1000. ,4000., 'abcdefgh']}
 # (this is where the pcals are not usable; e.g.; YJ in S band).
+
 
 # SUN FOLLOW-UP FACTOR OF IONOSPHERE:
 LDFAC = 1.0
 # (should be between 0 and 1; 1.0 is the "sensible" value).
 
-# KIND OF IONEX IMAGE TO DOWNLOAD:
+
+# KIND OF IONEX MODEL IMAGE TO DOWNLOAD:
 IONEX = 'jplg'
 
 #####################
@@ -654,7 +679,7 @@ if 3 in mysteps:
   SCAN = os.path.join(PCONV_DIR,'%s_%s.difx'%(EXPNAME,ADDITIVE_PHASE_SCAN))
 
   keyw = {'SCAN':SCAN, 'HOPSNAMES': HOPSNAMES, 'IFNAMES': IFNAMES, 'FLAGBAS': EXCLUDE_BASELINE,
-          'PCALDELAYS': PCAL_DELAYS, 'REFANT':REFANT}
+          'PCALDELAYS': PCAL_DELAYS, 'REFANT':REFANT, 'FLAG_PCALS':FLAG_PCALS}
 
   keys = open('keywords_%s.dat'%SCRIPT_NAME,'wb'); pk.dump(keyw, keys,protocol=0); keys.close()
 
@@ -663,6 +688,85 @@ if 3 in mysteps:
   print('PYF.GET_FOURFIT_PHASES(**kww)',file=OFF)
   OFF.close()
   os.system(PYTHON_CALL%SCRIPT_NAME)
+
+
+
+
+
+
+
+
+#SCANS = ['076']
+
+
+
+
+# STEP 4: CALIBRATE BPASS AND REMOVE IONEX-BASED TEC:
+if 4 in mysteps:
+  if len(list(filter(lambda x: 'PY_PHASES' not in x, glob.glob('*.FAILED'))))>0:
+    raise Exception('ANOTHER TASK FAILED PREVIOUSLY. WILL ABORT UNTIL YOU SOLVE IT!')      
+
+  SCRIPT_NAMES = []
+
+  IFF = open('SOURCES_%s.txt'%EXPNAME)
+  lines = IFF.readlines()
+  SCANS = []
+  REFANTS = []
+ 
+  IFF.close()
+ 
+  for li,line in enumerate(lines):
+    if line.startswith(EXPNAME):
+      TEMP = line.split()[0][:-1]
+      SCANS.append(TEMP.split('_')[1])
+
+ # SCANS = ['120']
+
+  for SCAN in SCANS:
+
+    SCRIPT_NAME = 'STEP4_%s'%SCAN
+
+   # os.system('cp -r %s %s'%(os.path.join(DIFX_DIR,'%s_%s*'%(EXPNAME,SCAN)), PCONV_DIR))
+
+    keyw = {'EXPNAME':EXPNAME, 'SCAN':SCAN, 'ORIG_DIR':PCONV_DIR, 'DEST_DIR':BPCAL_DIR,
+            'APPLY_PHASECAL':False, 'DO_GFF':DOGFF, 'WRITE_DATA':True, 'FLAG_PCALS':FLAG_PCALS,
+            'REFSCAN':ADDITIVE_PHASE_SCAN, 'REFANT':REFANT,'FLAGBAS': EXCLUDE_BASELINE}
+    keys = open('keywords_%s.dat'%SCRIPT_NAME,'wb'); pk.dump(keyw, keys); keys.close()
+
+    OFF = open('%s.py'%SCRIPT_NAME,'w')
+    print(Start%SCRIPT_NAME,file=OFF)
+    print('PYF.removeTEC(**kww)',file=OFF)
+    OFF.close()
+    SCRIPT_NAMES.append(SCRIPT_NAME)
+
+
+  def DO_PARALLEL(filename):
+
+    print('GOING TO RUN %s'%filename)
+    os.system(PYTHON_CALL%filename) 
+
+  if NCPU>1:
+    pool = multiprocessing.Pool(processes=NCPU)
+    pool.map(DO_PARALLEL,SCRIPT_NAMES)
+    pool.close()
+    pool.join()
+  else:
+    for filename in SCRIPT_NAMES:
+      DO_PARALLEL(filename)
+
+  for filename in SCRIPT_NAMES:
+    os.system('rm -rf %s.py'%filename)
+
+
+  os.system('rm -rf keywords_STEP4_*.dat')
+
+  newlogs = glob.glob('*.log')
+  for log in newlogs:
+    if log not in currlogs:
+      os.system('mv %s LOGS/.'%log)      
+
+  if os.path.exists('POLCONVERTER.FAILED'):
+     raise Exception('STEP 4 FAILED!') 
 
 
 
