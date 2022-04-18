@@ -4,6 +4,16 @@ v2.0b
 v1.9.0
 - Added new standalone interface (i.e., free of CASA!!!).
 
+v1.8.5
+- interim successor to be tagged in DiFX 2.7(.1)
+- includes the getAmpRatio fix in _PolConvert
+- updates CalTable.* git version to DiFX.
+- a number of refactoring changes not yet included
+
+-v1.8.4
+-- finishing Py3 conversion with updates to make/configure within DiFX
+-- includes a start on tools to slice and dice sample datasets
+
 v1.8.3
 - interim successor to v1.8.1 for the DiFX branch of PolConvert
 - (1.8.2 was developed on launchpad present with the git repo creation)
