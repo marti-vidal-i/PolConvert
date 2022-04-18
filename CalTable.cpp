@@ -1,6 +1,6 @@
 /* CALTABLE - calibration table interface to PolConvert
 
-             Copyright (C) 2013-2021  Ivan Marti-Vidal
+             Copyright (C) 2013-2022  Ivan Marti-Vidal
              Nordic Node of EU ALMA Regional Center (Onsala, Sweden)
              Max-Planck-Institut fuer Radioastronomie (Bonn, Germany)
              University of Valencia (Spain)
@@ -128,7 +128,11 @@ CalTable::CalTable(int kind, double **R1, double **P1,double **R2,double **P2,
     };
   };
 
-  SignFreq = (Freqs[1]>Freqs[0]);
+  if (Nchan>1) {
+    SignFreq = (Freqs[1]>Freqs[0]);
+  } else {
+    SignFreq = true; // arbitrary; with Nchan<=1 no interpolateable list of freqs, and Nchan==1 anyway a special case in fillGaps()
+  }
 
   fillGaps();
 
@@ -450,8 +454,8 @@ void CalTable::setMapping(long mschan, double *freqs)
 
   for (i=0; i<Nants; i++) {
     preKt[i] = -1.0 ;
-    delete bufferGain[0][i];
-    delete bufferGain[1][i];
+    delete[] bufferGain[0][i];
+    delete[] bufferGain[1][i];
     bufferGain[0][i] = new std::complex<float>[mschan];
     bufferGain[1][i] = new std::complex<float>[mschan];
   };
@@ -467,7 +471,7 @@ void CalTable::setMapping(long mschan, double *freqs)
   MSChan = mschan;
   double mmod;
 
-if (SignFreq) {
+if (SignFreq && Nchan>=1) {
 
   for (i=0; i<mschan; i++) {
     if (freqs[i] <= Freqs[0]){
@@ -489,7 +493,7 @@ if (SignFreq) {
     };
   };
 
-} else {
+} else if(Nchan>=1) {
 
   for (i=0; i<mschan; i++) {
     if (freqs[i] >= Freqs[0]){
@@ -511,6 +515,11 @@ if (SignFreq) {
      };
   };
 
+} else {
+  if (Verbose){
+    printf("Undefined Behaviour: setMapping() with input mschan=%ld for interpolation, but CalTable was set up with Nchan=%ld < 1\n",mschan,Nchan);
+    fflush(stdout);
+  };
 };
 
 
