@@ -10,7 +10,7 @@ v1.8.5
 - updates CalTable.* git version to DiFX.
 - a number of refactoring changes not yet included
 
--v1.8.4
+v1.8.4
 -- finishing Py3 conversion with updates to make/configure within DiFX
 -- includes a start on tools to slice and dice sample datasets
 
