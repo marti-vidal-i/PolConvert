@@ -57,48 +57,12 @@ date = 'Apr 18 2022'
 ################
 # Import all necessary modules. 
 
-########
-# Execute twice, to avoid the silly (and harmless) 
-# error regarding the different API versions of 
-# numpy between the local system and CASA:
-import os, sys
 try: 
-# mypath = os.path.dirname(os.path.realpath('__file__'))
-# sys.path.append(mypath)
  import _PolConvert as PC
- goodclib = True
- print('\nC++ shared library loaded successfully (first try)\n')
-except:
- goodclib=False
- print('\n There has been an error related to the numpy') 
- print(' API version used by CASA. This is related to PolConvert')
- print(' (which uses the API version of your system) and should') 
- print(' be *harmless*.\n')
-
-#mypath = os.path.dirname(os.path.realpath('__file__'))
-#print mypath
-
-if not goodclib:
-  try: 
-#   mypath = os.path.dirname(os.path.realpath('__file__'))
-#   sys.path.append(mypath)
-   import _PolConvert as PC
-   goodclib = True
-   print('\nC++ shared library loaded successfully (2nd try)\n')
-  except:
-   goodclib=False
-   print('\nNo, the shared library did not load successfully\n')
-#############
-
-if not goodclib:
-  try:
-   import _PolConvert as PC
-   goodclib = True
-   print('\nC++ shared library loaded successfully (3rd try)\n')
-  except:
-   goodclib=False
-   print('\nNo, the shared library still did not load successfully\n')
-#############
+ print('\nC++ shared library loaded successfully\n')
+except Exception as ex:
+ print('\nNo, the shared library did not load successfully\n')
+ raise ex
 
 import os,sys,shutil,re
 import gc
@@ -108,128 +72,28 @@ import scipy.optimize as spopt
 import numpy as np
 import pylab as pl
 import datetime as dt
-import sys
 import pickle as pk
 
 if sys.version_info.major < 3:
   try:
     from taskinit import *
-    ms = gentools(['ms'])[0]
     tb = gentools(['tb'])[0]
   except Exception as ex:
     print('unable to load casa tools in python2\n\n')
     raise ex
 else:
   try:
-    # from taskutil import *
-    from casatools import ms as ms_casa
     from casatools import table as tb_casa
-    ms = ms_casa()
     tb = tb_casa()
   except Exception as ex:
     print('unable to load casa tools in python3\n\n')
     raise ex
+################
     
+NEWPCSO = False   # 2.7.2 and later...
+NEWPCSO = True    # 2.7.1 and earlier...
 
-#########################################################
-###########################
-# THESE LINES ARE JUST FOR TESTING AND DEBUGGING.
-# NOT EXECUTED IF THE FILE IS LOADED AS A MODULE.
-# GENERAL USERS SHOULD *NOT* BOTHER OF THESE LINES
-# (DO NOT EDIT THEM, SINCE THEY HAVE *NO EFFECT* ON
-# THE PROGRAM WHEN YOU LOAD IT AS A MODULE!)
-###########################
-
-
-if __name__=='__main__':
-
-##z not changed yet
-  print('setting up variables')
-
-  # grep name= polconvert.xml | cut -d\" -f 4 | tr \\012 ,
-  global IDI,OUTPUTIDI,DiFXinput,DiFXcalc,doIF,linAntIdx,Range,ALMAant
-  global spw,calAPP,calAPPTime,APPrefant,gains,interpolation,gainmode
-  global XYavgTime,dterms,amp_norm,XYadd,XYdel,XYratio,usePcal,swapXY
-  global swapRL,feedRotation,IDI_conjugated,plotIF,plotRange,plotAnt
-  global excludeAnts,excludeBaselines,doSolve,solint,doTest,npix,solveAmp
-  global solveMethod,calstokes,calfield
-
-  # set things that the task machinery should set 
-  taskname           = "polconvert"
-  IDI                =  "no-such-dir.difx"
-  OUTPUTIDI          =  "no-such-dir.difx"
-  DiFXinput          =  "no-such-file.input"
-  DiFXcalc           =  "no-such-file.calc"
-  doIF               =  [6660,6661]
-  linAntIdx          =  [1]
-  Range              =  []
-  ALMAant            =  "no-such-dir/label.concatenated.ms.ANTENNA"
-  spw                =  0
-  calAPP             =  "no-such-dir/label.concatenated.ms.calappphase"
-  calAPPTime         =  [0.0, 5.0]
-  APPrefant          =  ""
-  gains              =  [[
-    'no-such-dir/label.concatenated.ms.bandpass-zphs',
-    'no-such-dir/label.concatenated.ms.flux_inf.APP',
-    'no-such-dir/label.concatenated.ms.phase_int.APP.XYsmooth',
-    'no-such-dir/label.calibrated.ms.XY0.APP',
-    'no-such-dir/label.calibrated.ms.Gxyamp.ALMA']]
-  interpolation      =  []
-  gainmode           =  [['G', 'T', 'G', 'G', 'G']]
-  XYavgTime          =  0.0
-  dterms             =  ['no-such-dir/label.calibrated.ms.Df0gen.ALMA']
-  amp_norm           =  0.03
-  XYadd              =  {}
-  XYdel              =  {}
-  XYratio            =  {}
-  usePcal            =  [False]
-  swapXY             =  [False]
-  swapRL             =  False
-  feedRotation       =  []
-  IDI_conjugated     =  False
-  plotIF             =  []
-  plotRange          =  [0, 0, 0, 0, 2, 0, 0, 0]
-  plotAnt            =  2
-  excludeAnts        =  []
-  excludeBaselines   =  []
-  doSolve            =  -1
-  solint             =  [1, 1]
-  doTest             =  True
-  npix               =  50
-  solveAmp           =  True
-  solveMethod        =  "gradient"
-  calstokes          =  [1.0, 0.0, 0.0, 0.0]
-  calfield           =  -1
-
-  try:
-    # rename polconvert.last to polconvert.test to use it
-    pctest = open('polconvert.test')
-    changes = pctest.readlines()
-    pctest.close()
-    exec('\n'.join(changes))
-    print('updated defaults from polconvert.test')
-  except Exception as ex:
-    print('you cannot run this stand-alone without a polconvert.test\n' +
-          'file that re-assigns the variables.  You can use a previous\n' +
-          'polconvert.last if you copy/rename it to polconvert.test\n')
-    raise ex
-
-##z no changes above, yet
-
-#
-#
-#
-###########################
-#########################################################
-
-
-
-
-
-############################################
-# COMMENT OUT THIS LINE WHEN DEBUGGING IN CASA:
-#  YOU CAN THEN RUN THIS FILE DIRECTLY WITH "execfile(...)"
-
+# this is the CASA xml-based command sequence
 def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
   Range, ALMAant, spw, calAPP, calAPPTime, APPrefant, gains,
   interpolation, gainmode, XYavgTime, dterms, amp_norm, XYadd, XYdel,
@@ -237,7 +101,6 @@ def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
   plotRange, plotAnt,excludeAnts,excludeBaselines,doSolve,solint,doTest,
   npix,solveAmp,solveMethod, calstokes, calfield):
 
-############################################
 
   # this turns into the verbosity argument of _PolConvert.so
   print('Entered task_polconvert::polconvert()')
@@ -1431,8 +1294,7 @@ def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
           printError("Invalid format for XYdel!\n Should be a dictionary with LISTS of numbers!")
 
 
-
-
+  ### in general, now have an iteration: for difxdfile in OUTPUT
 
   XYaddF = [[] for i in range(nALMATrue)]
 
@@ -1550,7 +1412,6 @@ def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
   else:
     metadata = []
     OUTPUT = OUTPUTIDI
-
 
 
 
@@ -1693,15 +1554,17 @@ def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
       printError("Invalid format for XYratio!\n Should be a LIST of numbers (or a list of lists),\n as large as the number of linear-polarization VLBI stations!")
 
 
+### PriorGains now iterates on number of swin files (difxdfile)
 
 
 # A-PRIORI GAINS:
-  PrioriGains = []
+  PrioriGainsZERO = []
   for i in range(len(linAntIdxTrue)):
-    PrioriGains.append([])
+    PrioriGainsZERO.append([])
     for j in range(len(XYaddF[i])):
-       PrioriGains[i].append(np.array(XYratioF[i][j]*np.exp(1.j*XYaddF[i][j]),dtype=np.complex64))
+       PrioriGainsZERO[i].append(np.array(XYratioF[i][j]*np.exp(1.j*XYaddF[i][j]),dtype=np.complex64))
 
+  PrioriGains = [PrioriGainsZERO]
   #  print PrioriGains
 
 
@@ -2004,20 +1867,51 @@ def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
 
   doAmpNorm = amp_norm>0.0
 
-
-  if DEBUG:
+  if NEWPCSO:
+    ALMAstuff = [ngain, NSUM, kind,
+        gaindata, dtdata, allantidx,
+        nphtimes, antimes, refants,
+        asdmtimes, timerangesArr[int(spw)], isLinear]
+    # defaults for other new variables
+    IFoffset = 0
+    AC_MedianWindow = 0
+    correctParangle=False
+    plotSuffix = ''
+    logName = logName = "PolConvert%s.log"%plotSuffix
+    np.set_printoptions(precision=4, threshold=6)
+    # new calling sequence
+    PC_Params = [nALMATrue, plotIF, plotAnt, doIF, IFoffset,
+        AC_MedianWindow, swapXY, OUTPUT, linAntIdxTrue, plRan, Ran,
+        doTest, doSolve, doConj, doAmpNorm, PrioriGains, metadata,
+        soucoords, antcoords, antmounts, isLinear,calfield,
+        UseAutoCorrs,bool(correctParangle),DEBUG, logName, ALMAstuff]
+    if DEBUG:
+      printMsg("NEW POLCONVERT.SO CALLED WITH: %s"%str(PC_Params))
+  else:
+    # old calling sequence
     PC_Params = [nALMATrue, plotIF, plotAnt, len(allants), doIF,
         swapXY, ngain, NSUM, kind, len(gaindata), len(dtdata), OUTPUT,
         linAntIdxTrue, plRan, Ran, allantidx, len(nphtimes), len(antimes),
         len(refants), len(asdmtimes),  doTest, doSolve, doConj, doAmpNorm,
         np.shape(PrioriGains), len(metadata), soucoords, antcoords, antmounts,
         isLinear,calfield,timerangesArr[int(spw)],UseAutoCorrs,DEBUG]
-    printMsg("POLCONVERT CALLED WITH: %s"%str(PC_Params))
+    if DEBUG:
+      printMsg("POLCONVERT CALLED WITH: %s"%str(PC_Params))
       
   # plotAnt is no longer used by PC.PolConvert(), but is required by doSolve
   # the second argument is "PC:PolConvert::plIF" and controls whether the
   # huge binary fringe files are written.
+
   try:
+   if NEWPCSO:
+    printMsg('NEWPCSO path True (new)')
+    didit = PC.PolConvert(nALMATrue, plotIF, plotAnt, doIF, IFoffset,
+        AC_MedianWindow, swapXY, OUTPUT, linAntIdxTrue, plRan, Ran,
+        doTest, doSolve, doConj, doAmpNorm, PrioriGains, metadata,
+        soucoords, antcoords, antmounts, isLinear,calfield,
+        UseAutoCorrs,bool(correctParangle),DEBUG, logName, ALMAstuff)
+   else:
+    printMsg('NEWPCSO path False (old)')
     didit = PC.PolConvert(nALMATrue, plotIF, plotAnt, len(allants), doIF,
         swapXY, ngain, NSUM, kind, gaindata, dtdata, OUTPUT,
         linAntIdxTrue, plRan, Ran, allantidx, nphtimes, antimes,
@@ -2172,25 +2066,10 @@ def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
 # Load the solver library:
    try: 
      import _PolGainSolve as PS
-     goodclib = True
-     print('\nC++ shared library loaded successfully (first try)\n')
-   except:
-     goodclib=False
-     print('\n There has been an error related to the numpy') 
-     print(' API version used by CASA. This is related to PolConvert')
-     print(' (which uses the API version of your system) and should') 
-     print(' be *harmless*.\n')
-
-
-
-   if not goodclib:
-     try: 
-       import _PolGainSolve as PS
-       goodclib = True
-       print('\nC++ shared library loaded successfully (2nd try)\n')
-     except:
-       goodclib=False
-
+     print('\nC++ PolGainSolve shared library loaded successfully\n')
+   except Exception as ex:
+     print('\nC++ PolGainSolve shared library did not loaded successfully\n')
+     raise ex
 
 
 ############################################################
@@ -2342,7 +2221,7 @@ def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
 
 
 
-   if goodclib:
+   if doSolve >= 0.0:
 
     selAnts = np.array(calAnts,dtype=np.int32)
 
@@ -2370,11 +2249,13 @@ def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
 #    MySolve = PS.PolGainSolve(doSolveD,solint,selAnts,lAnts)
 #   printMsg('PolGainSolve finished with return: <%s>' % str(MySolve))
 
+### POLCONVERT.FRINGE/POLCONVERT.FRINGE_IF%i
+
     AllFreqs = []
     for pli in doIF:
       printMsg("Reading back IF #%i"%pli)
-      file1 = "POLCONVERT.FRINGE/OTHERS.FRINGE_%i"%pli
-      file2 = "POLCONVERT.FRINGE/POLCONVERT.FRINGE_%i"%pli
+      file1 = "POLCONVERT.FRINGE/OTHERS.FRINGE_IF%i"%pli
+      file2 = "POLCONVERT.FRINGE/POLCONVERT.FRINGE_IF%i"%pli
       printMsg("  file1 is %s" % file1)
       printMsg("  file2 is %s" % file2)
       success = PS.ReadData(pli, file1, file2)
@@ -2640,23 +2521,25 @@ def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
 # Filter out IFs with no data:
    GoodIFs = []
    for pli in plotIF:
-     if os.stat("POLCONVERT.FRINGE/POLCONVERT.FRINGE_%i"%pli).st_size>10:
+     if os.stat("POLCONVERT.FRINGE/POLCONVERT.FRINGE_IF%i"%pli).st_size>10:
        GoodIFs.append(pli)
      else:
        printMsg(("WARNING! IF %i was NOT polconverted properly\n"%pli) +
-         ("POLCONVERT.FRINGE/POLCONVERT.FRINGE_%i missing"%pli))
+         ("POLCONVERT.FRINGE/POLCONVERT.FRINGE_IF%i missing"%pli))
 
 # start of GoodIFs pli loop
    for pli in GoodIFs:
     print('\n\n')
     printMsg("Plotting selected fringe for IF #%i"%pli)
 
-    frfile = open("POLCONVERT.FRINGE/POLCONVERT.FRINGE_%i"%pli,"rb")
+    frfile = open("POLCONVERT.FRINGE/POLCONVERT.FRINGE_IF%i"%pli,"rb")
 
+### header format changed with addition of "FILE" for difxdfile iteration
 
     alldats = frfile.read(4)
     nchPlot = stk.unpack("i",alldats[:4])[0]
-    dtype = np.dtype([("JDT",np.float64),("ANT1",np.int32),("ANT2",np.int32),
+    dtype = np.dtype([("FILE",np.int32),
+                      ("JDT",np.float64),("ANT1",np.int32),("ANT2",np.int32),
                       ("PANG1",np.float64),("PANG2",np.float64),
                       ("MATRICES",np.complex64,12*nchPlot)])
 
@@ -2664,10 +2547,10 @@ def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
 # an "integer is required" error in the first try to read:
     try:
       fringe = np.fromfile(frfile,dtype=dtype)
-      printMsg("Read fringe data from file POLCONVERT.FRINGE_%i"%pli)
+      printMsg("Read fringe data from file POLCONVERT.FRINGE_IF%i"%pli)
     except:
       fringe = np.fromfile(frfile,dtype=dtype)
-      printMsg("Exceptional Read of fringe data POLCONVERT.FRINGE_%i"%pli)
+      printMsg("Exceptional Read of fringe data POLCONVERT.FRINGE_IF%i"%pli)
       printMsg("len(fringe) = %d" % len(fringe))
     frfile.close()
 
@@ -2688,6 +2571,10 @@ def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
         fringe[:]["ANT1"] == ant1,fringe[:]["ANT2"] == ant2)
       AntEntry2 = np.logical_and(
         fringe[:]["ANT2"] == ant1,fringe[:]["ANT1"] == ant2)
+      ### all the SWIN files (difxdfile) go to the same place
+      ### to only plot the first one, AntEntry changes to
+      ### np.logical_and(fringe[:]["FILE"]==0,
+      ###        np.logical_or(AntEntry1,AntEntry2))
       AntEntry = np.logical_or(AntEntry1,AntEntry2)
       printMsg("np.sum(AntEntry) > 0: '" + str(np.sum(AntEntry)) + "'")
 
@@ -3124,17 +3011,7 @@ def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
   printMsg('Task PolConvert is Done\n\n')
   return CGains   # RETURN!
 
-
-if __name__=='__main__':
-
-  print('calling polconvert')
-  polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
-    Range, ALMAant, spw, calAPP, calAPPTime, APPrefant, gains,
-    interpolation, gainmode, XYavgTime, dterms, amp_norm, XYadd, XYdel,
-    XYratio, usePcal, swapXY, swapRL, feedRotation, IDI_conjugated, plotIF,
-    plotRange, plotAnt,excludeAnts,excludeBaselines,doSolve,solint,doTest,
-    npix,solveAmp,solveMethod, calstokes, calfield)
-
 #
+# vim: set nospell:
 #eof
 #
