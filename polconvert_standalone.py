@@ -1,4 +1,4 @@
-# Copyright (c) Ivan Marti-Vidal 2012-2021 
+# Copyright (c) Ivan Marti-Vidal 2012-2022
 #               EU ALMA Regional Center. Nordic node.
 #               Universitat de Valencia (Spain)
 #
@@ -50,8 +50,8 @@
 
 from __future__ import absolute_import
 from __future__ import print_function
-__version__ = "2.0.2b "  # 7 characters
-date = 'Nov 2, 2021'     
+__version__ = "2.0.3  "  # 7 characters
+date = 'July 13, 2022'
 
 
 ################

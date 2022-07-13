@@ -1,4 +1,4 @@
-# Copyright (c) Ivan Marti-Vidal 2012-2021 
+# Copyright (c) Ivan Marti-Vidal 2012-2022
 #               EU ALMA Regional Center. Nordic node.
 #               Universitat de Valencia (Spain)
 #
@@ -50,8 +50,8 @@
 
 from __future__ import absolute_import
 from __future__ import print_function
-__version__ = "2.0.1b "  # 7 characters
-date = 'Nov 2, 2021'     
+__version__ = "2.0.3  "  # 7 characters
+date = 'Jul 13, 2022'
 
 
 ################
@@ -104,7 +104,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
                doSolve=-1, solint=[1,1], doTest=True, npix=-1, solveAmp=True,
                solveMethod='COBYLA', calstokes=[1.,0.,0.,0.], calfield=-1, saveArgs=False):
 
-  """ POLCONVERT - CASA INTERFACE VERSION 2.0b.
+  """ POLCONVERT - CASA INTERFACE VERSION 2.0.3.
 
 Converts VLBI visibilities from mixed-polarization (linear-circular)
 into circular basis. Works with single VLBI stations as well as with

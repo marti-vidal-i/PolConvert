@@ -1,5 +1,5 @@
 /*
-# Copyright (c) Ivan Marti-Vidal 2015-2021. 
+# Copyright (c) Ivan Marti-Vidal 2015-2022.
 #               EU ALMA Regional Center. Nordic node (Sweden).
 #               University of Valencia (Spain)
 #
@@ -222,13 +222,17 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
   int ii, ij, ik, il, im;
   int IFoffset;
 
-  PyObject *ngain, *nsum, *gains, *ikind, *dterms, *plotRange;
+  // initialization warnings...
+  PyObject *ngain = nullptr, *nsum = nullptr, *gains = nullptr;
+  PyObject *ikind = nullptr, *dterms = nullptr, *plotRange;
   PyObject *IDI, *antnum, *tempPy, *ret; 
-  PyObject *allphants, *nphtimes, *phanttimes, *Range, *SWAP; 
-  PyObject *doIF, *metadata, *refAnts, *ACorrPy, *logNameObj;
+  PyObject *allphants = nullptr, *nphtimes = nullptr;
+  PyObject *phanttimes, *Range, *SWAP;
+  PyObject *doIF, *metadata, *refAnts = nullptr, *ACorrPy, *logNameObj;
   PyObject *asdmTimes, *plIF, *isLinearObj, *XYaddObj, *ALMAstuff; 
   PyObject *antcoordObj, *soucoordObj, *antmountObj, *timeranges; 
-  int nALMA, plAnt, nPhase, doTest, doConj, doNorm, calField, verbose, doParI;
+  int nALMA, plAnt, nPhase = 0, doTest, doConj, doNorm;
+  int calField, verbose, doParI;
   int currFile;
   double doSolve;
   bool isSWIN, doParang; 
@@ -334,7 +338,7 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
 
 
 // Specific for ALMA:
-  double *BadTimes;
+  double *BadTimes = nullptr;
   int NBadTimes = 0;
   if(PCMode){
 // Time ranges with unphased signal:
@@ -491,12 +495,14 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
   ASDMant = new int[nPhase];
   ASDMtimes = new double*[nPhase];
   nASDMtimes = new long[nPhase];
+  // refAnts may be used uninitialized
   ALMARef = (int *)PyArray_DATA(refAnts);
   for (ii=0; ii<nPhase; ii++){
     nASDMtimes[ii] = (long)PyInt_AsLong(PyList_GetItem(nphtimes,ii));
     ASDMant[ii] = (int)PyInt_AsLong(PyList_GetItem(allphants,ii));
     ASDMtimes[ii] = (double *)PyArray_DATA(PyList_GetItem(phanttimes,ii));
   };
+  // BadTimes not initialized
   ALMAWeight = new Weighter(nPhase,nASDMtimes,nASDMEntries,ASDMant,ASDMtimes,ALMARef,time0,time1,BadTimes, NBadTimes, logFile);
 
   } else {  // If ALMA is not used, set weights to dummy:

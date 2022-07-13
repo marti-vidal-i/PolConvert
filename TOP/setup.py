@@ -1,6 +1,9 @@
 from __future__ import absolute_import
 from __future__ import print_function
 from distutils.core import setup, Extension
+# DeprecationWarning: The distutils package is deprecated and slated for
+# removal in Python 3.12. Use setuptools or check PEP 632 for potential
+# alternatives
 import os
 
 try:
@@ -13,9 +16,8 @@ try:
     print('')
     print('##################################################################')
     print('# Compiling with numpy version', np.__version__)
-    print('#',                              np.__file__)
-    print('#',                              os.environ['DIFXCASAPATH'])
-    print('#',                              libdirs)
+    print('#',np.__file__)
+    print('#',libdirs)
     print('##################################################################')
     print('')
 except Exception as ex:
@@ -26,7 +28,8 @@ except Exception as ex:
     print('##################################################')
     raise ex
 
-for pth in libdirs:
+if not libdirs is None:
+  for pth in libdirs:
     if not os.path.exists(pth):
         raise Exception("Requested library dir %s  does not exist"%pth)
 

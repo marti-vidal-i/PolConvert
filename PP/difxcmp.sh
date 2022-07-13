@@ -103,16 +103,23 @@ do
     head -5 TOP/ChangeLog Changelog
     echo "==> polconvert_standalone.py <=="
     grep '__version__[ ]*=' polconvert_standalone.py
+    grep 'date*=' polconvert_standalone.py
     echo "==> polconvert_CASA.py <=="
     grep 'VERSION' polconvert_CASA.py
+    grep '__version__[ ]*=' polconvert_CASA.py
+    grep 'date[ ]*=' polconvert_CASA.py
     echo "==> PP/runpolconvert.py <=="
     grep 'pcvers=' PP/runpolconvert.py
     echo "==> TOP/polconvert.xml <=="
     grep "<shortdesc.*>Version" TOP/polconvert.xml | cut -c 1-60
     grep "<description>Version" TOP/polconvert.xml | cut -c 1-60
-    echo "==> TOP/polconvert.xml <=="
+    echo "==> TOP/task_polconvert.py <=="
     grep '__version__[ ]*=' TOP/task_polconvert.py
+    grep 'date[ ]*=' TOP/task_polconvert.py
     echo "================================="
+    ;;
+  tidy)
+    rm -rf build
     ;;
   *)
     [ "$action" = 'help' ] || action $action is not supported
@@ -134,6 +141,7 @@ do
       dcp   -- push if diff and cp files different
       dget  -- pull if diff and cp files different
       vers  -- show version numbers
+      tidy  -- cleanup after setup.py build
 
     After pull or push actions, you will need to review and commit.
 
