@@ -99,6 +99,21 @@ do
   get|pull)
     cp -p $dfx/$F $git/$f
     ;;
+  vers)
+    head -5 TOP/ChangeLog Changelog
+    echo "==> polconvert_standalone.py <=="
+    grep '__version__[ ]*=' polconvert_standalone.py
+    echo "==> polconvert_CASA.py <=="
+    grep 'VERSION' polconvert_CASA.py
+    echo "==> PP/runpolconvert.py <=="
+    grep 'pcvers=' PP/runpolconvert.py
+    echo "==> TOP/polconvert.xml <=="
+    grep "<shortdesc.*>Version" TOP/polconvert.xml | cut -c 1-60
+    grep "<description>Version" TOP/polconvert.xml | cut -c 1-60
+    echo "==> TOP/polconvert.xml <=="
+    grep '__version__[ ]*=' TOP/task_polconvert.py
+    echo "================================="
+    ;;
   *)
     [ "$action" = 'help' ] || action $action is not supported
     cat <<....EOF
@@ -118,6 +133,7 @@ do
       pull  -- difx to git (i.e. pull from DiFX to git)
       dcp   -- push if diff and cp files different
       dget  -- pull if diff and cp files different
+      vers  -- show version numbers
 
     After pull or push actions, you will need to review and commit.
 
