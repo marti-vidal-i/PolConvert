@@ -74,9 +74,11 @@ DataIOSWIN::~DataIOSWIN() {
 
 
 DataIOSWIN::DataIOSWIN(int nfiledifx, std::string* difxfiles, int NlinAnt, 
-         int *LinAnt, double *Range, int nIF, int *nChan, int nIF2Conv, int *IF2Conv, int IFoffset, int Afilt, int *NchanAC, 
+         int *LinAnt, double *Range, int nIF, int *nChan, int nIF2Conv,
+         int *IF2Conv, int IFoffset, int Afilt, int *NchanAC,
          double **FreqVal, bool Overwrite, bool doTest, bool doSolve, 
-         int saveSource, double jd0, ArrayGeometry *Geom, bool doPar, FILE *logF) {
+         int saveSource, double jd0, ArrayGeometry *Geom, bool doPar,
+         FILE *logF) {
 
 
   doWriteCirc = doSolve;
@@ -721,9 +723,17 @@ bool DataIOSWIN::getNextMixedVis(double &JDTime, int &antenna, int &otherAnt, bo
     canPlot=false;
 
 // Note that autocorrs are read, converted and written twice;
-// once for ref and once for rem (one of which is conjugated)
-
-// FIXME: indentation is all screwed up here
+// once for ref and once for rem (one of which is conjugated
+// for the conversion).  The logic here goes through all the
+// records (indexed by rec) to find the first unused visibility
+// and then looks for all the matches by baseline, time and
+// frequency (indexed by rec1).  The logic variables is1 and is2
+// are copies of is1orig and is2orig which are true if the ant
+// at one or the other end of the baseline is in the linear-feed
+// list and are reset to false once conversion happens (?).
+//
+// isTwoLinear means both antennas are linear-feed
+// complete true means otherwise
     while(true){
 
       idx = 0;
@@ -731,26 +741,31 @@ bool DataIOSWIN::getNextMixedVis(double &JDTime, int &antenna, int &otherAnt, bo
         if (Records[rec].notUsed && (Records[rec].freqIndex==currFreq)) {
           indices[idx] = rec;
           complete = !(is1[rec] && is2[rec]) ; 
-          if(!complete){isTwoLinear=true;};
 
+          if(!complete){isTwoLinear=true;};
           if (complete){
             canPlot = true;
-            Records[rec].notUsed = false;};
-            idx ++;
-            basel = Records[rec].Baseline;
-            time = Records[rec].Time;
-            field = Records[rec].Source;
-            currVis = rec;
-            for (rec1=rec+1; rec1<nrec; rec1++) {
-              if (Records[rec1].Baseline==basel && 
-                Records[rec1].Time==time && 
-                Records[rec1].freqIndex==currFreq) {
+            Records[rec].notUsed = false;}; // since used as idx==0
+
+          idx ++;
+          basel = Records[rec].Baseline;
+          time = Records[rec].Time;
+          field = Records[rec].Source;
+          currVis = rec;
+          for (rec1=rec+1; rec1<nrec; rec1++) {
+              if (Records[rec1].Baseline==basel &&
+                  Records[rec1].Time==time &&
+                  Records[rec1].freqIndex==currFreq) {
                   indices[idx] = rec1; idx ++;
                   if (complete){
                     Records[rec1].notUsed = false;};
-                    if (idx==4) {break;};
+                  if (idx==4) {break;}; // since we have 4 products
               };
-           }; break;
+           };
+           break;  // since we have searched the entire output
+           // FIXME: optimization: DIFX cannot infinitely buffer data,
+           // so one could potentially break out here after a sufficient
+           // amount of due dilligence.
         };
       };
 
@@ -833,13 +848,10 @@ bool DataIOSWIN::getNextMixedVis(double &JDTime, int &antenna, int &otherAnt, bo
       };
     };
 
-//  bool wtf = false;                       // WTF
-
 // Get the data and return them:
     for (i=0; i<4; i++) {
       if (currEntries[currFreq][i]>=0){
         rec = currEntries[currFreq][i];
-//      if (rec == 64 || rec == 5414) wtf = true;          // WTF
         fnum = Records[rec].fileNumber;
         newdifx[fnum].seekg(Records[rec].byteIni, newdifx[fnum].beg);
         newdifx[fnum].sync();
@@ -851,19 +863,6 @@ bool DataIOSWIN::getNextMixedVis(double &JDTime, int &antenna, int &otherAnt, bo
         };
       };
     };
-
-//  if (wtf) {                              // WTF
-//      sprintf(message,
-//          "A %ld %ld %ld %ld\n"
-//          "A %+.9f %+.9f\nA %+.9f %+.9f\nA %+.9f %+.9f\nA %+.9f %+.9f\n",
-//          currEntries[currFreq][0], currEntries[currFreq][1],
-//          currEntries[currFreq][2], currEntries[currFreq][3],
-//          currentVis[0][0].real(), currentVis[0][0].imag(),
-//          currentVis[1][0].real(), currentVis[1][0].imag(),
-//          currentVis[2][0].real(), currentVis[2][0].imag(),
-//          currentVis[3][0].real(), currentVis[3][0].imag());
-//      fprintf(logFile,"%s",message); fflush(logFile);
-//  };
 
 // Case of auto-correlations (in the 2nd round of conversion):
 // Recover the fringe after the 1st round (since sometimes the 
@@ -880,18 +879,6 @@ bool DataIOSWIN::getNextMixedVis(double &JDTime, int &antenna, int &otherAnt, bo
         };
       };
     }; 
-
-
-//  if (wtf) {                              // WTF
-//      sprintf(message,
-//          "B %+.9f %+.9f\nB %+.9f %+.9f\nB %+.9f %+.9f\nB %+.9f %+.9f\n",
-//          currentVis[0][0].real(), currentVis[0][0].imag(),
-//          currentVis[1][0].real(), currentVis[1][0].imag(),
-//          currentVis[2][0].real(), currentVis[2][0].imag(),
-//          currentVis[3][0].real(), currentVis[3][0].imag());
-//      fprintf(logFile,"%s",message); fflush(logFile);
-//  };
-
 
     if (isAutoCorr && !complete){
 // 1st round of autocorrs. Zero the cross-terms (XY and YX):
@@ -916,7 +903,7 @@ else if (isAutoCorr) {
    JDTime = time;
    currConj = conj ;
 
-   if (debugNewIF) {
+   if (debugNewIF) {    // share information
       sprintf(message, "  source %d JDTime %lf RelTime %lf conj = %d\n",
         field, time, time - Records[0].Time, conj);
       fprintf(logFile,"%s",message); fflush(logFile);
@@ -1047,7 +1034,7 @@ void DataIOSWIN::applyMatrix(std::complex<float> *M[2][2], bool swap,
 
   for (k=0; k<Freqs[currFreq].Nchan; k++) {
 
-    if (currConj) {
+   if (currConj) {
       bufferVis[ca11][k] = M[0][0][k]*currentVis[a11][k]+M[0][1][k]*currentVis[a21][k];
       bufferVis[ca12][k] = M[0][0][k]*currentVis[a12][k]+M[0][1][k]*currentVis[a22][k];
       bufferVis[ca21][k] = M[1][0][k]*currentVis[a11][k]+M[1][1][k]*currentVis[a21][k];
@@ -1059,7 +1046,7 @@ void DataIOSWIN::applyMatrix(std::complex<float> *M[2][2], bool swap,
         bufferVis[ca21][k] /= auxVisApply;
         bufferVis[ca22][k] /= auxVisApply;
       };
-    } else {
+   } else {
       bufferVis[ca11][k] = std::conj(M[0][0][k])*currentVis[a11][k]+std::conj(M[0][1][k])*currentVis[a12][k];
       bufferVis[ca12][k] = std::conj(M[1][0][k])*currentVis[a11][k]+std::conj(M[1][1][k])*currentVis[a12][k];
       bufferVis[ca21][k] = std::conj(M[0][0][k])*currentVis[a21][k]+std::conj(M[0][1][k])*currentVis[a22][k];
@@ -1071,9 +1058,9 @@ void DataIOSWIN::applyMatrix(std::complex<float> *M[2][2], bool swap,
         bufferVis[ca21][k] /= auxVisApply;
         bufferVis[ca22][k] *= auxVisApply;
       };
-    };
+   };
 
- //  rec = currEntries[currFreq][0];
+
 
    if (print && canPlot) {
      if (currConj){
@@ -1132,8 +1119,8 @@ void DataIOSWIN::applyMatrix(std::complex<float> *M[2][2], bool swap,
      fwrite(&auxVisApply,sizeof(std::complex<float>),1,plotFile);
      };
 
-   };
- };
+   };  // end of print && canPlot
+  };  // end of for loop
 
 
 
@@ -1142,20 +1129,20 @@ void DataIOSWIN::applyMatrix(std::complex<float> *M[2][2], bool swap,
 // UPDATE THE AUXILIAR VISIBILITIES (I.E. FOR AUTOCORRS WITH MISSING CROSS-POLS):
 
 
-for (i=0; i<4; i++) {
- if (currEntries[currFreq][i]<0 || isAutoCorr || isTwoLinear ) {
-  if (!canPlot){ // Case of auto-correlations (2nd round of conversion):   
+ for (i=0; i<4; i++) {
+  if (currEntries[currFreq][i]<0 || isAutoCorr || isTwoLinear ) {
+   if (!canPlot){ // Case of auto-correlations (2nd round of conversion):   
     for(k=0;k<Freqs[currFreq].Nchan; k++) {
       auxVis[i][k] = bufferVis[i][k];
     };
-  } else {
+   } else {
     for(k=0;k<Freqs[currFreq].Nchan; k++) {
       auxVis[i][k] = (std::complex<float>)0.0;
     };
     if(i==3){isTwoLinear=false;};
-  };
- }; 
-};
+   };
+  }; 
+ };
 ///////////////////////////////////
 
 
