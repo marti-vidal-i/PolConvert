@@ -1,0 +1,105 @@
+e17a10-7-pc-100-0725-lo-ivan-P/e17a10_9000.pcassess.sh.out     AZ LR is strange
+e17b06-7-pc-096-0750-lo-ivan-P/e17b06_9000.pcassess.sh.out     AJ LR is strange 
+e17c07-7-pc-097-1303-hi-ivan-P/e17c07_9000.pcassess.sh.out     AX LR is strange
+e17d05-7-pc-095-0839-hi-ivan-P/e17d05_9000.pcassess.sh.out     AS LR, AZ LR, AL LR, AX LR
+                                                                (AJ LR also weird at SNR 5.4 so not in cmpbl)
+                                                                (AY LR also weird at SNR 5.1 so not in cmpbl)
+e17d05-7-pc-095-0839-lo-ivan-P/e17d05_9000.pcassess.sh.out     AJ LR is strange
+
+a common pathology: a great deal of correlated power into the a channel at the beginning....
+100-0725-lo AZ LR is only in the first channel (a)
+096-0750-lo AJ LR is only in the first channel (a)
+097-1303-hi AX LR is only in the first channel (a)
+095-0839-hi AS LR has it in every channel
+095-0839-lo AJ LR is only in the first channel (a)
+
+                                                                  nan
+e17a10-7-pc-100-0725-hi-ivan-R-difx-22Jul13-9000.report:PASS
+e17a10-7-pc-100-0725-lo-ivan-R-difx-22Jul13-9000.report:FAIL (11)     AZ LR
+e17b06-7-pc-096-0750-hi-ivan-R-difx-22Jul13-9000.report:PASS
+e17b06-7-pc-096-0750-lo-ivan-R-difx-22Jul13-9000.report:FAIL (15)  *  AJ LR
+e17c07-7-pc-097-1303-hi-ivan-R-difx-22Jul13-9000.report:FAIL (11)     AZ LR
+e17c07-7-pc-097-1303-lo-ivan-R-difx-22Jul13-9000.report:FAIL (4)
+e17d05-7-pc-095-0839-hi-ivan-R-difx-22Jul13-9000.report:FAIL (15)     AS, AZ, AL, AX (AJ, AY) LR
+e17d05-7-pc-095-0839-lo-ivan-R-difx-22Jul13-9000.report:FAIL (15)  *  AJ LR
+e17e11-7-pc-101-0322-hi-ivan-R-difx-22Jul13-9000.report:PASS
+e17e11-7-pc-101-0322-lo-ivan-R-difx-22Jul13-9000.report:PASS
+e17e11-7-pc-101-0803-hi-ivan-R-difx-22Jul13-9000.report:PASS
+e17e11-7-pc-101-0803-lo-ivan-R-difx-22Jul13-9000.report:PASS
+
+Copyright (c) Ivan Marti-Vidal 2015-2022, University of Valencia (Spain) 
+      and Geoffrey Crew 2015-2022, Massachusetts Institute of Technology
+
+egrep 'PASS|FAIL' *S*report                                       nan
+e17a10-7-pc-100-0725-hi-ivan-S-difx-22Jul13-9000.report:PASS
+e17a10-7-pc-100-0725-lo-ivan-S-difx-22Jul13-9000.report:FAIL (11)     AZ LR
+e17b06-7-pc-096-0750-hi-ivan-S-difx-22Jul13-9000.report:PASS
+e17b06-7-pc-096-0750-lo-ivan-S-difx-22Jul13-9000.report:FAIL (15)  *  AJ LR
+e17c07-7-pc-097-1303-hi-ivan-S-difx-22Jul13-9000.report:FAIL (11)     AZ LR
+e17c07-7-pc-097-1303-lo-ivan-S-difx-22Jul13-9000.report:FAIL (4)   * (AJ LR)
+e17d05-7-pc-095-0839-hi-ivan-S-difx-22Jul13-9000.report:FAIL (15)     AS, AZ, AL, AX (AJ, AY) LR
+e17d05-7-pc-095-0839-lo-ivan-S-difx-22Jul13-9000.report:FAIL (15)  *  AJ LR
+e17e11-7-pc-101-0322-hi-ivan-S-difx-22Jul13-9000.report:PASS
+e17e11-7-pc-101-0322-lo-ivan-S-difx-22Jul13-9000.report:PASS
+e17e11-7-pc-101-0803-hi-ivan-S-difx-22Jul13-9000.report:PASS
+e17e11-7-pc-101-0803-lo-ivan-S-difx-22Jul13-9000.report:PASS
+
+e17a10-7-pc-100-0725-lo-ivan-T
+fourfit -pt -c e17a10.cf -b AZ -P LR 9000/100-0725 set start -1  looks normal,
+    ergo the issue is with the first second of data.
+    in detail, it is the first sample that is not converted
+
+    fixed one bug...
+
+egrep 'PASS|FAIL' *W*report                                        nan
+e17a10-7-pc-100-0725-hi-ivan-W-difx-22Jul14-9000.report:PASS
+e17a10-7-pc-100-0725-lo-ivan-W-difx-22Jul14-9000.report:PASS
+e17b06-7-pc-096-0750-hi-ivan-W-difx-22Jul14-9000.report:PASS
+e17b06-7-pc-096-0750-lo-ivan-W-difx-22Jul14-9000.report:FAIL (4)    *
+e17c07-7-pc-097-1303-hi-ivan-W-difx-22Jul14-9000.report:PASS
+e17c07-7-pc-097-1303-lo-ivan-W-difx-22Jul14-9000.report:FAIL (4)    *
+e17d05-7-pc-095-0839-hi-ivan-W-difx-22Jul14-9000.report:FAIL (15)   peaks differ, and fringes too....
+e17d05-7-pc-095-0839-lo-ivan-W-difx-22Jul14-9000.report:FAIL (4)    *
+e17e11-7-pc-101-0322-hi-ivan-W-difx-22Jul14-9000.report:PASS
+e17e11-7-pc-101-0322-lo-ivan-W-difx-22Jul14-9000.report:PASS
+e17e11-7-pc-101-0803-hi-ivan-W-difx-22Jul14-9000.report:PASS
+e17e11-7-pc-101-0803-lo-ivan-W-difx-22Jul14-9000.report:PASS
+
+appears to be a *different* pathology -- hits the 3rd integration.
+
+debugging is confusing in that the bogus records do not appear at the correct time?
+
+found the missing zeroing of data
+
+However, still need to consider what is the correct action when pol products are missing
+Really should be matching what is received with expectations and then using zeroWeight()
+to flag bad data.  (And perhaps the ANTAB needs to be adjusted as well)
+
+$ egrep 'PASS|FAIL' *Y*report
+e17a10-7-pc-100-0725-hi-ivan-Y-difx-22Jul15-9000.report:PASS
+e17a10-7-pc-100-0725-lo-ivan-Y-difx-22Jul15-9000.report:PASS
+e17b06-7-pc-096-0750-hi-ivan-Y-difx-22Jul15-9000.report:PASS
+e17b06-7-pc-096-0750-lo-ivan-Y-difx-22Jul15-9000.report:PASS
+e17c07-7-pc-097-1303-hi-ivan-Y-difx-22Jul15-9000.report:PASS
+e17c07-7-pc-097-1303-lo-ivan-Y-difx-22Jul15-9000.report:PASS
+e17d05-7-pc-095-0839-hi-ivan-Y-difx-22Jul15-9000.report:PASS
+e17d05-7-pc-095-0839-lo-ivan-Y-difx-22Jul15-9000.report:PASS
+e17e11-7-pc-101-0322-hi-ivan-Y-difx-22Jul15-9000.report:PASS
+e17e11-7-pc-101-0322-lo-ivan-Y-difx-22Jul15-9000.report:PASS
+e17e11-7-pc-101-0803-hi-ivan-Y-difx-22Jul15-9000.report:PASS
+e17e11-7-pc-101-0803-lo-ivan-Y-difx-22Jul15-9000.report:PASS
+
+clearly the nan's came back...
+
+grep -l nan *Y/*pol*/*PEAKS/*dat
+e17b06-7-pc-096-0750-lo-ivan-Y/e17b06_9000.polconvert-2022-07-15T12.47.42/FRINGE.PEAKS/FRINGE.PEAKS42-ANT1.dat
+e17b06-7-pc-096-0750-lo-ivan-Y/e17b06_9000.polconvert-2022-07-15T12.47.42/FRINGE.PEAKS/FRINGE.PEAKS50-ANT1.dat
+e17b06-7-pc-096-0750-lo-ivan-Y/e17b06_9000.polconvert-2022-07-15T12.47.42/FRINGE.PEAKS/FRINGE.PEAKS58-ANT1.dat
+e17c07-7-pc-097-1303-lo-ivan-Y/e17c07_9000.polconvert-2022-07-15T12.48.16/FRINGE.PEAKS/FRINGE.PEAKS42-ANT1.dat
+e17c07-7-pc-097-1303-lo-ivan-Y/e17c07_9000.polconvert-2022-07-15T12.48.16/FRINGE.PEAKS/FRINGE.PEAKS50-ANT1.dat
+e17c07-7-pc-097-1303-lo-ivan-Y/e17c07_9000.polconvert-2022-07-15T12.48.16/FRINGE.PEAKS/FRINGE.PEAKS58-ANT1.dat
+e17d05-7-pc-095-0839-lo-ivan-Y/e17d05_9000.polconvert-2022-07-15T12.49.02/FRINGE.PEAKS/FRINGE.PEAKS42-ANT1.dat
+e17d05-7-pc-095-0839-lo-ivan-Y/e17d05_9000.polconvert-2022-07-15T12.49.02/FRINGE.PEAKS/FRINGE.PEAKS50-ANT1.dat
+e17d05-7-pc-095-0839-lo-ivan-Y/e17d05_9000.polconvert-2022-07-15T12.49.02/FRINGE.PEAKS/FRINGE.PEAKS58-ANT1.dat
+
+
