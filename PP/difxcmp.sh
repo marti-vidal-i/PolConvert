@@ -47,6 +47,12 @@ skipdir="EU-VGOS QA2"
 
 for f
 do
+  # more help
+  [ "$f" = 'no-such-file' ] && {
+    echo you need to supply file arguments
+    echo "you can use '* */*' for everything"
+    exit 2
+  }
   # ignore directories
   [ -d $f ] && continue
   # ignore things that don't go to DiFX but are in git
@@ -126,7 +132,8 @@ do
     rm -rf build
     ;;
   *)
-    [ "$action" = 'help' ] || action $action is not supported
+    [ "$action" = 'help' -o "$action" = '--help' ] ||
+        echo action $action is not supported
     cat <<....EOF
     Usage: PP/difxcmp.sh action file ...
 
