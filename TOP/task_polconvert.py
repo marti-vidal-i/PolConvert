@@ -1345,7 +1345,8 @@ def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
 
 
 # COMPUTE TIME RANGES:
-
+# [ days, hours, minutes, seconds, days, hours, minutes, seconds ]
+# default is to plot nothing, convert from now until centuries from now.
 
   if len(plotRange)==0:
     plRan = np.array([0.,0.])
@@ -1358,7 +1359,6 @@ def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
    except:
      printError("Bad time range format for plotRange!")
 
-
   if len(Range) == 0:
     Ran = np.array([0.,1.e20])
   else:
@@ -1367,7 +1367,8 @@ def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
    except:
      printError("Bad time range format for Range!")
 
-
+  printMsg('plotRange ' + str(plotRange) + ' -> ' + str(plRan) + ' plRan');
+  printMsg('  doRange ' +     str(Range) + ' -> ' + str(Ran)   + '   Ran');
 
 
 #######

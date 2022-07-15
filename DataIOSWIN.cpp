@@ -116,6 +116,8 @@ DataIOSWIN::DataIOSWIN(int nfiledifx, std::string* difxfiles, int NlinAnt,
   is2 = new bool[RECBUFFER];
 
   day0 = jd0 ;
+  // set true in setCurrentIF() to capture some first time stuff
+  debugNewIF = false;
 
   currFreq = 0;
   currVis = 0;
@@ -335,6 +337,8 @@ bool DataIOSWIN::setCurrentIF(int i){
     fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
     success=false; return success;
   };
+
+  debugNewIF = true;
 
   currFreq = i;
   currVis = 0;
@@ -644,6 +648,8 @@ void DataIOSWIN::readHeader(bool doTest, int saveSource) {
 
 // day0 is JD (not MJD):
   day0 += 2400000.5 ;
+  sprintf(message,"day0 is %lf", day0);
+  fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
 
 // Case of error in reading files:
 FREE:
@@ -702,7 +708,7 @@ bool DataIOSWIN::getNextMixedVis(double &JDTime, int &antenna, int &otherAnt, bo
   long indices[4];
   bool complete;
 
-
+  for (idx=0; idx<4; idx++) indices[idx] = -1;
 
   if (NLinVis==0){return false;};
 
@@ -714,6 +720,10 @@ bool DataIOSWIN::getNextMixedVis(double &JDTime, int &antenna, int &otherAnt, bo
 // Find the four correlation products:
     canPlot=false;
 
+// Note that autocorrs are read, converted and written twice;
+// once for ref and once for rem (one of which is conjugated)
+
+// FIXME: indentation is all screwed up here
     while(true){
 
       idx = 0;
@@ -747,6 +757,9 @@ bool DataIOSWIN::getNextMixedVis(double &JDTime, int &antenna, int &otherAnt, bo
 
 // If no more mixed-pol visibilities are found, we return false:
 // If not all the 4 products are found, report a warning:
+// FIXME: actually this prints what exists, not what is missing,
+// and in the case of Autocorrs, well, sometimes only 2 products exist
+      convisok = true;
       if (idx==0) {
         return false;}
       else if (idx <4) {
@@ -766,8 +779,9 @@ bool DataIOSWIN::getNextMixedVis(double &JDTime, int &antenna, int &otherAnt, bo
         };
         if(idx==1){
           indices[1] = -1; indices[2] = -1; indices[3] = -1; 
-          sprintf(message,"\n ERROR! ONLY ONE LINEAR POLARIZATION CHANNEL WILL NOT WORK!!");
-          fprintf(logFile,"%s",message); fflush(logFile);
+          convisok = false;
+//        sprintf(message,"\n ERROR! ONLY ONE LINEAR POLARIZATION CHANNEL WILL NOT WORK!!");
+//        fprintf(logFile,"%s",message); fflush(logFile);
           break;
         };
 
@@ -784,7 +798,7 @@ bool DataIOSWIN::getNextMixedVis(double &JDTime, int &antenna, int &otherAnt, bo
     if (is1[indices[0]]){is1[indices[0]]=false; conj = true;} else {is2[indices[0]]=false; conj=false;};
 
     if (idx<4){
-      sprintf(message," CONJ: %i \n",conj);
+      sprintf(message," CONJ: %i (%s %ld)\n",conj,convisok?"ok":"ERROR",currVis);
       fprintf(logFile,"%s",message); fflush(logFile);
     };
 
@@ -800,7 +814,8 @@ bool DataIOSWIN::getNextMixedVis(double &JDTime, int &antenna, int &otherAnt, bo
 
     for (rec = 0; rec < 4; rec++) {
 
-      if (indices[rec]>0){
+      //if (indices[rec]>0){
+      if (indices[rec]>=0){
         p1 = Records[indices[rec]].Pol[i];
         p2 = Records[indices[rec]].Pol[1-i];
 // All pol. products must have consistent booleans (for sanity)
@@ -818,23 +833,44 @@ bool DataIOSWIN::getNextMixedVis(double &JDTime, int &antenna, int &otherAnt, bo
       };
     };
 
+//  bool wtf = false;                       // WTF
+
 // Get the data and return them:
     for (i=0; i<4; i++) {
       if (currEntries[currFreq][i]>=0){
         rec = currEntries[currFreq][i];
+//      if (rec == 64 || rec == 5414) wtf = true;          // WTF
         fnum = Records[rec].fileNumber;
         newdifx[fnum].seekg(Records[rec].byteIni, newdifx[fnum].beg);
         newdifx[fnum].sync();
         newdifx[fnum].read(reinterpret_cast<char*>(currentVis[i]),Records[rec].byteEnd-Records[rec].byteIni);
+      } else {
+        // nuke values that would have been overwritten by the missing data
+        for (k=0; k<Freqs[currFreq].Nchan; k++) {
+          currentVis[i][k] = (std::complex<float>)0;
+        };
       };
     };
 
+//  if (wtf) {                              // WTF
+//      sprintf(message,
+//          "A %ld %ld %ld %ld\n"
+//          "A %+.9f %+.9f\nA %+.9f %+.9f\nA %+.9f %+.9f\nA %+.9f %+.9f\n",
+//          currEntries[currFreq][0], currEntries[currFreq][1],
+//          currEntries[currFreq][2], currEntries[currFreq][3],
+//          currentVis[0][0].real(), currentVis[0][0].imag(),
+//          currentVis[1][0].real(), currentVis[1][0].imag(),
+//          currentVis[2][0].real(), currentVis[2][0].imag(),
+//          currentVis[3][0].real(), currentVis[3][0].imag());
+//      fprintf(logFile,"%s",message); fflush(logFile);
+//  };
 
 // Case of auto-correlations (in the 2nd round of conversion):
-    isAutoCorr = antenna == otherAnt;
-    if (complete) {
 // Recover the fringe after the 1st round (since sometimes the 
 // file is not flushed properly, so we need an "aux" variable):
+// The auxVis values are captured at the end of applyMatrix
+    isAutoCorr = antenna == otherAnt;
+    if (complete) {
       if (isAutoCorr || isTwoLinear){
         for (k=0;k<Freqs[currFreq].Nchan; k++) {
           currentVis[3][k] = auxVis[3][k];
@@ -845,6 +881,16 @@ bool DataIOSWIN::getNextMixedVis(double &JDTime, int &antenna, int &otherAnt, bo
       };
     }; 
 
+
+//  if (wtf) {                              // WTF
+//      sprintf(message,
+//          "B %+.9f %+.9f\nB %+.9f %+.9f\nB %+.9f %+.9f\nB %+.9f %+.9f\n",
+//          currentVis[0][0].real(), currentVis[0][0].imag(),
+//          currentVis[1][0].real(), currentVis[1][0].imag(),
+//          currentVis[2][0].real(), currentVis[2][0].imag(),
+//          currentVis[3][0].real(), currentVis[3][0].imag());
+//      fprintf(logFile,"%s",message); fflush(logFile);
+//  };
 
 
     if (isAutoCorr && !complete){
@@ -865,10 +911,17 @@ else if (isAutoCorr) {
         };
     };
 */
+
    calField = field; 
    JDTime = time;
    currConj = conj ;
 
+   if (debugNewIF) {
+      sprintf(message, "  source %d JDTime %lf RelTime %lf conj = %d\n",
+        field, time, time - Records[0].Time, conj);
+      fprintf(logFile,"%s",message); fflush(logFile);
+      debugNewIF = false;
+   };
  
    return true;
 
