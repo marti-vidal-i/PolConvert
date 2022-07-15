@@ -102,4 +102,17 @@ e17d05-7-pc-095-0839-lo-ivan-Y/e17d05_9000.polconvert-2022-07-15T12.49.02/FRINGE
 e17d05-7-pc-095-0839-lo-ivan-Y/e17d05_9000.polconvert-2022-07-15T12.49.02/FRINGE.PEAKS/FRINGE.PEAKS50-ANT1.dat
 e17d05-7-pc-095-0839-lo-ivan-Y/e17d05_9000.polconvert-2022-07-15T12.49.02/FRINGE.PEAKS/FRINGE.PEAKS58-ANT1.dat
 
+[gbc@gefera pc-test]$  egrep 'PASS|FAIL' *Z*report
+e17a10-7-pc-100-0725-hi-ivan-Z-difx-22Jul15-9000.report:PASS
+e17a10-7-pc-100-0725-lo-ivan-Z-difx-22Jul15-9000.report:PASS
+e17b06-7-pc-096-0750-hi-ivan-Z-difx-22Jul15-9000.report:PASS
+e17b06-7-pc-096-0750-lo-ivan-Z-difx-22Jul15-9000.report:PASS
+e17c07-7-pc-097-1303-hi-ivan-Z-difx-22Jul15-9000.report:PASS
+e17c07-7-pc-097-1303-lo-ivan-Z-difx-22Jul15-9000.report:PASS
+e17d05-7-pc-095-0839-hi-ivan-Z-difx-22Jul15-9000.report:PASS
+e17d05-7-pc-095-0839-lo-ivan-Z-difx-22Jul15-9000.report:PASS
+e17e11-7-pc-101-0322-hi-ivan-Z-difx-22Jul15-9000.report:PASS
+e17e11-7-pc-101-0322-lo-ivan-Z-difx-22Jul15-9000.report:PASS
+e17e11-7-pc-101-0803-hi-ivan-Z-difx-22Jul15-9000.report:PASS
+e17e11-7-pc-101-0803-lo-ivan-Z-difx-22Jul15-9000.report:PASS
 
