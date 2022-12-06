@@ -65,7 +65,8 @@ def POL_CALIBRATE(
     INTTIME=1.0,
     IF_OFFSET=0,
     XYPCALMODE="bandpass",
-    UVTAPER=1.e9
+    UVTAPER=1.e9,
+    USE_RATES = False
 ):
     """Estimates cross-polarization gains using a scan in a SWIN directory.
     The channel resolution is set to CHANSOL. Saves the gains in a dictionary
@@ -144,6 +145,7 @@ def POL_CALIBRATE(
             doSolve=DOSOLVE,
             doTest=True,
             UVTaper=UVTAPER,
+            useRates = USE_RATES,
             solint=[CHANSOL, INTTIME],
         )
 
@@ -183,6 +185,7 @@ def POL_CALIBRATE(
         WITH_PCAL["PARAMETERS"]["EXCLUDE"] = EXCLUDE_BASELINES
         WITH_PCAL["PARAMETERS"]["XYPCALMODE"] = XYPCALMODE
         WITH_PCAL["PARAMETERS"]["UVTAPER"] = UVTAPER
+        WITH_PCAL["PARAMETERS"]["USE_RATES"] = USE_RATES
 
 
         OFF = open("POLCAL_OUTPUT_SCAN-%s_IF-%i.dat" % (DOSCAN[0], DOIF[0]), "wb")

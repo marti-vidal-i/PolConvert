@@ -154,7 +154,8 @@ def polconvert(
     IFoffset=0,
     AC_MedianWindow=0,
     XYpcalMode="bandpass",
-    UVTaper=1.e9
+    UVTaper=1.e9,
+    useRates = False
 ):
 
     """POLCONVERT - STANDALONE VERSION 2.0.1b.
@@ -181,6 +182,10 @@ def polconvert(
       
        UVTaper:  Apply a UVtaper (in meters) to the X-pol gain estimator (to avoid too high 
                  cross-polarization fringes).
+
+       useRates:  If True, the pol-wise weighted rate average will be use to increase 
+                  (hopefully) the coherence time of the data when the x-pol gains are 
+                  being estimated.
 
     """
 
@@ -220,7 +225,8 @@ def polconvert(
             "IFoffset": IFoffset,
             "AC_MedianWindow": AC_MedianWindow,
             "XYpcalMode": XYpcalMode,
-            "UVTaper": UVTaper
+            "UVTaper": UVTaper,
+            "useRates":useRates
         }
 
         OFF = open("PolConvert_standalone.last", "wb")
@@ -1536,8 +1542,8 @@ def polconvert(
             while i < MAXIT:
 
                 ptst0 = np.copy(currP)
-                currChi2 = PS.GetChi2(ptst0, LMTune, Ch0, Ch1, 0)
-                Chi2_0 = PS.GetChi2(ptst0, -1.0, Ch0, Ch1, 0)
+                currChi2 = PS.GetChi2(ptst0, LMTune, Ch0, Ch1, 0,useRates)
+                Chi2_0 = PS.GetChi2(ptst0, -1.0, Ch0, Ch1, 0,useRates)
                 #  sys.stdout.write('%.3g/1 '%Chi2_0) ; sys.stdout.flush()
 
                 if i == 0 or currChi2 < minChi2:
@@ -1551,8 +1557,8 @@ def polconvert(
                     LMTune *= KFacRaise
                     ptst0 = np.copy(currP)
 
-                    Chi2_ini = PS.GetChi2(ptst0, LMTune, Ch0, Ch1, 0)
-                    Chi2_0 = PS.GetChi2(ptst0, -1.0, Ch0, Ch1, 0)
+                    Chi2_ini = PS.GetChi2(ptst0, LMTune, Ch0, Ch1, 0,useRates)
+                    Chi2_0 = PS.GetChi2(ptst0, -1.0, Ch0, Ch1, 0,useRates)
                     #    sys.stdout.write('%.3g/2 '%Chi2_0) ; sys.stdout.flush()
                     i += 1
 
@@ -1582,8 +1588,8 @@ def polconvert(
                     break
 
                 ptst0 = np.copy(currP)
-                Chi2_ini = PS.GetChi2(ptst0, LMTune, Ch0, Ch1, 0)
-                Chi2_0 = PS.GetChi2(ptst0, -1.0, Ch0, Ch1, 0)
+                Chi2_ini = PS.GetChi2(ptst0, LMTune, Ch0, Ch1, 0, useRates)
+                Chi2_0 = PS.GetChi2(ptst0, -1.0, Ch0, Ch1, 0, useRates)
                 #   sys.stdout.write('%.3g/3 '%Chi2_0) ; sys.stdout.flush()
 
                 i += 1
@@ -1597,8 +1603,8 @@ def polconvert(
                         i += 1
                         LMTune /= KFacDecr
                         ptst0 = np.copy(currP)
-                        Chi2_ini = PS.GetChi2(ptst0, LMTune, Ch0, Ch1, 0)
-                        Chi2_1 = PS.GetChi2(ptst0, -1.0, Ch0, Ch1, 0)
+                        Chi2_ini = PS.GetChi2(ptst0, LMTune, Ch0, Ch1, 0, useRates)
+                        Chi2_1 = PS.GetChi2(ptst0, -1.0, Ch0, Ch1, 0, useRates)
                         #       sys.stdout.write('%.3g/4'%Chi2_1)
                         if Chi2_1 < minChi2:
                             minChi2 = Chi2_1
@@ -1624,7 +1630,7 @@ def polconvert(
                     if i >= MAXIT or np.abs(relchange) < maxErr:
                         break
 
-            Chi2_final = PS.GetChi2(minGains, LMTune, Ch0, Ch1, 1)
+            Chi2_final = PS.GetChi2(minGains, LMTune, Ch0, Ch1, 1, useRates)
             FLIP = Chi2_final > 0.0  # Flip gains by 180 degrees.
 
             # GBC debugging:
@@ -1663,7 +1669,7 @@ def polconvert(
             # First iteration:
             pini = np.array(p0)
             currP = np.copy(pini)
-            Chi2ini = PS.GetChi2(currP, Lambda, Ch0, Ch1, 0)
+            Chi2ini = PS.GetChi2(currP, Lambda, Ch0, Ch1, 0,useRates)
             bestChi = float(Chi2ini)
             bestP = np.copy(pini)
             ptest = np.copy(currP)
@@ -1671,7 +1677,7 @@ def polconvert(
             while i < MAXIT:
                 i += 1
                 currP[:] = ptest
-                Chi2 = PS.GetChi2(ptest, Lambda, Ch0, Ch1, 0)
+                Chi2 = PS.GetChi2(ptest, Lambda, Ch0, Ch1, 0,useRates)
                 if Chi2 < bestChi:
                     bestChi = Chi2
                     bestP[:] = currP
@@ -1680,7 +1686,7 @@ def polconvert(
                     ptest[:] = currP
                     Lambda /= 2.0
 
-            Chi2_final = PS.GetChi2(bestP, -1.0, Ch0, Ch1, 1)
+            Chi2_final = PS.GetChi2(bestP, -1.0, Ch0, Ch1, 1,useRates)
             FLIP = Chi2_final > 0.0  # Flip gains by 180 degrees.
 
             return [bestP, FLIP]
@@ -1813,7 +1819,7 @@ def polconvert(
 
                                 def Fmini(p):
                                     return PS.GetChi2(
-                                        p, -1.0, BPChan[chran], BPChan[chran + 1], 0
+                                        p, -1.0, BPChan[chran], BPChan[chran + 1], 0, useRates
                                     )
 
                                 def Fgrad(p):
@@ -1828,12 +1834,12 @@ def polconvert(
                                 mymin = spopt.minimize(
                                     PS.GetChi2,
                                     p0,
-                                    args=(-1.0, BPChan[chran], BPChan[chran + 1], 0),
+                                    args=(-1.0, BPChan[chran], BPChan[chran + 1], 0, useRates),
                                     method=fitMethod,
                                 )
 
                             Chi2_final = PS.GetChi2(
-                                mymin.x, -1, BPChan[chran], BPChan[chran + 1], 1
+                                mymin.x, -1, BPChan[chran], BPChan[chran + 1], 1, useRates
                             )
                             FLIP = Chi2_final > 0.0
                             myfit = mymin.x
@@ -1955,14 +1961,14 @@ def polconvert(
 
                         # Preliminary fit (with no delays):
                         mymin = spopt.minimize(
-                            PS.GetChi2, p0[:-nfitAnt], args=(-1.0, 0, Nchans, 0), method=fitMethod)
+                            PS.GetChi2, p0[:-nfitAnt], args=(-1.0, 0, Nchans, 0, useRates), method=fitMethod)
                         p0[:-nfitAnt] = mymin.x
 
                         # Now, fit the delays as well:
                         mymin = spopt.minimize(
-                            PS.GetChi2, p0, args=(-1.0, 0, Nchans, 0), method=fitMethod)
+                            PS.GetChi2, p0, args=(-1.0, 0, Nchans, 0, useRates), method=fitMethod)
 
-                    Chi2_final = PS.GetChi2(mymin.x, -1, 0, Nchans, 1)
+                    Chi2_final = PS.GetChi2(mymin.x, -1, 0, Nchans, 1, useRates)
                     FLIP = Chi2_final > 0.0
                     myfit = mymin.x
 

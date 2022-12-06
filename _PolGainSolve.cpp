@@ -2347,9 +2347,10 @@ static PyObject *GetChi2(PyObject *self, PyObject *args) {
 //  DerAux1 = new double[2];
 //  DerAux2 = new double[2];
   PyObject *pars, *ret,*LPy;
+  bool useRates;
 
   if (!logFile) logFile = fopen("PolConvert.GainSolve.log","a");
-  if (!PyArg_ParseTuple(args, "OOiii", &pars, &LPy, &Ch0, &Ch1,&end)){
+  if (!PyArg_ParseTuple(args, "OOiiib", &pars, &LPy, &Ch0, &Ch1,&end,&useRates)){
      sprintf(message,"Failed GetChi2! Check inputs!\n"); 
      fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);  
      fclose(logFile);
@@ -2706,13 +2707,18 @@ static PyObject *GetChi2(PyObject *self, PyObject *args) {
     if(ac1>=0){ // and !is1){
             Ddelay1R = TWOPI*((Delays[0][0][ac1][currScan])*(Frequencies[currIF][j]-RefNu));
             Ddelay1L = TWOPI*((Delays[1][0][ac1][currScan])*(Frequencies[currIF][j]-RefNu));
-	    Drate1 =  TWOPI*((Rates[4][0][ac1][currScan])*(Times[currIF][k]-T0));
+	    if(useRates){
+              Drate1 =  TWOPI*((Rates[4][0][ac1][currScan])*(Times[currIF][k]-T0));
+            } else {Drate2=0.0;};
+            
     };
  
     if(ac2>=0){ // and !is2){
             Ddelay2R = TWOPI*((Delays[0][0][ac2][currScan])*(Frequencies[currIF][j]-RefNu));
             Ddelay2L = TWOPI*((Delays[1][0][ac2][currScan])*(Frequencies[currIF][j]-RefNu));
-	    Drate2 =  TWOPI*((Rates[4][0][ac2][currScan])*(Times[currIF][k]-T0));
+            if(useRates){
+	      Drate2 =  TWOPI*((Rates[4][0][ac2][currScan])*(Times[currIF][k]-T0));
+            } else { Drate2=0.0;};
     };
 
     if(useDelay){
