@@ -1,3 +1,8 @@
+v2.0.4 
+- Normalized python code (spaces).
+- Added new features to VGOS mode (UVTaper, multi-scan fitting, etc.)
+- Corrected bugs in PolGainSolve (bad rate estimates degraded solution quality).
+
 v2.0.3
 - Synchronized ALMA/non-ALMA buildables; python codes still not unified
 - This version appears to reproduce the ALMA behaviors of v1.8.5

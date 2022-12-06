@@ -467,6 +467,7 @@ void DataIOFITS::readInput(std::string inputfile, int saveSource) {
   field = new int[2*Nvis];
   ParAng[0] = new double[2*Nvis];
   ParAng[1] = new double[2*Nvis];
+  UVDist = new double[2*Nvis];
   indexes = new long[2*Nvis];
   conjugate = new bool[2*Nvis];
   is1 = new bool[2*Nvis];
@@ -606,7 +607,7 @@ void DataIOFITS::readInput(std::string inputfile, int saveSource) {
         JDTimes[NLinVis] = Times[il];
         ParAng[0][NLinVis] = AuxPA1;
         ParAng[1][NLinVis] = AuxPA2;
-
+        UVDist[NLinVis] = UVW[0]*UVW[0] + UVW[1]*UVW[1];
         if (a1==linAnts[i]){
           is1orig[NLinVis] = true;
         };
@@ -922,6 +923,7 @@ void DataIOFITS::applyMatrix(std::complex<float> *M[2][2], bool swap,
        fwrite(&an2[currVis],sizeof(int),1,plotFile);
        fwrite(&ParAng[0][currVis],sizeof(double),1,plotFile);
        fwrite(&ParAng[1][currVis],sizeof(double),1,plotFile);
+       fwrite(&UVDist[currVis],sizeof(double),1,plotFile);
      };
      fwrite(&currentVis[a11],sizeof(std::complex<float>),1,plotFile);
      fwrite(&currentVis[a12],sizeof(std::complex<float>),1,plotFile);
@@ -943,6 +945,7 @@ void DataIOFITS::applyMatrix(std::complex<float> *M[2][2], bool swap,
        fwrite(&an1[currVis],sizeof(int),1,plotFile);
        fwrite(&ParAng[1][currVis],sizeof(double),1,plotFile);
        fwrite(&ParAng[0][currVis],sizeof(double),1,plotFile);
+       fwrite(&UVDist[currVis],sizeof(double),1,plotFile);
      };
      auxVis = std::conj(currentVis[a11]);
      fwrite(&auxVis,sizeof(std::complex<float>),1,plotFile);
