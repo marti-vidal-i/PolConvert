@@ -2240,8 +2240,8 @@ def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
 #    printMsg("Using 5 argument method of PolGainSolve")
      #MySolve = PS.PolGainSolve(doSolveD,solint,selAnts,lAnts,FlagBas1,FlagBas2)
     printMsg('\n%%% initializing PolGainSolve\n')
-    # using a null for a logfile should be harmless...
-    MySolve = PS.PolGainSolve(doSolveD,solint,selAnts,lAnts,[FlagBas1,FlagBas2],0)
+    # using a null for a logfile should be harmless...  NOPE! --> "basic_string::_S_construct null not valid"
+    MySolve = PS.PolGainSolve(doSolveD,solint,selAnts,lAnts,[FlagBas1,FlagBas2],'PolConvert.GainSolve.log')
     printMsg(PS.__doc__ + ('\nInitialization rv %d\n'%MySolve) + '%%%\n')
 #   else:
 #    printMsg("Using 4 argument method of PolGainSolve:")
@@ -2259,7 +2259,7 @@ def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
       file2 = "POLCONVERT.FRINGE/POLCONVERT.FRINGE_IF%i"%pli
       printMsg("  file1 is %s" % file1)
       printMsg("  file2 is %s" % file2)
-      success = PS.ReadData(pli, file1, file2)
+      success = PS.ReadData(pli, file1, file2, 25.0)
       printMsg("  calling GetNScan(0) (success = %d)"% success)
       NScan = PS.GetNScan(0)
       if success != 0:
