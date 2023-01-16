@@ -2264,9 +2264,8 @@ def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
       NScan = PS.GetNScan(0)
       if success != 0:
         printError('Failed PolGainSolve: ERROR %i'%success)
-      ifsofIF = PS.GetIFs(pli)
-      AllFreqs.append(ifsofIF)
-      #AllFreqs.append(PS.GetIFs(pli))
+      AllFreqs.append(np.zeros(PS.GetNchan(pli), order="C", dtype=np.float))
+      rc = PS.GetIFs(pli, AllFreqs[-1])
     MaxChan = max([np.shape(pp)[0] for pp in AllFreqs])
     printMsg("  length of AllFreqs is %d MaxChan %d"%(len(AllFreqs),MaxChan))
     printMsg("\nWill now estimate the residual cross-polarization gains.\n")
