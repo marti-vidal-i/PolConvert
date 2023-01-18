@@ -121,7 +121,7 @@ if __name__ == "__main__":
 
 	caldata_ants = [a.upper() for a in caldata["XYadd"].keys()]
 	if opts.linant.upper() not in caldata_ants:
-		print("Error: calibration data file %s does not contain antenna %s" % (opts.xygainsfile, opts.linant))
+		print("Error: calibration data file %s does not contain antenna %s, just %s" % (opts.xygainsfile, opts.linant, str(caldata_ants)))
 		sys.exit(-1)
 
 	i = caldata_ants.index(opts.linant.upper())      # index for caseless name e.g. 'MP'
