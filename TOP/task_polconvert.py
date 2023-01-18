@@ -1114,7 +1114,7 @@ def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
     plotAnt = int(plotAnt)
   except:
     if plotAnt not in antcodes:
-      printError("Reference antenna %s is not found in metadata!"%str(plotAnt))
+      printError("Reference antenna %s is not found in metadata among %s! " % (str(plotAnt),antcodes))
     else:
       plotAnt = antcodes.index(plotAnt)+1
 
