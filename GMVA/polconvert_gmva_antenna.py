@@ -1,16 +1,40 @@
 #!/bin/env python2
 #!/cluster/casa/latest/bin/python
 '''
-Batch polconversion for an antenna other than ALMA,
-in a set of DiFX files in the current directory.
+Batch polconversion of scans with a linear polarized antenna
+in a set of DiFX version 2.6+ files in the current directory.
 
 Requires 'PolConvert.XYGains.dat' calibration data as input.
 These data can be produced with singlepolsolve.py for the
 antenna that should be polconverted.
+
+Converted visibility data are stored in '*.difx-pc'
+
+Example steps:
+
+ 1) Derive calibrations for linear-pol Mopra using job c221a_1171.input
+    in which Mopra (MP) had antenna index 10 (9 per .input + 1 for CASA):
+
+    $ singlepolsolve.py -v -P 1 -l cal_mp_c221a \\
+        -a 10 --lin MP -S AT,KT,KY,FD,BR,KP,LA,MK,OV,KU \\
+        c221a_1171.input
+
+    If all goes well this produces cal_mp_c221a.PolConvert.XYGains.pkl
+
+ 2) Apply the XYGains file to the whole track, and
+    try make polconvert produce Mp-Ky plots during the process:
+
+    $ polconvert_gmva_antenna.py --linant MP --plotant KY \\
+         --xygains cal_mp_c221a.PolConvert.XYGains.pkl *.input
+
+ 3) Edit .input files and change the .difx references to .difx-pc,
+    then export with difx2fits or difx2mark4.
+
+    $ joblist=` grep -l -E "TELESCOPE NAME.*MP" *.input `
+    $ sed -i "s/.difx$/.difx-pc/g"  $joblist
+
 '''
 
-#
-# Loosely based on Ivan Marti-Vidal's 2022  EUVGOS_PY3/POLCONVERTER.py
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -107,7 +131,6 @@ if __name__ == "__main__":
 
 	p = argparse.ArgumentParser(description=__doc__, add_help=True, formatter_class=argparse.RawDescriptionHelpFormatter)
 	p.add_argument('-a', '--linant', dest='linant', default='MP', help='Linear antenna, 2-character VEX name, case insensitive')
-	p.add_argument('-e', '--expname', dest='expname', default='c222a', help='Name of the experiment/track')
 	p.add_argument('-g', '--xygains', dest='xygainsfile', default='PolConvert.XYGains.dat', help='Name of the input calibration file with XY gains of the linear polarized station')
 	p.add_argument('-p', '--plotant', dest='plotant', default='', help='Other antenna for plotting a baseline, 2-character VEX name')
 	p.add_argument('basenames', nargs='+', help='One or more DiFX job names (with or without .input suffix)')
