@@ -882,7 +882,7 @@ if(PCMode){
 
 
 
-  FILE *plotFile[nIFplot];
+  FILE **plotFile = new FILE*[nIFplot+nIFconv]();
   FILE *gainsFile = (FILE*)0;
 
 // Prepare plotting or solving files:
@@ -1461,9 +1461,15 @@ if(PCMode){
   fprintf(logFile,"%s",message); std::cout << message; fflush(logFile);
 
 if(plRange[0]<=doRange[1] && plRange[1]>=doRange[0]){
-  for (ij=0;ij<nIFplot;ij++){
-    fclose(plotFile[ij]);
-  };
+  if(PCMode) {
+    for (ij=0;ij<nIFplot;ij++){
+      fclose(plotFile[ij]);
+    };
+  } else {
+    for (ij=0;ij<nIFconv;ij++){
+      fclose(plotFile[ij]);
+    };
+  }
 };
 
   if(doNorm){fclose(gainsFile);};
