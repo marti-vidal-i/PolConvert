@@ -902,6 +902,10 @@ if(PCMode){
         sprintf(message,"POLCONVERT.FRINGE/POLCONVERT.FRINGE_IF%i",IFs2Plot[ii]+1);
         printf("Writing %s\n", message);
         plotFile[ii] = fopen(message,"wb");
+        if (!plotFile[ii]) {
+          sprintf(message,"Could not create PCMode plot file POLCONVERT.FRINGE/POLCONVERT.FRINGE_IF%i, errno %d\n", IFs2Plot[ii]+1, errno);
+          fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
+        };
         if (IFs2Plot[ii]>=0 && IFs2Plot[ii]<nnu){
           fwrite(&nchans[IFs2Plot[ii]],sizeof(int),1,plotFile[ii]);
         } else {
@@ -915,6 +919,10 @@ if(PCMode){
         sprintf(message,"POLCONVERT.FRINGE/POLCONVERT.FRINGE_IF%i",IFs2Conv[ii]+1);
         printf("Writing %s\n", message);
         plotFile[ii] = fopen(message,"wb");
+        if (!plotFile[ii]) {
+          sprintf(message,"Could not create plot non-PCMode file POLCONVERT.FRINGE/POLCONVERT.FRINGE_IF%i, errno %d\n", IFs2Conv[ii]+1, errno);
+          fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
+        };
         if (IFs2Conv[ii]>=0 && IFs2Conv[ii]<nnu){
           fwrite(&nchans[IFs2Conv[ii]],sizeof(int),1,plotFile[ii]);
         } else {
@@ -1463,11 +1471,15 @@ if(PCMode){
 if(plRange[0]<=doRange[1] && plRange[1]>=doRange[0]){
   if(PCMode) {
     for (ij=0;ij<nIFplot;ij++){
-      fclose(plotFile[ij]);
+      if(plotFile[ij]) {
+        fclose(plotFile[ij]);
+      };
     };
   } else {
     for (ij=0;ij<nIFconv;ij++){
-      fclose(plotFile[ij]);
+      if(plotFile[ij]) {
+        fclose(plotFile[ij]);
+      };
     };
   }
 };
