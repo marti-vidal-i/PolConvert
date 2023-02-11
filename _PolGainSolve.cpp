@@ -1317,7 +1317,51 @@ static PyObject *ReadData(PyObject *self, PyObject *args) {
 
 
 
+#if 0
+/// GetIFs(ifNr) for invocation from Python like
+///    AllFreqs = []; ifsofIF = PS.GetIFs(pli); AllFreqs.append(ifsofIF)
+static PyObject *GetIFs(PyObject *self, PyObject *args) {
+int i,j,k;
 
+  PyObject *FreqsObj = PyList_New(0);
+
+  if (!logFile) logFile = fopen("PolConvert.GainSolve.log","a");
+
+  if (!PyArg_ParseTuple(args, "i", &i)){
+     sprintf(message,"Failed GetIFs! Check inputs!\n");
+     fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
+     fclose(logFile);
+    PyObject *ret = Py_BuildValue("i",-1);
+    return ret;
+  };
+
+  sprintf(message,"Locating IFNum as %d \n", i);
+  fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
+
+  k=-1;
+  for (j=0; j<NIF; j++){
+    if(IFNum[j] == i){k=j;break;};
+  };
+
+  if(k<0){
+    sprintf(message,"IF %d not found\n", i);
+    fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
+    PyObject *ret = Py_BuildValue("i",-2);
+    return ret;
+  };
+
+  sprintf(message,"IF %d with %d chans, copying their freqs into Python PyList\n", i, Nchan[k]);
+  fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
+
+  for (j=0; j<Nchan[k]; j++){
+    PyList_Append(FreqsObj, PyFloat_FromDouble(Frequencies[k][j]));
+  };
+
+  return FreqsObj;
+};
+#else
+/// GetIFs(ifNr) for invocation from Python like
+///    AllFreqs = [];  AllFreqs.append(np.zeros(PS.GetNchan(pli), order="C", dtype=np.float)); rc = PS.GetIFs(pli, AllFreqs[-1])
 static PyObject *GetIFs(PyObject *self, PyObject *args) {  
 int i,j,k;
 
@@ -1369,7 +1413,7 @@ int i,j,k;
 
   return ret;
 };
-
+#endif
 
 
 

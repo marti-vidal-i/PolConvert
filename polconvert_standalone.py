@@ -725,7 +725,7 @@ def polconvert(
         plotAnt = int(plotAnt)
     except:
         if plotAnt not in antcodes:
-            printError("Reference antenna %s is not found in metadata!" % str(plotAnt))
+            printError("Reference antenna %s is not found in metadata among %s!" % (str(plotAnt), antcodes))
         else:
             plotAnt = antcodes.index(plotAnt) + 1
 
@@ -911,7 +911,8 @@ def polconvert(
         OUTPUT = [OUTPUT[i] for i in range(len(i0)) if i0[i]]
 
         # Get source coordinate for each file (if possible):
-        CALCS = ["%s.calc" % os.path.dirname(ci)[:-5] for ci in OUTPUT]
+        #CALCS = ["%s.calc" % os.path.dirname(ci)[:-5] for ci in OUTPUT]  # NB the [:-5] fails when user suffix used like '.pcdifx' or '.difx_PC' like by EUVGOS_PY3/POLCONVERTER.py
+        CALCS = ["%s.calc" % os.path.dirname(ci)[:os.path.dirname(ci).rfind('.')] for ci in OUTPUT]
 
         ##OBSOLETE! NOW, WE ARE CONCATENATING SWIN METADATA TO ENSURE CONSISTENCY!
         # There will be one source per SWIN file:
@@ -1223,7 +1224,8 @@ def polconvert(
                         arrSize = np.shape(np.array(TOADD[j]))
                         if len(arrSize) != 1 or arrSize[0] != IFchan:
                             printError(
-                                "Shape of XYadd array(s) does not coincide with number of IF channels\n"
+                                "Shape of XYadd array(s) (%s) does not coincide with number of IF channels (%s)\n"
+                                % (str(arrSize),str(IFchan))
                             )
                         else:
                             for dfile in range(len(OUTPUT)):
