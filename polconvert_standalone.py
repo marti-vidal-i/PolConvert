@@ -155,7 +155,8 @@ def polconvert(
     AC_MedianWindow=0,
     XYpcalMode="bandpass",
     UVTaper=1.e9,
-    useRates = False
+    useRates = False,
+    mounts = {}
 ):
 
     """POLCONVERT - STANDALONE VERSION 2.0.1b.
@@ -186,6 +187,15 @@ def polconvert(
        useRates:  If True, the pol-wise weighted rate average will be use to increase 
                   (hopefully) the coherence time of the data when the x-pol gains are 
                   being estimated.
+      
+       mounts:  Antenna mounts (for SWIN case), given as a dictionary. The keywords are 
+                the antenna codes and the elements are the mount types. The default antenna
+                mount is alt-azimuth. Recognized mounts are:
+
+                AZ (alt-az), EQ (equatorial), OB (orbit), XY (X-Y), NR (Nasmyth right), NL (Nasmyth left)
+
+                Example: if antenna Yebes-40m (code YB) has Nasmyth left, and all the other antennas
+                have alt-az mounts, then: mounts = {'YB':'NL'}
 
     """
 
@@ -226,7 +236,8 @@ def polconvert(
             "AC_MedianWindow": AC_MedianWindow,
             "XYpcalMode": XYpcalMode,
             "UVTaper": UVTaper,
-            "useRates":useRates
+            "useRates":useRates,
+            "mounts":mounts
         }
 
         OFF = open("PolConvert_standalone.last", "wb")
@@ -240,6 +251,11 @@ def polconvert(
     #  amp_norm=0.0
 
     logName = "PolConvert%s.log" % plotSuffix
+
+
+## Codes for antenna mounts:
+    MntCodes = {'AZ':0, 'EQ':1, 'OB':2, 'XY':3, 'NR':4, 'NL':5}
+
 
     ############################################
 
@@ -496,7 +512,7 @@ def polconvert(
                         "TELESCOPE %s AT X: %.3f ; Y: %.3f ; Z: %.3f"
                         % tuple([antcodes[-1]] + antcoords[-1])
                     )
-                    # CURRENTLY, ONLY ALTAZ MOUNTS SUPPORTED FOR SWIN FILES:
+                    # DEFAULT MOUNTS ARE ALT-AZ:
                     antmounts.append(0)
 
                 if "SOURCE" in line and " NAME: " in line:
@@ -527,6 +543,19 @@ def polconvert(
         else:
             printMsg("There are %i antennas." % len(antmounts))
 
+
+## Read antenna mounts from dictionary:
+        for antName in mounts.keys():
+            if antName in antcodes:
+                if mounts[antName] not in MntCodes.keys():
+                    printError("ERROR! Mount %s not recognized!"%mounts[antName])
+                else:
+                    code = mounts[antName]
+                    mnt = MntCodes[code]
+                    antmounts[antcodes.index(antName)] = int(mnt)
+                    printMsg("Setting mount %s (%i) to antenna %s"%(code,mnt,antName))
+
+
     elif os.path.isfile(IDI):
         isSWIN = False
 
@@ -536,7 +565,7 @@ def polconvert(
         printMsg("\n\nYou have asked to convert a FITS-IDI file.")
         printMsg("Reading array geometry...")
         try:
-            import pyfits as pf
+            from astropy.io import fits as pf
 
             ffile = pf.open(IDI)
             for ii, group in enumerate(ffile):
@@ -672,7 +701,7 @@ def polconvert(
     else:
 
         # READ FREQUENCY INFO:
-        import pyfits as pf
+        from astropy.io import fits as pf
 
         fitsf = pf.open(IDI)
         nu0 = fitsf["FREQUENCY"].header["REF_FREQ"]
@@ -851,10 +880,10 @@ def polconvert(
         printMsg("Will REMOVE the existing OUTPUT file (or directory)!\n")
         printMsg("Copying IDI to OUTPUTIDI!\n")
         os.system("rm -rf %s" % OUTPUTIDI)
-        os.system("cp -rf %s %s" % (IDI, OUTPUTIDI))
+        os.system("cp -r %s %s" % (IDI, OUTPUTIDI))
     elif not os.path.exists(OUTPUTIDI):
         printMsg("Copying IDI to OUTPUTIDI!\n")
-        os.system("cp -rf %s %s" % (IDI, OUTPUTIDI))
+        os.system("cp -r %s %s" % (IDI, OUTPUTIDI))
     #
     #######
 
@@ -1232,13 +1261,15 @@ def polconvert(
                                 #   print(dfile,doant,i,jid, OUTPUT)
                                 #   print(TOADD)
                                 #   print(XYaddF[dfile][i])
-                                XYaddF[dfile][i][jid] += (
-                                    np.array(TOADD[j]) * np.pi / 180.0
-                                )
+                                if j in doIF:
+                                    XYaddF[dfile][i][doIF.index(j)] += (
+                                        np.array(TOADD[j]) * np.pi / 180.0
+                                    )
                     else:
                         try:
                             for dfile in range(len(OUTPUT)):
-                                XYaddF[dfile][i][jid] += float(TOADD[j]) * np.pi / 180.0
+                                if j in doIF:
+                                    XYaddF[dfile][i][doIF.index(j)] += float(TOADD[j]) * np.pi / 180.0
                         except Exception as ex:
                             printMsg(str(ex))
                             printError(
@@ -1286,10 +1317,12 @@ def polconvert(
                             )
                         else:
                             for dfile in range(len(XYratioF)):
-                                XYratioF[dfile][i][jid] *= tempArr
+                                if j in doIF:
+                                    XYratioF[dfile][i][doIF.index(j)] *= tempArr
                     else:
                         for dfile in range(len(XYratioF)):
-                            XYratioF[dfile][i][jid] *= float(TOADD[j])
+                            if j in doIF:
+                                XYratioF[dfile][i][doIF.index(j)] *= float(TOADD[j])
 
             else:
                 try:
@@ -1320,7 +1353,7 @@ def polconvert(
                         order="C",
                     )
                 )
-
+               # print(dfile,i,j,PrioriGains)
     # print(XYaddF)
 
     # TEMPORARY FILE TO STORE FRINGE FOR PLOTTING:
@@ -2861,20 +2894,21 @@ def polconvert(
 
     printMsg("Please, check the PolConvert.log file for special messages.", dolog=False)
 
-    if sys.version_info.major < 3:
-        ofile = open("PolConvert.XYGains%s.dat" % plotSuffix, "w")
-    else:
-        ofile = open("PolConvert.XYGains%s.dat" % plotSuffix, "wb")
+    if doSolve >=0.0:
+        if sys.version_info.major < 3:
+            ofile = open("PolConvert.XYGains%s.dat" % plotSuffix, "w")
+        else:
+            ofile = open("PolConvert.XYGains%s.dat" % plotSuffix, "wb")
 
-    cgs = str(CGains)
+        cgs = str(CGains)
     # if len(cgs) > 79: printMsg("%s..." % cgs[0:78])
     # else:             printMsg("%s" % cgs)
 
-    try:
-        pk.dump(CGains, ofile)
-    except Exception as ex:
-        printMsg(str(ex))
-    ofile.close()
+        try:
+            pk.dump(CGains, ofile)
+        except Exception as ex:
+            printMsg(str(ex))
+        ofile.close()
     #  printMsg('PolConvert.XYGains.dat was written with CGains' + str(CGains.keys()))
 
     printMsg("Task PolConvert is Done\n\n")
