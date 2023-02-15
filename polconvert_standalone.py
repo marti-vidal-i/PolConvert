@@ -2072,7 +2072,7 @@ def polconvert(
                         ),
                         symbol[int(((antii) // len(color)) % len(symbol))]
                         + color[int((antii) % len(color))],
-                        label="ANT. " + str(anti),
+                        label="ANT. " + str(anti), ms=2
                     )
 
                 printMsg("Working subplot 2")
@@ -2090,7 +2090,7 @@ def polconvert(
                         toplot,
                         symbol[int(((antii) // len(color)) % len(symbol))]
                         + color[int((antii) % len(color))],
-                        label="ANT. " + str(anti),
+                        label="ANT. " + str(anti), ms=2
                     )
 
                 printMsg("Labelling and adjusting")

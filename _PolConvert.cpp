@@ -740,7 +740,7 @@ if(PCMode){
     sprintf(message,"\n\n Opening FITS-IDI file and reading header.\n");
     fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
     DifXData = new DataIOFITS(outputfits, nALMA, almanums, 
-          doRange, OverWrite, doConj, iDoSolve, calField, Geometry, doParang, logFile);
+          doRange, nIFconv, IFs2Conv, OverWrite, doConj, iDoSolve, calField, Geometry, doParang, logFile);
   };
 
   if(!DifXData->succeed()){
