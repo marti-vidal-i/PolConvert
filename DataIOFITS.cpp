@@ -241,8 +241,7 @@ void DataIOFITS::saveCirculars(std::string inputfile) {
 
       getParAng(souidx-1,a1-1,a2-1,UVW,Times[il],AuxPA1,AuxPA2);
       for(i=0;i<nDoIF;i++) {
-        currIF = i; // i/Nband;
-        currBand = 0; //i-currIF*Nband;
+        currIF = i;
         jump = 0;
         for (j=0;j<currIF;j++){
           jump += 4*((long) Freqs[j].Nchan);
@@ -521,6 +520,12 @@ void DataIOFITS::readInput(std::string inputfile, int saveSource) {
   fits_get_colnum(fptr, CASEINSEN, WW0, &uu, &status);
   };
 
+
+
+
+
+
+
   if (status){
     sprintf(message,"\n\nPROBLEM READING NUMBERS OF COLUMNS!  ERR: %i\n\n",status);
     fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
@@ -656,6 +661,7 @@ return;
 // SET IF TO CHANGE:
 bool DataIOFITS::setCurrentIF(int i){
 
+  int j;
 
   if ( i>=Nfreqs || i<0 ){
     sprintf(message,"\nERROR! IF %i CANNOT BE FOUND!\n",i+1); 
@@ -664,11 +670,14 @@ bool DataIOFITS::setCurrentIF(int i){
     success=false; return success;
   };
 
+
   currFreq = i;
-  currIF = i/Nband;
-  currBand = i-currIF*Nband;
   currVis = 0;
-  jump = 4*((long) Freqs[currFreq].Nchan)*((long) currBand);
+  jump = 0;
+  for (j=0;j<currFreq;j++){
+     jump += 4*((long) Freqs[j].Nchan);
+  };
+//  jump = 4*((long) Freqs[currFreq].Nchan)*((long) currBand);
   Nentry = 4*((long) Freqs[currFreq].Nchan);
   delete currentVis ;
   delete bufferVis ;

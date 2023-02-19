@@ -634,7 +634,7 @@ static PyObject *XPCalMF(PyObject *self, PyObject *args)
 
 
 
-
+  if(connectPhase){
 
   for (i=0; i<NTone; i++){
     /////////////////////////	  
@@ -654,6 +654,8 @@ static PyObject *XPCalMF(PyObject *self, PyObject *args)
     
     };
     
+  };
+  
   };
   
   
