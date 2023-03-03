@@ -2181,7 +2181,7 @@ def DO_GFF(
                     ANTMOD[NA][currentPoly]["MJD"] = currentMJD
                 elif "SEC:" in li:
                     currentSEC = int(temp[-1])
-                    ANTMOD[NA][currentPoly]["sec"] = currentMJD
+                    ANTMOD[NA][currentPoly]["sec"] = currentSEC
 
         if "SRC " in li and "ANT" in li:
             temp = (li.replace("\n","")).split()
