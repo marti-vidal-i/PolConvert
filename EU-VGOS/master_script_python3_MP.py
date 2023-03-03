@@ -39,7 +39,8 @@ thesteps = {0: 'Source scanner',
             2: 'PolConvert the whole experiment',
             3: 'Estimate additive phases & write CF file',
             4: 'Calibrate bandpass and remove IONEX TEC',
-            5: 'Perform broadband Global Fringe Fitting'}
+            5: 'Perform broadband Global Fringe Fitting',
+            6: "Write fully calibrated SWIN files (for FITS/MS export only!)"}
 
 PYTHON_CALL = 'python3 %s.py'
 
@@ -47,7 +48,7 @@ PYTHON_CALL = 'python3 %s.py'
 ######################################
 
 # List of steps to be performed:
-mysteps = [5]
+mysteps = [6]
 
 
 
@@ -81,7 +82,16 @@ REFANT = 'OE'
 
 
 ## Bad phasecals (value for EV9217):
-FLAG_PCALS = {'GS':[3090], 'OE':[6425,6430], 'OW':[10265,10270], 'YJ':[6650]} #{'OW':[10235]}
+FLAG_PCALS = {'GS':[3090,3070,3075], 
+              'OE':[6425,6430,5445], 
+              "KK":[3025,3055,3215,3310],
+              "MG":[5715,5720,5615,5620],
+              'OW':[10265,10270,3215,10255,10625],
+              "WF":[3215,3310,3375,3355],
+              'YJ':[6650]} #{'OW':[10235]}
+
+# MAximum residual phasecal RMS (deg.) for automatic IF flagging:
+MAX_PCAL_RMS = 10.0
 
 
 #######
@@ -170,7 +180,8 @@ BAD_IF = {} #'YJ':range(25,33)}
 # SCANS TO USE FOR THE POL. CALIBRATION. IDEALLY, SHOULD BE SCANS 
 # COVERING A RANGE OF PARALLACTIC ANGLES, WITH GOOD SNRs 
 # ***AND*** WITH THE SAME ANTENNA CONFIGURATION!!!!
-POLCAL_SCAN = ['0001','0002']   #'0002','1805','1834','1900'] #,'0003','0004','0005','0006','0007','0008','0009','0010'] # Little difference if we add more scans.
+POLCAL_SCAN = ["0251"]
+##POLCAL_SCAN = ['0001','0002']   #'0002','1805','1834','1900'] #,'0003','0004','0005','0006','0007','0008','0009','0010'] # Little difference if we add more scans.
 SUFFIX = ''
 #####################
 ######################################
@@ -250,15 +261,32 @@ APPLY_PHASECAL = False
 
 # List of possible reference antennas,
 # in order of preference:
-GFF_REFANTS = ['OE','YJ','MG']
+GFF_REFANTS = ['OE','YJ','WF']
 
 # Give different weights to some antennas
 # (e.g., lower for bad stations). Default is 1.0
-ANT_WEIGHTS = {'IS':0.5}
+ANT_WEIGHTS = {'IS':0.25}
 
 
 #####################
 ######################################
+
+
+
+
+
+
+######################################
+#####################
+###### INVOLVING STEP 6:
+
+# Directory to store fully-calibrated data:
+FINAL_DIR =  "DiFX_FINAL" 
+
+#####################
+######################################
+
+
 
 
 
@@ -801,7 +829,8 @@ if 3 in mysteps:
 
     keyw = {'SCAN':SCAN, 'HOPSNAMES': HOPSNAMES, 'IFNAMES': IFNAMES, 'FLAGBAS': EXCLUDE_BASELINE,
            'CALIB_BPASS':CALIB_BPASS, 'PCALDELAYS': PCAL_DELAYS, 'REFANT':REFANT, 
-           'FLAG_PCALS':FLAG_PCALS, 'IF_OFFSET':IF_OFFSET, 'SAMP_DELAYS':SAMP_DELAYS}
+           'FLAG_PCALS':FLAG_PCALS, 'IF_OFFSET':IF_OFFSET, 'SAMP_DELAYS':SAMP_DELAYS,
+           "MAX_PCAL_RMS":MAX_PCAL_RMS}
 
     keys = open('keywords_%s.dat'%SCRIPT_NAME,'wb'); pk.dump(keyw, keys,protocol=0); keys.close()
 
@@ -941,9 +970,6 @@ if 4 in mysteps:
     if log not in currlogs:
       os.system('mv %s LOGS/.'%log)      
 
-  if os.path.exists('POLCONVERTER.FAILED'):
-     raise Exception('STEP 4 FAILED!') 
-
 
   if os.path.exists('REMOVE_TEC.FAILED'):
      raise Exception('STEP 4 FAILED!') 
@@ -974,9 +1000,9 @@ if 5 in mysteps:
       SCANS.append(TEMP.split('_')[1])
 
 ## TODO: THIS LINE IS JUST FOR TESTING:
- # SCANS = ['1835']
+ # SCANS = ['0002', "0003"]
 
-  for SCAN in SCANS:
+  for SCAN in sorted(SCANS):
 
     SCRIPT_NAME = 'STEP5_%s'%SCAN
 
@@ -984,6 +1010,7 @@ if 5 in mysteps:
 
     keyw = {'EXPNAME':EXPNAME, 'SCAN':SCAN, 'DIR':BPCAL_DIR, 'ANT_WEIGHTS':ANT_WEIGHTS,
             'APPLY_PHASECAL':APPLY_PHASECAL, 'FLAG_PCALS':FLAG_PCALS,
+            "MAX_PCAL_RMS":MAX_PCAL_RMS,
             'CF_FILE':CF_FILENAME, 'REFANTS':GFF_REFANTS,'FLAGBAS': EXCLUDE_BASELINE, 
             'IF_OFFSET':IF_OFFSET, 'SAMP_DELAYS':SAMP_DELAYS, "HOPS_NAMES":HOPSNAMES}
     keys = open('keywords_%s.dat'%SCRIPT_NAME,'wb'); pk.dump(keyw, keys); keys.close()
@@ -1023,6 +1050,81 @@ if 5 in mysteps:
   if os.path.exists('DO_GFF.FAILED'):
      raise Exception('STEP 5 FAILED!') 
 
+
+
+
+
+
+
+
+# STEP 6: CALIBRATE THE DATA COMPLETELY:
+if 6 in mysteps:
+  if len(list(filter(lambda x: 'WRITE_CALIBRATED' not in x, glob.glob('*.FAILED'))))>0:
+    raise Exception('ANOTHER TASK FAILED PREVIOUSLY. WILL ABORT UNTIL YOU SOLVE IT!')      
+
+  SCRIPT_NAMES = []
+
+  IFF = open('SOURCES_%s.txt'%EXPNAME)
+  lines = IFF.readlines()
+  SCANS = []
+  REFANTS = []
+ 
+  IFF.close()
+ 
+  for li,line in enumerate(lines):
+    if line.startswith(EXPNAME):
+      TEMP = line.split()[0][:-1]
+      SCANS.append(TEMP.split('_')[1])
+
+  # SCANS = ['0002']
+
+  for SCAN in SCANS:
+
+    SCRIPT_NAME = 'STEP6_%s'%SCAN
+
+   # os.system('cp -r %s %s'%(os.path.join(DIFX_DIR,'%s_%s*'%(EXPNAME,SCAN)), PCONV_DIR))
+
+    keyw = {'EXPNAME':EXPNAME, 'SCAN':SCAN, 'ORIG_DIR':PCONV_DIR, 'DEST_DIR':FINAL_DIR,
+            'APPLY_PHASECAL':True, 'WRITE_DATA':True, 'FLAG_PCALS':FLAG_PCALS,
+            'REFSCAN':ADDITIVE_PHASE_SCANS, 'REFANT':REFANT,'FLAGBAS': EXCLUDE_BASELINE, 
+            'IF_OFFSET':IF_OFFSET, 'SAMP_DELAYS':SAMP_DELAYS, "APPLY_GFF":True, 
+            "CF_FILE":CF_FILENAME,"HOPS_NAMES":HOPSNAMES}
+    keys = open('keywords_%s.dat'%SCRIPT_NAME,'wb'); pk.dump(keyw, keys); keys.close()
+
+    OFF = open('%s.py'%SCRIPT_NAME,'w')
+    print(Start%SCRIPT_NAME,file=OFF)
+    print('PYF.removeTEC(**kww)',file=OFF)
+    OFF.close()
+    SCRIPT_NAMES.append(SCRIPT_NAME)
+
+
+  def DO_PARALLEL(filename):
+
+    print('GOING TO RUN %s'%filename)
+    os.system(PYTHON_CALL%filename) 
+
+  if NCPU>1:
+    pool = multiprocessing.Pool(processes=NCPU)
+    pool.map(DO_PARALLEL,SCRIPT_NAMES)
+    pool.close()
+    pool.join()
+  else:
+    for filename in SCRIPT_NAMES:
+      DO_PARALLEL(filename)
+
+  for filename in SCRIPT_NAMES:
+    os.system('rm -rf %s.py'%filename)
+
+
+  os.system('rm -rf keywords_STEP4_*.dat')
+
+  newlogs = glob.glob('*.log')
+  for log in newlogs:
+    if log not in currlogs:
+      os.system('mv %s LOGS/.'%log)      
+
+  if os.path.exists('WRITE_CALIBRATED.FAILED'):
+     raise Exception('STEP 6 FAILED!') 
 
 
 
