@@ -467,6 +467,7 @@ def getPCALS(
     FLAG_PCALS={},
     SAMP_DELAYS={},
     MAX_PCAL_RMS = 1.e3,
+    FLAG_BAD_IFS = True,
     saveResiduals=False
 ):
 
@@ -571,7 +572,9 @@ def getPCALS(
                     if ANAMES[ID] == REFANT:
                         REFID = int(ID)
                     pcalFile = glob.glob(os.path.join(SCAN, "PCAL_*_%s" % ANAMES[ID]))
-                    PCALS[ID] = [[0.0, 0.0, 0.0, False] for fri in NUs.keys()]
+                    PCALS[ID] = [[0.,0.,0., False] for fri in NUs.keys()]
+                   # for fri in NUs.keys():
+                   #     PCALS[ID][fri] = [0.0, 0.0, 0.0, False]
                     if len(pcalFile) > 0:
                         PcalResiduals[ANAMES[ID]] = {}
                         fName = XP.XPCalMF(pcalFile[0], [], 0, 1,{},1024)
@@ -682,7 +685,7 @@ def getPCALS(
                              ## Save it in the output list:  
                                 PASSED = StdPhase<MAX_PCAL_RMS
                                 PCALS[ID][spi] = [ToneDel, ResPhase, NuAv, PASSED]
-                                if not PASSED:
+                                if FLAG_BAD_IFS and not PASSED:
                                     print("IF %i (%.1f GHz) of antenna %s will be flagged based on tone quality (RMS = %.1f deg.)."%(spi,NuAv*1.e-9,ANAMES[ID], StdPhase))
 
                              ## Keep the residual tone phases:
@@ -952,7 +955,8 @@ def GET_FOURFIT_PHASES(
 
     ## Get Pcals and metadata:
     PCALS, CHANFREQ, ANAMES, BWs, NUs, REFID, SORTEDIF = getPCALS(
-        SCAN, REFANT, PCALDELAYS, FLAG_PCALS, SAMP_DELAYS, MAX_PCAL_RMS = MAX_PCAL_RMS, 
+        SCAN, REFANT, PCALDELAYS, FLAG_PCALS, SAMP_DELAYS, 
+        MAX_PCAL_RMS = MAX_PCAL_RMS, FLAG_BAD_IFS = False, 
         saveResiduals=True)
 
     ## Get DATA;
@@ -1045,6 +1049,7 @@ def GET_FOURFIT_PHASES(
         print("FFT visibilities for baseline %s-%s\n" % (ANAMES[bi[0]], ANAMES[bi[1]]))
         SCTIMES = DATA["JDT"][mask]
         SCDUR = np.max(SCTIMES) - np.min(SCTIMES)
+        OBSTIMES[bistr] = {}
         for si in ALLSPW:
             if IS_DATA[bistr][si]:
 
@@ -1076,10 +1081,10 @@ def GET_FOURFIT_PHASES(
                 FRA2 = np.abs(FR2)
                 Nt, Nch = np.shape(VIS)
                 ## We compute OBSTIMES for each baseline AND spectral window:
-                if si == 0:
-                    OBSTIMES[bistr] = [np.linspace(-SCDUR / 2.0, SCDUR / 2.0, Nt)]
-                else:
-                    OBSTIMES[bistr].append(np.linspace(-SCDUR / 2.0, SCDUR / 2.0, Nt))
+               # if si == 0:
+               #     OBSTIMES[bistr] = [np.linspace(-SCDUR / 2.0, SCDUR / 2.0, Nt)]
+               # else:
+                OBSTIMES[bistr][si] = np.linspace(-SCDUR / 2.0, SCDUR / 2.0, Nt)
 
                 Ntot = Nt * Nch
                 PEAK = np.unravel_index(np.argmax(FRA), np.shape(FR))
@@ -1305,6 +1310,7 @@ def GET_FOURFIT_PHASES(
         WEIGHTS_SPECTRUM[bistr] = []
         for si in ALLSPW:
             if IS_DATA[bistr][si]:
+              #  print(si,OBSTIMES.keys(),bistr,len(OBSTIMES))
                 mask2 = np.logical_and(mask, DATA["IF"] == int(si))
                 VIS = np.copy(
                     DATA["VIS"][mask2 * maskRR, :]
@@ -2009,8 +2015,8 @@ def removeTEC(
 
         ## Get Pcals and metadata:
         PCALS, CHANFREQ, ANAMES, BWs, NUs, REFID, SORTEDIF = getPCALS(
-            SCAN, REFANT, PCALDELAYS, FLAG_PCALS, SAMP_DELAYS
-        )
+            SCAN, REFANT, PCALDELAYS, FLAG_PCALS, SAMP_DELAYS,
+            FLAG_BAD_IFS = False)
 
         ## Get Instrumental (additive) phases:
         additivePhases = {}
@@ -2307,7 +2313,7 @@ def DO_GFF(
    #     additivePhase[refNames[ai]] = GlobalPhases[ai]
 
     ## Get DATA;
-    DATA, NCHAN = getDATA(SCAN)
+    DATA, NCHAN = getDATA(SCAN, IF_OFFSET = IF_OFFSET)
 
     # DETERMINE SET OF GOOD ANTENNAS, BASELINES AND IFs:
 
