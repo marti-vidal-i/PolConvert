@@ -48,7 +48,7 @@ PYTHON_CALL = 'python3 %s.py'
 ######################################
 
 # List of steps to be performed:
-mysteps = [6]
+mysteps = [1]
 
 
 
@@ -81,6 +81,17 @@ IF_OFFSET = 32  # (CASE OF YJ, WHERE I --->  I + 32)
 REFANT = 'OE'
 
 
+## CROSS-POLARIZATION DELAYS (AND FREQS. WHERE THE X-POL PHASE IS ZERO):
+XPOL_DELAYS = {'GS':[ 1.694e-9,  5.947e9],
+               'IS':[-5.295e-11, 10.36e9],
+               'K2':[ 1.293e-10, 6.937e9],
+               'MG':[-1.015e-9,  5.904e9],
+               'OE':[-1.033e-10, 9.542e9],
+               'OW':[ 2.355e-10, 6.760e9],
+               'WF':[ 1.459e-9,  6.172e9],
+               'YJ':[-2.508e-11, -3.799e9]}
+
+   
 ## Bad phasecals (value for EV9217):
 FLAG_PCALS = {'GS':[3090,3070,3075], 
               'OE':[6425,6430,5445], 
@@ -180,7 +191,7 @@ BAD_IF = {} #'YJ':range(25,33)}
 # SCANS TO USE FOR THE POL. CALIBRATION. IDEALLY, SHOULD BE SCANS 
 # COVERING A RANGE OF PARALLACTIC ANGLES, WITH GOOD SNRs 
 # ***AND*** WITH THE SAME ANTENNA CONFIGURATION!!!!
-POLCAL_SCAN = ["0251"]
+POLCAL_SCAN = ["0001","0002"]
 ##POLCAL_SCAN = ['0001','0002']   #'0002','1805','1834','1900'] #,'0003','0004','0005','0006','0007','0008','0009','0010'] # Little difference if we add more scans.
 SUFFIX = ''
 #####################
@@ -440,6 +451,7 @@ if 1 in mysteps:
             'USE_PCAL':USE_PCAL, 'INTTIME':INTTIME, 'EXCLUDE_BASELINES':EXCLUDE_BASELINE,
             'DOAMP':SOLVE_AMP,'DOIF':[CURRIF],'PLOTANT':REFANT, 'APPLY_AMP':APPLY_AMP, 
             'EXCLUDE_ANTENNA':BADANTS, 'SOLVER':SOLVER, 'APPLY_POLCAL':False, 
+            'XPOL_DELAYS':XPOL_DELAYS,
             'PCAL_SUFFIX':'_IF%i'%CURRIF, 'IF_OFFSET':IF_OFFSET, 'XYPCALMODE':XYPCALMODE}
 
     keys = open('keywords_%s.dat'%SCRIPT_NAME,'wb'); pk.dump(keyw, keys,protocol=0); keys.close()
@@ -508,10 +520,16 @@ if 1 in mysteps:
 
 
 #  input('HOLD')
-  
+
+  OFF = open('XPOL_DELAYS_%s.dat'%EXPNAME,'wb')
+  pk.dump(XPOL_DELAYS,OFF)
+  OFF.close()
+ 
+ 
   SCRIPT_NAME = 'STEP1B'
   XYG = 'POLCAL_GAINS_%s.dat'%(EXPNAME)
-  keyw = {'EXPNAME':EXPNAME, 'DIFX_DIR':CALDIR, 'XYGAINS':XYG, 'SUFFIX': SUFFIX, 'IF_OFFSET':IF_OFFSET, 
+  keyw = {'EXPNAME':EXPNAME, 'DIFX_DIR':CALDIR, 'XYGAINS':XYG, 'SUFFIX': SUFFIX, 'IF_OFFSET':IF_OFFSET,
+          'XPOL_DELAYS':XPOL_DELAYS, 
           'USE_PCAL':USE_PCAL, 'DOPLOT':True, 'SCAN_LIST':POLCAL_SCAN, 'REFANT':REFANT, 'XYPCALMODE':XYPCALMODE}
   keys = open('keywords_%s.dat'%SCRIPT_NAME,'wb'); pk.dump(keyw, keys); keys.close()
   OFF = open('%s.py'%SCRIPT_NAME,'w')
@@ -607,18 +625,23 @@ if 1 in mysteps:
       IFF = open(iffile)
       lines = IFF.readlines()
       IFF.close()
-      REFANT = lines[0].split()[-1]
-      currIF = float(lines[1].split()[2].replace('#','').replace('.',''))
-      if currIF not in ifRead:
-        ifRead.append(currIF)
-        PEAK = float(lines[1].split()[-2])
-        RR = float(lines[2].split()[1])*PEAK
-        LL = float(lines[3].split()[1])*PEAK
-        RL = float(lines[4].split()[1])*PEAK
-        LR = float(lines[5].split()[1])*PEAK
-        MAX = np.max([MAX,RR,LL,RL,LR])
-        toplot.append([currIF,RR,LL,RL,LR])
+      try:
+        REFANT = lines[0].split()[-1]
+        currIF = float(lines[1].split()[2].replace('#','').replace('.',''))
+
+        if currIF not in ifRead:
+          ifRead.append(currIF)
+          PEAK = float(lines[1].split()[-2])
+          RR = float(lines[2].split()[1])*PEAK
+          LL = float(lines[3].split()[1])*PEAK
+          RL = float(lines[4].split()[1])*PEAK
+          LR = float(lines[5].split()[1])*PEAK
+          MAX = np.max([MAX,RR,LL,RL,LR])
+          toplot.append([currIF,RR,LL,RL,LR])
+      except:
+        toplot.append([0.,0.,0.,0.,0.])
     toplot = np.array(toplot)
+    if MAX==0.0: MAX = 1.0
     if len(toplot)>0:
       MAXIF = np.max(toplot[:,0])
       sub.plot(toplot[:,0],toplot[:,1]/MAX,'or')
@@ -762,6 +785,7 @@ if 2 in mysteps:
 
     keyw = {'EXPNAME':EXPNAME, 'ORIG_DIR':DIFX_DIR, 'DIFX_DIR':PCONV_DIR, 'XYGAINS':XYG, 
             'SUFFIX': SUFFIX, 'USE_PCAL':USE_PCAL,'SCAN_LIST':[SCAN],'ZERO_PCALS':ZERO_PCALS, 
+            'XPOL_DELAYS':XPOL_DELAYS,
             'IF_OFFSET':int(IF_OFFSET), 'AC_WINDOW':int(PCAL_MED_WINDOW), 'XYPCALMODE':XYPCALMODE}
     keys = open('keywords_%s.dat'%SCRIPT_NAME,'wb'); pk.dump(keyw, keys); keys.close()
 
@@ -866,7 +890,7 @@ if 3 in mysteps:
     IFF = open('PyResults_%i.dat'%i,'rb')
     ResTemp = pk.load(IFF)
     IFF.close()
-    for obgain in ['DEL','PHAS','DEL_OFF']:
+    for obgain in ['DEL','PHAS','DEL_OFF','SBD']:
       for ant in ResTemp[obgain].keys():
         if ant not in Results[obgain].keys():
           Results[obgain][ant] = str(ResTemp[obgain][ant])
@@ -879,6 +903,11 @@ if 3 in mysteps:
     print('\n\n  *** SAMPLER DELAYS ***\n\n',file=OFF)
     for ant in Results['DEL'].keys():
       print(Results['DEL'][ant],file=OFF)
+
+  if len(Results['SBD'].keys())>0:
+    print('\n\n  *** AD-HOC SBDs ***\n\n',file=OFF)
+    for ant in Results['SBD'].keys():
+      print(Results['SBD'][ant],file=OFF)
 
 
   if len(Results['DEL_OFF'].keys())>0:
@@ -924,7 +953,7 @@ if 4 in mysteps:
       TEMP = line.split()[0][:-1]
       SCANS.append(TEMP.split('_')[1])
 
- # SCANS = ['120']
+#  SCANS = ['0001','0002']
 
   for SCAN in SCANS:
 
@@ -935,7 +964,7 @@ if 4 in mysteps:
     keyw = {'EXPNAME':EXPNAME, 'SCAN':SCAN, 'ORIG_DIR':PCONV_DIR, 'DEST_DIR':BPCAL_DIR,
             'APPLY_PHASECAL':APPLY_PHASECAL, 'WRITE_DATA':True, 'FLAG_PCALS':FLAG_PCALS,
             'REFSCAN':ADDITIVE_PHASE_SCANS, 'REFANT':REFANT,'FLAGBAS': EXCLUDE_BASELINE, 'IF_OFFSET':IF_OFFSET,
-            'SAMP_DELAYS':SAMP_DELAYS}
+            'SAMP_DELAYS':SAMP_DELAYS, 'HOPS_NAMES':HOPSNAMES}
     keys = open('keywords_%s.dat'%SCRIPT_NAME,'wb'); pk.dump(keyw, keys); keys.close()
 
     OFF = open('%s.py'%SCRIPT_NAME,'w')
@@ -1000,7 +1029,7 @@ if 5 in mysteps:
       SCANS.append(TEMP.split('_')[1])
 
 ## TODO: THIS LINE IS JUST FOR TESTING:
- # SCANS = ['0002', "0003"]
+#  SCANS = ['0002']
 
   for SCAN in sorted(SCANS):
 
@@ -1116,7 +1145,7 @@ if 6 in mysteps:
     os.system('rm -rf %s.py'%filename)
 
 
-  os.system('rm -rf keywords_STEP4_*.dat')
+  os.system('rm -rf keywords_STEP6_*.dat')
 
   newlogs = glob.glob('*.log')
   for log in newlogs:

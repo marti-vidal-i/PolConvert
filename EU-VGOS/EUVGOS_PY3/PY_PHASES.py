@@ -1418,11 +1418,13 @@ def GET_FOURFIT_PHASES(
 
     GlobalPhases = [{}, {}]
     GlobalBandpass = [{}, {}]
+    GlobalSBD = [{}, {}]
+
     for ai in ALLANTS:
         for pol in [0, 1]:
             GlobalPhases[pol][ai] = np.zeros(len(ALLSPW))
             GlobalBandpass[pol][ai] = np.zeros((len(ALLSPW), Nch))
-
+            GlobalSBD[pol][ai] = np.zeros(len(ALLSPW))
     for pol in [0, 1]:
         for spi in ALLSPW:
             pini = [0.0 for i in range(len(ALLANTS) - 1)]
@@ -1455,14 +1457,18 @@ def GET_FOURFIT_PHASES(
 
                 ## TODO: Understand why this line worsens the fringe symmetry:
                 ## Add the median of the antenna's SBD, referred to 6GHz:
+                medianDelay = np.median(GAINS[ai][0])
+                GlobalSBD[pol][ai][spi] = (GAINS[ai][0][spi]-medianDelay)*1.e9
                 GlobalPhases[pol][ai][spi] += (
-                    360.0 * np.median(GAINS[ai][0]) * (NUs[spi] - 6.0e9))
+                    360.0 * medianDelay * (NUs[spi] - 6.0e9))
                 if pol == 0 and spi == ALLSPW[0]:
                     print(
                         "Median SBD for %s: %.4ens"
                         % (ANAMES[ai], np.median(GAINS[ai][0]) * 1.0e9)
                     )
                     print(GAINS[ai][0])
+
+                
 
             ## NOW, ESTIMATE THE BANDPASS:
             # for spi in ALLSPW:
@@ -1482,6 +1488,7 @@ def GET_FOURFIT_PHASES(
 
     writePhases = {}
     writeBandpass = {}
+    writeSBD = {}
     for ai in GlobalPhases[0].keys():
         writePhases[ai] = (
             180.0
@@ -1499,6 +1506,7 @@ def GET_FOURFIT_PHASES(
                 + np.exp(1.0j * (np.pi / 180.0 * (GlobalBandpass[1][ai])))
             )
         )
+        writeSBD[ai] = (GlobalSBD[0][ai]+GlobalSBD[1][ai])*0.5
 
     figB = pl.figure(figsize=(15, 5))
     subB = figB.add_subplot(111)
@@ -1537,7 +1545,7 @@ def GET_FOURFIT_PHASES(
 
     ## Write additive phases into external file:
     PHSOFF = open(os.path.basename(SCAN)[:-5] + "_AD-HOC_PHASES.dat", "wb")
-    pk.dump([writePhases, writeBandpass, ANAMES], PHSOFF)
+    pk.dump([writePhases, writeBandpass, writeSBD, ANAMES], PHSOFF)
     PHSOFF.close()
 
     ### END OF CODE FOR GLOBAL (PER-IF) FRINGE FITTING
@@ -1580,7 +1588,7 @@ def GET_FOURFIT_PHASES(
     IFF = open("cf_PyPhases", "a")
 
     ## Dictionary to save the calibration results:
-    ResultPyPhas = {"DEL": {}, "PHAS": {}, "DEL_OFF": {}}
+    ResultPyPhas = {"DEL": {}, "PHAS": {}, "DEL_OFF": {}, "SBD": {}}
 
     print(
         "\n\n  *** ADDITIVE PHASES ESTIMATED WITH PyPhases. VERSION %s ***\n\n"
@@ -1598,10 +1606,16 @@ def GET_FOURFIT_PHASES(
         msg += "  sampler_delay_l  %.2f  %.2f  %.2f  %.2f\n" % tuple(SAMP_DELAYS[ant])
         print(msg, file=IFF)
         ResultPyPhas["DEL"][ant] = str(msg)
-    #    print('\n **** For station %s:'%ant,file=IFF)
-    #    print('\n if station %s'%HOPSNAMES[ant],file=IFF)
-    #    print('  sampler_delay_r  %.2f  %.2f  %.2f  %.2f'%tuple(SAMP_DELAYS[ant]),file=IFF)
-    #    print('  sampler_delay_l  %.2f  %.2f  %.2f  %.2f'%tuple(SAMP_DELAYS[ant]),file=IFF)
+
+    for ant in writeSBD.keys():
+        msg = "\n* The following line is for PyPhases (global ad-hoc SBDs). PLEASE DO NOT EDIT: \n"
+        msg += "*pc_SBD  %s  "%ANAMES[ant]
+        SortedSBD = writeSBD[ant][SORTEDIF]
+        msg += ("%.3f " * len(ALLSPW)) % tuple(SortedSBD)
+        msg += "\n"
+        print(msg, file=IFF)
+        ResultPyPhas["SBD"][ANAMES[ant]] = str(msg)
+
 
     ## Add estimated instrumental delay for IFs with no valid pcals:
     for ant in PCALDELAYS.keys():
@@ -1737,7 +1751,7 @@ def GET_FOURFIT_PHASES(
 ####################
 
 
-def writeSWIN(SCAN="", OUTDIR="", GFF=False, bandPass=[], FOR_TEC=[], PHASECALS=0, AD_HOC = {}, IF_OFFSET=2048):
+def writeSWIN(SCAN="", OUTDIR="", GFF=False, bandPass={}, FOR_TEC=[], PHASECALS=0, AD_HOC = {}, IF_OFFSET=2048):
 
 
     CHORIZO = -40.28 * 1.0e16 / 2.99458792e8
@@ -1848,6 +1862,7 @@ def writeSWIN(SCAN="", OUTDIR="", GFF=False, bandPass=[], FOR_TEC=[], PHASECALS=
     #  sub = fig.add_subplot(111)
     #  toplot = [np.zeros(128,dtype=np.complex64) for i in range(32)]
 
+
     while True:
         if i % 1024 == 0:
             sys.stdout.write("\r Reading/Writing VIS %i" % i)
@@ -1886,9 +1901,15 @@ def writeSWIN(SCAN="", OUTDIR="", GFF=False, bandPass=[], FOR_TEC=[], PHASECALS=
         else:
             i += 1
             if ANAMES[A1] not in bandPass.keys():
+                print('ZEROing bandpass for %s'%ANAMES[A1])
                 bandPass[ANAMES[A1]] = [np.zeros(NCHAN) for m in range(IF_OFFSET)]
             if ANAMES[A2] not in bandPass.keys():
+                print('ZEROing bandpass for %s'%ANAMES[A2])
                 bandPass[ANAMES[A2]] = [np.zeros(NCHAN) for m in range(IF_OFFSET)]
+
+         #   CH0 = (bandPass[ANAMES[A1]][SPI][0] - bandPass[ANAMES[A2]][SPI][0])
+         #   CH1 = (bandPass[ANAMES[A1]][SPI][-1] - bandPass[ANAMES[A2]][SPI][-1])
+         #   print('BP CORR: ',ANAMES[A1], ANAMES[A2], SPI, CH0, CH1-CH0)
 
             for chi in range(NCHAN):
                 alldats = frfile1.read(8)
@@ -1989,7 +2010,7 @@ def removeTEC(
     PCALDELAYS={},
     CF_FILE = "cf_PyPhases",
     HOPS_NAMES = {},
-    APPLY_BANDPASS=True,
+    APPLY_BANDPASS=False,
     PADDING_FACTOR=32,
     SAMP_DELAYS={},
     IF_OFFSET=2048,
@@ -2021,12 +2042,13 @@ def removeTEC(
         ## Get Instrumental (additive) phases:
         additivePhases = {}
         GlobalBandpass = {}
+        additiveDelays = {}
         refNames = {}
 
 ## Bandpass from binary file:
         for REFS in REFSCANS:
             PHSIN = open(os.path.basename(REFS)[:-5] + "_AD-HOC_PHASES.dat", "rb")
-            GlobalPhases2, GlobalBandpass2, refNames2 = pk.load(PHSIN)
+            GlobalPhases2, GlobalBandpass2, GlobalDelays2, refNames2 = pk.load(PHSIN)
             for key in refNames2.keys():
                 if refNames2[key] in ANAMES.values():
                     ikey = [i for i in ANAMES.keys() if ANAMES[i] == refNames2[key]][0]
@@ -2057,9 +2079,24 @@ def removeTEC(
                     raise Exception("\n  Antenna %s does not have SWIN code!\n"%Station)
                 PCPhases = [float(k) for k in line.replace("\n","").split()[2:]]
                 additivePhases[TrueName] = np.array(PCPhases)[UNSORTEDIF]
+            if "*pc_SBD" in line:
+                temp = line.replace("\n","").split()
+                TrueName = temp[1]
+              #  TrueName = ""
+              #  for key in HOPS_NAMES.keys():
+              #      if HOPS_NAMES[key]==Station:
+              #          TrueName = key
+              #          break
+              #  if len(TrueName)==0:
+              #      raise Exception("\n  Antenna %s does not have SWIN code!\n"%Station)
+                SBdelays = np.array(list(map(float,temp[2:])))[UNSORTEDIF]
+                additiveDelays[TrueName] = SBdelays*1.e-9
         infi.close()
 
-
+        for key in additivePhases.keys():
+            if key not in additiveDelays.keys():
+                print("There are no SBDs for antenna %s"%key)
+                additiveDelays[key] = np.zeros(len(additivePhases[key]))
 
 
         ## Check if there are antennas with no found corrections:
@@ -2073,23 +2110,24 @@ def removeTEC(
 
 
 
-        ## Zero the bandpass if we are not applying it:
+### TODO: Add the single band delays IF the full bandpass was not computed:
         if not APPLY_BANDPASS:
             for key in GlobalBandpass.keys():
                 for spi in range(len(GlobalBandpass[key])):
-                    GlobalBandpass[key][spi][:] = 0.0
+                    AvgFreq = np.average(CHANFREQ[spi])
+                    GlobalBandpass[key][spi][:] = -360.*additiveDelays[refNames[key]][spi]*(CHANFREQ[spi]-AvgFreq)
+                  #  print(refNames[key],spi,GlobalBandpass[key][spi][0]-GlobalBandpass[key][spi][-1],additiveDelays[refNames[key]][spi])
 
         ## Re-define possible changes in antenna indices:
         bandPass = {}
-        additivePhase = {}
+     #   additivePhase = {}
         for ai in refNames.keys():
             bandPass[refNames[ai]] = GlobalBandpass[ai]
-            for si in range(len(bandPass[refNames[ai]])):
-                if np.max(np.abs(bandPass[refNames[ai]][si])) > 135.0:
-                    bandPass[refNames[ai]][
-                        si
-                    ] == 0.0  # Do not apply too large BP solutions.
-          #  additivePhase[refNames[ai]] = GlobalPhases[ai]
+          #  for si in range(len(bandPass[refNames[ai]])):
+          #      if np.max(np.abs(bandPass[refNames[ai]][si])) > 135.0:
+          #          bandPass[refNames[ai]][
+          #              si
+          #          ] == 0.0  # Do not apply too large BP solutions.
 
 
         if WRITE_DATA:
@@ -2272,6 +2310,7 @@ def DO_GFF(
     infi = open(CF_FILE,"r")
     lines = infi.readlines()
     additivePhase = {}
+    additiveDelay = {}
     for li,line in enumerate(lines):
         if "pc_phases" in line:
             Station = lines[li-1].replace("\n","").split()[-1]
@@ -2284,6 +2323,18 @@ def DO_GFF(
                 raise Exception("\n  Antenna %s does not have SWIN code!\n"%Station)
             PCPhases = [float(k) for k in line.replace("\n","").split()[2:]]
             additivePhase[TrueName] = np.array(PCPhases)[UNSORTEDIF]
+       # if "*pc_SBD" in line:
+       #     temp = line.replace("\n","").split()
+       #     Station = temp[1]
+       #     for key in HOPS_NAMES.keys():
+       #         if HOPS_NAMES[key]==Station:
+       #             TrueName = key
+       #             break
+       #     if len(TrueName)==0:
+       #         raise Exception("\n  Antenna %s does not have SWIN code!\n"%Station)
+       #     SBdelay = np.array(list(map(float,temp[2:])))[UNSORTEDIF]
+       #     additiveDelay[TrueName] = SBdelay*1.e-9
+
     infi.close()
 
 
@@ -2414,6 +2465,7 @@ def DO_GFF(
                         )
                     )
                 )
+### TODO: Add the correction from the SBD!!
                 Nt, Nch = np.shape(toFringe)
                 SCANTIMES[bistr][spi] = np.copy(DATA["JDT"][mask2] - SCAV)
                 PEAK = np.unravel_index(np.argmax(np.abs(toFringe)), (Nt, Nch))
@@ -2509,6 +2561,7 @@ def DO_GFF(
                         * SCANTIMES[bistr][spi][:, np.newaxis]
                     )
                 )
+### TODO: Add the effect of the SBD.
                 avg_vis[bistr].append([np.average(DATA["VIS"][mask2, :], axis=0), 1.0])
                 del mask2
                 gc.collect()
