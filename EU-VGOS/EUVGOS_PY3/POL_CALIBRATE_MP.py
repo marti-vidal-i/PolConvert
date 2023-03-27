@@ -57,6 +57,7 @@ def POL_CALIBRATE(
     DOIF=[],
     DOAMP=True,
     PLOTANT=1,
+    XPOL_DELAYS={},
     APPLY_AMP=True,
     APPLY_POLCAL=True,
     SOLVER="COBYLA",
@@ -73,8 +74,8 @@ def POL_CALIBRATE(
     that can ge used by PolConvert."""
     #################################
 
-    # try:
-    if True:
+    try:
+    #if True:
 
         EXP = EXPNAME
 
@@ -125,6 +126,7 @@ def POL_CALIBRATE(
             DiFXcalc="%s_%s.calc" % (os.path.join(DIFX, EXP), DOSCAN[0]),
             doIF=DOIF,
             plotIF=[],
+            XYdel=XPOL_DELAYS,
             plotSuffix="_IF%i" % (DOIF[0]),
             IFoffset=IF_OFFSET,
             plotRange=[0, 0, 0, 0, 2, 0, 0, 0],
@@ -137,7 +139,6 @@ def POL_CALIBRATE(
             usePcal=USE_PCAL,
             XYadd={},
             XYratio={},
-            XYdel={},
             pcalSuffix=PCAL_SUFFIX,
             # Gain-solver configuration:
             solveAmp=DOAMP,
@@ -186,7 +187,7 @@ def POL_CALIBRATE(
         WITH_PCAL["PARAMETERS"]["XYPCALMODE"] = XYPCALMODE
         WITH_PCAL["PARAMETERS"]["UVTAPER"] = UVTAPER
         WITH_PCAL["PARAMETERS"]["USE_RATES"] = USE_RATES
-
+        WITH_PCAL["PARAMETERS"]["XPOL_DELAYS"] = XPOL_DELAYS
 
         OFF = open("POLCAL_OUTPUT_SCAN-%s_IF-%i.dat" % (DOSCAN[0], DOIF[0]), "wb")
         pk.dump(WITH_PCAL, OFF, protocol=0)
@@ -204,6 +205,7 @@ def POL_CALIBRATE(
                 DiFXinput="%s_%s.input" % (os.path.join(DIFX, EXP), DOSCAN[0]),
                 DiFXcalc="%s_%s.calc" % (os.path.join(DIFX, EXP), DOSCAN[0]),
                 XYpcalMode=XYPCALMODE,
+                XYdel=XPOL_DELAYS,
                 doIF=DOIF,
                 plotIF=DOIF,
                 plotSuffix="_IF%i" % (DOIF[0]),
@@ -216,7 +218,6 @@ def POL_CALIBRATE(
                 usePcal=USE_PCAL,
                 XYadd=WITH_PCAL["XYadd"],
                 XYratio=WITH_PCAL["XYratio"],
-                XYdel={},
                 UVTaper=UVTAPER,
                 # Gain-solver configuration:
                 doSolve=-1,
@@ -231,8 +232,8 @@ def POL_CALIBRATE(
             if os.path.exists("POL_CALIBRATE.FAILED"):
                 os.system("rm -rf POL_CALIBRATE.FAILED")
 
-    # except:
-    else:
+    except:
+    #else:
 
         e = sys.exc_info()[0]
         OFF = open("POL_CALIBRATE.FAILED", "w")

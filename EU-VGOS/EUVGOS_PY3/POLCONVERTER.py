@@ -48,6 +48,7 @@ def POLCONVERTER(
     ORIG_DIR="",
     DIFX_DIR="",
     SUFFIX="_PC",
+    XPOL_DELAYS={},
     SCAN_LIST=[],
     USE_PCAL=True,
     DOPLOT=False,
@@ -155,6 +156,10 @@ def POLCONVERTER(
             command += (
                 "IFF = open('%s','rb') ; XYG = pk.load(IFF); IFF.close()\n\n" % XYGAINS
             )
+            if len(XPOL_DELAYS.keys())>0:
+                command += "IFF = open('XPOL_DELAYS_%s.dat','rb') ; XYD = pk.load(IFF) ; IFF.close()\n\n"%EXPNAME
+            else:
+                command += 'XYD = {}\n\n'
 
             USE_PCAL_STR = []
             for ANT in USE_PCAL.keys():
@@ -163,6 +168,7 @@ def POLCONVERTER(
             command += "MY_PCONV = PC.polconvert(IDI='%s',\n" % DIFX
             command += "  OUTPUTIDI = '%s',\n" % OUTPUT
             command += "  DiFXinput = '%s',\n" % INP
+            command += "  XYdel = XYD,\n"
             command += "  DiFXcalc = '%s',\n" % CAL
             command += "  XYpcalMode = '%s',\n" % XYPCALMODE
             command += "  IFoffset = %i,\n" % IF_OFFSET
