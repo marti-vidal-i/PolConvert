@@ -1,0 +1,44 @@
+Changes to be committed:
+        new file:   .github/workflows/python-app.yml
+        deleted:    EU-VGOS/EUVGOS_CASA/POL_CALIBRATE.py
+        deleted:    EU-VGOS/EUVGOS_CASA/SOURCE_SCANNER.py
+        deleted:    EU-VGOS/EUVGOS_CASA/__init__.py
+        deleted:    EU-VGOS/EUVGOS_CASA/master_script_EU-VGOS.py
+        modified:   EU-VGOS/EUVGOS_PY3/POLCONVERTER.py
+        modified:   EU-VGOS/EUVGOS_PY3/POL_CALIBRATE.py
+        modified:   EU-VGOS/EUVGOS_PY3/POL_CALIBRATE_MP.py
+        modified:   EU-VGOS/EUVGOS_PY3/PY_PHASES.py
+        deleted:    EU-VGOS/EUVGOS_PY3/PY_PHASES_Gradient.py
+        deleted:    EU-VGOS/EUVGOS_PY3/PY_PHASES_Quinn-for-Taum.py
+        deleted:    EU-VGOS/EUVGOS_PY3/PY_PHASES_TEST.py
+        modified:   EU-VGOS/EUVGOS_PY3/SOURCE_SCANNER.py
+        new file:   EU-VGOS/EUVGOS_PY3/SOURCE_SCANNER_MP.py
+        new file:   EU-VGOS/EUVGOS_PY3/SWIN_CONCAT.py
+        modified:   EU-VGOS/EUVGOS_PY3/cf_TEMPLATE
+        deleted:    EU-VGOS/PY_PHASES_TEST.py
+        deleted:    EU-VGOS/TEC_ARCHIVE_2019_217
+        deleted:    EU-VGOS/master_script_python3.py
+        modified:   EU-VGOS/master_script_python3_MP.py
+        deleted:    EU-VGOS/EUVGOS_CASA/POLCONVERTER.py
+        new file:   EVN/README.md
+        new file:   EVN/__init__.py
+        new file:   EVN/find_idi_with_time.py
+        new file:   EVN/polconvert_evn.py
+        new file:   EVN/polconvert_inputs.toml
+
+        new file:   GMVA/polconvert_gmva_antenna.py
+        modified:   PP/singlepolsolve.py
+        modified:   TOP/task_polconvert.py
+        modified:   _PolConvert.cpp
+        modified:   _PolGainSolve.cpp
+        modified:   _XPCal.cpp
+        modified:   _XPCalMF.cpp
+        modified:   polconvert_standalone.py
+        modified:   DataIO.h
+        modified:   DataIOFITS.cpp
+        modified:   DataIOFITS.h
+        modified:   DataIOSWIN.cpp
+
+Unmerged paths:
+  (use "git add <file>..." to mark resolution)
+        both modified:   Changelog
