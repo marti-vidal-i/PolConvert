@@ -1,5 +1,5 @@
 # SOURCE_SCANNER: SIMPLE CHECK OF SNR FROM A SET OF SWIN FILES.
-#             Copyright (C) 2021  Ivan Marti-Vidal
+#             Copyright (C) 2022  Ivan Marti-Vidal
 #             University of Valencia (Spain)  
 #
 #This program is free software: you can redistribute it and/or modify

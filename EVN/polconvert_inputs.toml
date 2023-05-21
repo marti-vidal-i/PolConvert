@@ -1,0 +1,77 @@
+# This is the input file to run PolConvert on a given EVN data set.
+
+
+[inputs]
+# All these parameters need to be properly configured for each experiment.
+
+
+# FITS IDI file containing the fringe-finder scan used to compute the pol conversion.
+# It can contain wildcards if you do not know which exact FITS-IDI contains the specified time range
+# Then it will search for the given time.
+ref_idi = 'expname_1_1.IDI*'
+
+# Either a list with all FITS-IDI files to be converted, or a string with wildcards covering all of them.
+idi_files = 'expname_1_1.IDI*'
+
+# List all antennas that observed linear polarizations and need to be converted
+linants = ['T6']
+
+# Reference antenna ( will basically be used only for plotting and the first fringe fit).
+refant = 'EF'
+
+# Antennas to exclude during computation (e.g. the ones that did not observe the full bandwidth to correct)
+exclude_ants = ['IR', 'CM', 'DE']
+
+# Baselines to exclude during computation (e.g. almost zero-length baselines should be included here, like when
+# both Jb1 & Jb2 observed, or the two Onsala dishes, etc.)
+# It should be a list in which element is a 2-element list, with the names of the two antennas forming the baselines
+# e.g. exclude_baselines = [['O8', 'O6']]
+exclude_baselines = []
+
+
+[options]
+# Optional parameters that can be tunned, but in general should be fine.
+
+# Specify if only some IFs should be corrected for (e,g, [4, 5]). Otherwise it will compute it for all IFs.
+# The number is the natural IF number. i.e. 1 refers to the first IF.
+do_if = []
+
+# Time range (in AIPS format) to be used to compute the conversion.
+# If the files only contain calibrator data, then it can be left as it is to cover all range.
+# It always needs to be set as it is used to make the plots
+time_range = [0, 0, 0, 0, 2, 0, 0, 0]
+
+# Channel averaging for bandpass solution.
+# Leave it as 1 unless too many channels (e.g. in spectral line experiments)
+chanavg = 1
+
+# Time averaging for bandpass solution, in seconds.
+# A value of around 20 s should be enough for most EVN calibrators/antennas
+timeavg = 20
+
+# How much the circular antennas weight in the calculation over the linear ones.
+# For high S/N, several scans, and with mostly linear antennas: 0.0 should be fine.
+# If not optimal solutions obtained, use small values (e.g. 0.001 or 0.01) which could improve solutions.
+solve_weight = 0.0
+
+# NOTE THAT IN THIS FILE (TOML FORMAT)  TRUE or FALSE are in lower cases
+
+# Also solves for the amplitudes during the conversion.
+solve_amp = true
+
+# Wherever PolConvert will compute the solutions that are required by reading the ref_idi file(s).
+# It will store the required conversion and create the plots on how the converted data would end up.
+to_compute = true
+
+# Wherever PolConvert will apply the conversion into the FITS-IDI files (all listed idi_files).
+to_apply = true
+
+
+[config]
+
+# suffix to add to all converted files
+# If is an empty string, it will overwrite the original files (not recommended)
+suffix = '.PCONVERT'
+
+# Folder that will be created to keep the .log and all output files
+logdir = 'polconvert_logs'

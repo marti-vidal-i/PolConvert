@@ -1,5 +1,5 @@
 /*
-# Copyright (c) Ivan Marti-Vidal 2015-2022.
+# Copyright (c) Ivan Marti-Vidal 2015-2022. 
 #               EU ALMA Regional Center. Nordic node (Sweden).
 #               University of Valencia (Spain)
 #
@@ -157,7 +157,7 @@ static struct PyModuleDef pc_module_def = {
 
 PyMODINIT_FUNC PyInit__PolConvert(void)
 {
-    PCMode = true;          /* ALMA mode by default */
+    PCMode = true;
     PyObject *m = PyModule_Create(&pc_module_def);
     return(m);
 }
@@ -168,7 +168,7 @@ PyMODINIT_FUNC PyInit__PolConvert(void)
 
 PyMODINIT_FUNC init_PolConvert(void)
 {
-    PCMode = true;          /* ALMA mode by default */
+    PCMode = true;
     PyObject *m = Py_InitModule3("_PolConvert", module_methods, module_docstring);
     if (m == NULL)
         return;
@@ -194,7 +194,7 @@ static PyObject *setPCMode(PyObject *self, PyObject *args){
     printf("PolConvert interface will change to non-ALMA.\n");
     fflush(stdout);
   } else {
-    /* PCMode=true */
+/* PCMode=true */
     printf("PolConvert interface remains in ALMA mode.\n");
     fflush(stdout);
   };
@@ -222,12 +222,12 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
   int ii, ij, ik, il, im;
   int IFoffset;
 
-  // initialization warnings...
-  PyObject *ngain = nullptr, *nsum = nullptr, *gains = nullptr;
+  // initialization warnings:
+  PyObject *ngain = nullptr, *nsum = nullptr, *gains = nullptr; 
   PyObject *ikind = nullptr, *dterms = nullptr, *plotRange;
   PyObject *IDI, *antnum, *tempPy, *ret; 
   PyObject *allphants = nullptr, *nphtimes = nullptr;
-  PyObject *phanttimes, *Range, *SWAP;
+  PyObject *phanttimes, *Range, *SWAP; 
   PyObject *doIF, *metadata, *refAnts = nullptr, *ACorrPy, *logNameObj;
   PyObject *asdmTimes, *plIF, *isLinearObj, *XYaddObj, *ALMAstuff; 
   PyObject *antcoordObj, *soucoordObj, *antmountObj, *timeranges; 
@@ -418,6 +418,7 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
   Geometry->NtotAnt = (int) PyArray_DIM(antcoordObj,0);
 
   int Nbas = Geometry->NtotAnt*(Geometry->NtotAnt-1)/2;
+
   sprintf(message,"Array sizes: Nbas = %i NtotAnt = %i NtotSou = %i\n",
     Nbas, Geometry->NtotAnt, Geometry->NtotSou);
   fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
@@ -488,9 +489,6 @@ static PyObject *PolConvert(PyObject *self, PyObject *args)
 
 ///////////
 // Useful to determine which ALMA antennas are phased up at each time:
-
-  sprintf(message,"Array sizes: nPhase = %i nALMA = %i\n", nPhase, nALMA);
-  fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
 
   ASDMant = new int[nPhase];
   ASDMtimes = new double*[nPhase];
@@ -660,7 +658,7 @@ if(PCMode){
        alldterms[i] = new CalTable(2,dtermsArrR1[i],dtermsArrI1[i],
            dtermsArrR2[i],dtermsArrI2[i],dtfreqsArr[i],dttimesArr[i],
            nsumArr[i],ndttimeArr[i], nchanDt[i],dtflag[i],true,logFile,
-           false); // verbose);
+	   false); // verbose);
 
        for (j=0; j<ngainTabs[i];j++){
 /*
@@ -680,7 +678,7 @@ if(PCMode){
            gainsArrI1[i][j],gainsArrR2[i][j],gainsArrI2[i][j],freqsArr[i][j],
            timesArr[i][j],nsumArr[i],ntimeArr[i][j], nchanArr[i][j],
            gainflag[i][j],isLinear[i][j],logFile,
-           false); // verbose);
+	   false); // verbose);
        };
 
      // NON-ALMA CASE: DUMMY GAINS.
@@ -742,7 +740,7 @@ if(PCMode){
     sprintf(message,"\n\n Opening FITS-IDI file and reading header.\n");
     fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
     DifXData = new DataIOFITS(outputfits, nALMA, almanums, 
-          doRange, OverWrite, doConj, iDoSolve, calField, Geometry, doParang, logFile);
+          doRange, nIFconv, IFs2Conv, OverWrite, doConj, iDoSolve, calField, Geometry, doParang, logFile);
   };
 
   if(!DifXData->succeed()){
@@ -884,35 +882,55 @@ if(PCMode){
 
 
 
-  FILE *plotFile[nIFplot];
+  FILE **plotFile = new FILE*[nIFplot+nIFconv]();
   FILE *gainsFile = (FILE*)0;
 
 // Prepare plotting or solving files:
 //  In the ALMA case, IFs2Plot holds the subset of IFs to plot;
 //  in the non-ALMA case, we need to create all of them for solving.
   int noI = -1;
-  if (PCMode) {
-   for (ii=0; ii<nIFplot; ii++) {    // ALMA plot case
-    sprintf(message,"POLCONVERT.FRINGE/POLCONVERT.FRINGE_IF%i",IFs2Plot[ii]+1);
-    printf("Writing %s\n", message);
-    plotFile[ii] = fopen(message,"wb");
-    if (IFs2Plot[ii]>=0 && IFs2Plot[ii]<nnu){
-       fwrite(&nchans[IFs2Plot[ii]],sizeof(int),1,plotFile[ii]);
+
+// Only generate these files if the plotting time range is within the
+// conversion time range:
+  if(plRange[0]!= plRange[1] && plRange[0]<=doRange[1] 
+     && plRange[1]>=doRange[0]){
+
+// We have added a new boolean to the header (which states whether the
+// parallactic angle correction has been applied).
+    if (PCMode) {
+      for (ii=0; ii<nIFplot; ii++) {    // ALMA plot case
+        sprintf(message,"POLCONVERT.FRINGE/POLCONVERT.FRINGE_IF%i",IFs2Plot[ii]+1);
+        printf("Writing %s\n", message);
+        plotFile[ii] = fopen(message,"wb");
+        if (!plotFile[ii]) {
+          sprintf(message,"Could not create PCMode plot file POLCONVERT.FRINGE/POLCONVERT.FRINGE_IF%i, errno %d\n", IFs2Plot[ii]+1, errno);
+          fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
+        };
+        if (IFs2Plot[ii]>=0 && IFs2Plot[ii]<nnu){
+          fwrite(&nchans[IFs2Plot[ii]],sizeof(int),1,plotFile[ii]);
+        } else {
+          fwrite(&noI,sizeof(int),1,plotFile[ii]);
+        };
+        fwrite(&doParang,sizeof(bool),1,plotFile[ii]);
+      };
     } else {
-       fwrite(&noI,sizeof(int),1,plotFile[ii]);
+
+      for (ii=0; ii<nIFconv; ii++) {           // non-ALMA solve case
+        sprintf(message,"POLCONVERT.FRINGE/POLCONVERT.FRINGE_IF%i",IFs2Conv[ii]+1);
+        printf("Writing %s\n", message);
+        plotFile[ii] = fopen(message,"wb");
+        if (!plotFile[ii]) {
+          sprintf(message,"Could not create plot non-PCMode file POLCONVERT.FRINGE/POLCONVERT.FRINGE_IF%i, errno %d\n", IFs2Conv[ii]+1, errno);
+          fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
+        };
+        if (IFs2Conv[ii]>=0 && IFs2Conv[ii]<nnu){
+          fwrite(&nchans[IFs2Conv[ii]],sizeof(int),1,plotFile[ii]);
+        } else {
+          fwrite(&noI,sizeof(int),1,plotFile[ii]);
+        };
+        fwrite(&doParang,sizeof(bool),1,plotFile[ii]);
+      };
     };
-   };
-  } else {
-   for (ii=0; ii<nIFconv; ii++) {           // non-ALMA solve case
-    sprintf(message,"POLCONVERT.FRINGE/POLCONVERT.FRINGE_IF%i",IFs2Conv[ii]+1);
-    printf("Writing %s\n", message);
-    plotFile[ii] = fopen(message,"wb");
-    if (IFs2Conv[ii]>=0 && IFs2Conv[ii]<nnu){
-       fwrite(&nchans[IFs2Conv[ii]],sizeof(int),1,plotFile[ii]);
-    } else {
-       fwrite(&noI,sizeof(int),1,plotFile[ii]);
-    };
-   };
   };
 
   if(doNorm){
@@ -935,7 +953,7 @@ if(PCMode){
       for (im=0; im<nIFconv; im++) {
         ii = IFs2Conv[im];
         for (ij=0; ij<nchans[ii]; ij++){
-          PrioriGains[k][currAntIdx][im][ij] *=
+          PrioriGains[k][currAntIdx][im][ij] *= 
             DifXData->getAmpRatio(currAntIdx, ii, ij);
 //          DifXData->getAmpRatio(currAntIdx, im, ij);
         };
@@ -964,6 +982,7 @@ if(PCMode){
     int IFplot = -1;    // flags the no-plot case of ALMA mode
     char pltmsg[20];
 
+
     for (ij=0; ij<nIFplot; ij++){
       if (IFs2Plot[ij]==ii){IFplot=ij; break;};
     };
@@ -977,6 +996,8 @@ if(PCMode){
     //useful in development, not in production:
     //printf("\rDoing subband %i of %i   ",ii+1,nnu);
     //fflush(stdout);
+
+
 
 // Only proceed if IF is OK:
     if(!DifXData->setCurrentIF(ii)){
@@ -1294,7 +1315,7 @@ if(PCMode){
                  printf("Ktot11: %.3e %.3e\n",
                       Ktotal[currAntIdx][1][1][j].real(), Ktotal[currAntIdx][1][1][j].imag()); 
                  if (allflagged) {printf("All flagged\n"); }
-                 else {printf("Not flagged\n"); };
+                 else {printf("Not flagged\n"); };		 
                };
 
 
@@ -1404,6 +1425,7 @@ if(PCMode){
 
 // Shall we write in plot file?
            auxB2 = (currT>=plRange[0] && currT<=plRange[1] && (calField<0 || currF==calField));
+
            if (IFplot < 0) { auxB2 = false; };
 
 // NOTE: These files are used to plot in the ALMA case; but are also used
@@ -1419,7 +1441,7 @@ if(PCMode){
                  currAntIdx,plotFile[IFplot]);
            } else {
              sprintf(message,"WARNING! Zero-ing weights at time %.8f!\n",currT);
-             fprintf(logFile,"%s",message); std::cout<<message; fflush(logFile);
+             fprintf(logFile,"%s",message);  std::cout<<message; fflush(logFile);
              DifXData->zeroWeight();
            };
 
@@ -1446,9 +1468,22 @@ if(PCMode){
   sprintf(message,"\nDONE WITH ITERATION over IFs!\n");
   fprintf(logFile,"%s",message); std::cout << message; fflush(logFile);
 
-  for (ij=0;ij<nIFplot;ij++){
-    fclose(plotFile[ij]);
-  };
+if(plRange[0]<=doRange[1] && plRange[1]>=doRange[0]){
+  if(PCMode) {
+    for (ij=0;ij<nIFplot;ij++){
+      if(plotFile[ij]) {
+        fclose(plotFile[ij]);
+      };
+    };
+  } else {
+    for (ij=0;ij<nIFconv;ij++){
+      if(plotFile[ij]) {
+        fclose(plotFile[ij]);
+      };
+    };
+  }
+};
+
   if(doNorm){fclose(gainsFile);};
 
   sprintf(message,"\nDONE WITH plot and gain files!\n");
@@ -1610,5 +1645,4 @@ if(PCMode){
 }
 
 
-// vim: set nospell:
 // eof

@@ -1,5 +1,5 @@
 # POL_CALIBRATE: COMPUTE POLONVERT GAINS FROM (EU-)VGOS OBSERVATIONS
-#             Copyright (C) 2021  Ivan Marti-Vidal
+#             Copyright (C) 2022  Ivan Marti-Vidal
 #             University of Valencia (Spain)  
 #
 #This program is free software: you can redistribute it and/or modify
