@@ -71,8 +71,9 @@ corrections are going to be performed.
 If Overwrite == true, the output file is overwritten. If not, it expects the output file
 to exist already (it will not make a new one).
 */
-DataIOFITS::DataIOFITS(std::string outputfile, int NlinAnt, int *LinAnt, 
-         double *Range, int nIF2Conv, int *IF2Conv, bool Overwrite, bool doConj, bool doSave, int saveSource, 
+DataIOFITS::DataIOFITS(std::string outputfile, int NlinAnt, int *LinAnt,
+         double *Range, int nIF2Conv, int *IF2Conv, bool Overwrite,
+         bool doConj, bool doSave, int saveSource,
          ArrayGeometry *Geom, bool doPar, FILE *logF) {
 
 
@@ -220,7 +221,7 @@ void DataIOFITS::saveCirculars(std::string inputfile) {
 
 
     for (ii=0; ii<nDoIF; ii++){
-      sprintf(message,"POLCONVERT.FRINGE/OTHERS.FRINGE_IF%li",DoIF[ii]+1);
+      sprintf(message,"POLCONVERT.FRINGE/OTHERS.FRINGE_IF%i",DoIF[ii]+1);
       circFile[ii] = fopen(message,"wb");
       fwrite(&Freqs[DoIF[ii]].Nchan,sizeof(int),1,circFile[ii]);
       fwrite(Freqvals[DoIF[ii]],Freqs[DoIF[ii]].Nchan*sizeof(double),1,circFile[ii]);
@@ -687,7 +688,7 @@ bool DataIOFITS::setCurrentIF(int i){
   currentVis = new std::complex<float>[4*(Freqs[currFreq].Nchan+1)] ;
   bufferVis = new std::complex<float>[4*(Freqs[currFreq].Nchan+1)] ;
   TwoLinearVis = new std::complex<float>[4*(Freqs[currFreq].Nchan+1)] ;
- 
+
   currentData = new float[12*(Freqs[currFreq].Nchan+1)] ;
   bufferData = new float[12*(Freqs[currFreq].Nchan+1)] ;
 
@@ -1000,7 +1001,7 @@ void DataIOFITS::applyMatrix(std::complex<float> *M[2][2], bool swap,
  };
 
 
-  if(isTwoLinear){ 
+  if(isTwoLinear){
      if(canPlot){
          isTwoLinear=false;
      } else {
