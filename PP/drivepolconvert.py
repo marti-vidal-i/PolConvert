@@ -33,6 +33,26 @@ import time
 # this Kluge is for re-use by singlepolsolve.py
 # import solvepclib as spc
 
+def getVersion():
+    difxroot = os.getenv('DIFXROOT')
+    if not type(difxroot) is str: return 'unknown'
+    rcpath = difxroot + '/share/polconvert/runpolconvert.py'
+    if os.path.exists(rcpath):
+        f = open(rcpath,'r')
+        count = 50
+        try:
+            while count > 0:
+                x = f.readline()
+                print(x)
+                if x[0:6] == 'pcvers':
+                    f.close()
+                    junk,vers = x.split('=')
+                    return vers.strip()
+                count -= 1
+        except:
+            pass
+    return 'Unknown'
+
 def parseOptions():
     '''
     PolConvert is executed within CASA which is inconvenient for
@@ -66,7 +86,7 @@ def parseOptions():
     epi += 'The unconverted *.difx dir is saved as *.save until polconvert'
     epi += 'completes successfully--at which time it is removed.  You can'
     epi += 'keep it by setting keepdifxout=True in your environment'
-    use = '%(prog)s [options] [input_file [...]]\n  Version'
+    use = '%(prog)s [options] [input_file [...]]\n  Version ' + getVersion()
     parser = argparse.ArgumentParser(epilog=epi, description=des, usage=use)
     primary = parser.add_argument_group('Primary Options')
     secondy = parser.add_argument_group('Secondary Options')
@@ -967,6 +987,8 @@ def getInputTemplate(o):
     %simport pylab as pl
     %spl.ioff()
     #
+    # FIXME: matplotlib.use('agg') matplotlib.get_backend() &c.
+    #
     # POLCONVERT_HOME in environment functions as a switch between the
     # CASA task method (task_polconvert.py as in e.g. DiFX-2.6.3) and
     # the code-split for ALMA polconvert_CASA.py version
@@ -1419,5 +1441,5 @@ if __name__ == '__main__':
     sys.exit(0)
 
 #
-# eof
+# eof vim: set nospell:
 #
