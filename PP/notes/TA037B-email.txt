@@ -71,4 +71,13 @@ do difx2mark4 -e $expn -s $exp.codes \
 fourfit -pt -b A? 3824/No0021/J0510+1800.2QCOWP
 # generates some ~100 SNR fringes
 
-eof
+### merger 2.0.5 notes
+proceding to fringe plots with plotAnt 8...
+Plotting selected fringe for IF #37
+Read fringe data from file POLCONVERT.FRINGE_IF37
+np.sum(AntEntry) > 0: '0'
+Nothing to plot, apparently
+### issue was the change in the binary format of the fringe files
+fixed up a bunch of whitespace issues.
+
+eof vim: set nospell:
