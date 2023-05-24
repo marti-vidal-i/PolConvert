@@ -3,7 +3,7 @@
 # Copyright (c) Ivan Marti-Vidal 2015-2023, University of Valencia (Spain)
 #       and Geoffrey Crew 2015-2023, Massachusetts Institute of Technology
 #
-# Script to open and assess the POLCONVERT.FRINGE_IF* binary files.
+# Script to open and assess the POLCONVERT.FRINGE_* binary files.
 # Code cribbed from TOP/task_polconvert.py around line 2550 or so.
 #
 '''
@@ -25,11 +25,10 @@ def dtype0(fringedata,frfile):
     '''
     print('reading',os.path.basename(fringedata),'...',end=' ')
     alldats = frfile.read(4)
-    nchPlot = stk.unpack("i?", alldats)
+    nchPlot = stk.unpack("i", alldats[:4])[0]
     print('no UVDIST')
     dtype = np.dtype(
         [
-            ("FILE", np.int32),
             ("JDT", np.float64),
             ("ANT1", np.int32),
             ("ANT2", np.int32),
@@ -69,8 +68,10 @@ def examineFRINGE_IF(pli, o):
     unpack it and report on what it holds.  Options in o affect
     what it does with the data.
     '''
-    fringedata = "%s/POLCONVERT.FRINGE/POLCONVERT.FRINGE_IF%i" % (
-        o.dir,pli)
+    if o.withIF: ifs = 'IF'
+    else:        ifs = ''
+    fringedata = "%s/POLCONVERT.FRINGE/POLCONVERT.FRINGE_%s%i" % (
+        o.dir,ifs,pli)
     frfile = open(fringedata,"rb")
     if o.pcvers == '0': dtype,nchPlot = dtype0(fringedata,frfile)
     elif o.pcvers == '1': dtype,nchPlot = dtype1(fringedata,frfile)
@@ -83,20 +84,24 @@ def examineFRINGE_IF(pli, o):
     print(' ',os.path.basename(fringedata),
         'successfully with',len(fringe),'blocks and',nchPlot,'channels')
     x = len(fringe)-1
-    print('  [%04d] File:'%0,fringe[0]['FILE'],
-        'JDT %f s = %s'%jdt(fringe[0]['JDT']))
-    print('  [%04d] File:'%x,fringe[x]['FILE'],
-        'JDT %f s = %s'%jdt(fringe[x]['JDT']))
+    if o.pcvers == '1':
+        file0 = fringe[0]['FILE']
+        fileX = fringe[x]['FILE']
+    else:
+        file0 = fileX = '--'
+    print('  [%04d] File:'%0,file0, 'JDT %f s = %s'%jdt(fringe[0]['JDT']))
+    print('  [%04d] File:'%x,fileX, 'JDT %f s = %s'%jdt(fringe[x]['JDT']))
     print('  ANT1: ',set(list(fringe[:]["ANT1"])),
         ', ANT2: ',set(list(fringe[:]["ANT2"])))
     maxUVDIST = ''
-    if o.pcvers == '1': maxUVDIST = (
-        ' max UVDIST %f'%np.max(fringe[:]["UVDIST"]) + '(units unknown)')
-    print('  PANG1: %.2f'%np.rad2deg(np.min(fringe[:]["PANG1"])),
-        '.. %.2f'%np.rad2deg(np.max(fringe[:]["PANG1"])),
-        '  PANG2: %.2f'%np.rad2deg(np.min(fringe[:]["PANG2"])),
-        '.. %.2f'%np.rad2deg(np.max(fringe[:]["PANG2"])),
-        ' (deg);\n', maxUVDIST)
+    if o.pcvers == '1':
+        maxUVDIST = (
+            ' max UVDIST %f'%np.max(fringe[:]["UVDIST"]) + '(units unknown)')
+        print('  PANG1: %.2f'%np.rad2deg(np.min(fringe[:]["PANG1"])),
+            '.. %.2f'%np.rad2deg(np.max(fringe[:]["PANG1"])),
+            '  PANG2: %.2f'%np.rad2deg(np.min(fringe[:]["PANG2"])),
+            '.. %.2f'%np.rad2deg(np.max(fringe[:]["PANG2"])),
+            ' (deg);\n', maxUVDIST)
 
 def jdt(jdts):
     '''
@@ -109,30 +114,39 @@ def jdt(jdts):
     iso = (d0+dt).isoformat()
     return(jdts, iso)
 
-def parseIFarg(ifargs, odir, verb):
+def parseIFarg(o):
     '''
     Convert the IF input option to a list of IFs to examine.
     '''
+    ifargs = o.IF
+    odir = o.dir
     if not os.path.exists(odir):
         raise Exception("Directory %s does not exist" % odir)
     if not os.path.exists(odir + '/POLCONVERT.FRINGE'):
         raise Exception("No POLCONVERT.FRINGE subdir to %s" % odir)
-    fringes = glob.glob("%s/POLCONVERT.FRINGE/*FRINGE_IF" % odir)
     iflist = list()
     targetdir = "%s/POLCONVERT.FRINGE" % odir
-    if verb:
+    if o.verb:
         print('Locating fringes in:\n %s/\n  %s' %
             (os.path.dirname(odir), os.path.basename(odir)))
+    # POLCONVERT.FRINGE_* initially, later POLCONVERT.FRINGE__IF*
+    o.withIF = None
     for frng in sorted(glob.glob("%s/*FRINGE_IF*" % targetdir)):
+        o.withIF = True
         iflist.append(frng[-2:])
-        if verb: print('   ',os.path.basename(frng),'as IF',iflist[-1])
+        if o.verb: print('   ',os.path.basename(frng),'as IF',iflist[-1])
+    if o.withIF is None:
+      for frng in sorted(glob.glob("%s/*FRINGE_*" % targetdir)):
+        iflist.append(frng[-2:])
+        if o.verb: print('   ',os.path.basename(frng),'as IF',iflist[-1])
+        o.withIF = False
     # if no selection provide full list
     if ifargs == '': return iflist
     # else make a cut to those requested
     ifcull = list()
     for iffy in ifargs.split(','):
         if iffy in iflist: ifcull.append(iffy)
-    if verb: print(' limiting actions to these IFs:', ','.join(ifcull),'\n')
+    if o.verb: print(' limiting actions to these IFs:', ','.join(ifcull),'\n')
     if len(ifcull) == 0: print('No IFs match: -I',ifargs,'choose wisely.')
     return ifcull
 
@@ -207,16 +221,18 @@ if __name__ == '__main__':
         sys.exit(1)
     o = parseOptions()
     if somehelp(o): sys.exit(0)
-    if o.verb: print('printing with %d precision, %d elements, %d width' % (
-        o.prec, o.thres, o.width))
+    if o.verb:
+        print('\nprinting with %d precision, %d elements, %d width' % (
+            o.prec, o.thres, o.width))
     np.set_printoptions(
         precision=o.prec, threshold=o.thres, linewidth=o.width)
     errors = 0
-    for pli in parseIFarg(o.IF, o.dir, o.verb):
+    for pli in parseIFarg(o):
         try:
+            print()
             examineFRINGE_IF(int(pli), o)        
         except Exception as ex:
-            print("Unable to read IF %d successfully"%pli)
+            print("Unable to read IF %d successfully"%int(pli))
             if o.verb: print("Exception was:\n",str(ex))
             errors += 1
     print()
