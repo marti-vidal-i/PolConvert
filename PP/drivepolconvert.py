@@ -12,7 +12,6 @@
 '''
 drivepolconvert.py -- a program to drive the polconvert process
 '''
-
 from __future__ import absolute_import
 from __future__ import print_function
 import argparse
@@ -25,12 +24,8 @@ import stat
 import sys
 import threading
 import time
-# not needed:
-# from six.moves import map
-# from six.moves import range
-# from six.moves import zip
 
-# this Kluge is for re-use by singlepolsolve.py
+# this Kluge is for re-use by singlepolsolve.py:
 # import solvepclib as spc
 
 def getVersion():
@@ -39,11 +34,10 @@ def getVersion():
     rcpath = difxroot + '/share/polconvert/runpolconvert.py'
     if os.path.exists(rcpath):
         f = open(rcpath,'r')
-        count = 50
+        count = 25  # moved earlier in later versions
         try:
             while count > 0:
                 x = f.readline()
-                print(x)
                 if x[0:6] == 'pcvers':
                     f.close()
                     junk,vers = x.split('=')
@@ -51,6 +45,7 @@ def getVersion():
                 count -= 1
         except:
             pass
+        f.close()
     return 'Unknown'
 
 def parseOptions():
@@ -86,7 +81,7 @@ def parseOptions():
     epi += 'The unconverted *.difx dir is saved as *.save until polconvert'
     epi += 'completes successfully--at which time it is removed.  You can'
     epi += 'keep it by setting keepdifxout=True in your environment'
-    use = '%(prog)s [options] [input_file [...]]\n  Version ' + getVersion()
+    use = '%(prog)s [options] [input_file [...]]\n\nVersion ' + getVersion()
     parser = argparse.ArgumentParser(epilog=epi, description=des, usage=use)
     primary = parser.add_argument_group('Primary Options')
     secondy = parser.add_argument_group('Secondary Options')

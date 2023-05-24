@@ -50,8 +50,31 @@ def examineFRINGE_IF(pli, o):
         print('Unable to read fringe',str(ex))
     frfile.close()
     print(' ',os.path.basename(fringedata),
-        'successfully with',len(fringe),'numpy parts:')
-    print(type(fringe[0]))
+        'successfully with',len(fringe),'parts:')
+    x = len(fringe)-1
+    print('  [%04d] File:'%0,fringe[0]['FILE'],
+        'JDT %f s = %s'%jdt(fringe[0]['JDT']))
+    print('  [%04d] File:'%x,fringe[x]['FILE'],
+        'JDT %f s = %s'%jdt(fringe[x]['JDT']))
+    print('  ANT1: ',set(list(fringe[:]["ANT1"])),
+        ', ANT2: ',set(list(fringe[:]["ANT2"])))
+    print('  PANG1: %.2f'%np.rad2deg(np.min(fringe[:]["PANG1"])),
+        '.. %.2f'%np.rad2deg(np.max(fringe[:]["PANG1"])),
+        '  PANG2: %.2f'%np.rad2deg(np.min(fringe[:]["PANG2"])),
+        '.. %.2f'%np.rad2deg(np.max(fringe[:]["PANG2"])),
+        ' (deg);\n',
+        ' max UVDIST %f'%np.max(fringe[:]["UVDIST"]),'(units unknown)')
+
+def jdt(jdts):
+    '''
+    Apparently the unit is (Modified) Julian Date in seconds.
+    The time origin for that is 11 Nov 1858.
+    '''
+    import datetime
+    dt = datetime.timedelta(seconds=jdts)
+    d0 = datetime.datetime(1858,11,17)
+    iso = (d0+dt).isoformat()
+    return(jdts, iso)
 
 def parseIFarg(ifargs, odir, verb):
     '''
@@ -77,9 +100,13 @@ def parseIFarg(ifargs, odir, verb):
     for iffy in ifargs.split(','):
         if iffy in iflist: ifcull.append(iffy)
     if verb: print(' limiting actions to these IFs:', ','.join(ifcull),'\n')
+    if len(ifcull) == 0: print('No IFs match: -I',ifargs,'choose wisely.')
     return ifcull
 
 def getVersion():
+    '''
+    There has to be a better solution than editing all the files.
+    '''
     return 'Unknown'
 
 def parseOptions():
@@ -94,7 +121,7 @@ def parseOptions():
     epi += 'something did not work, and you wish to verify that '
     epi += 'binary fringe files, written by PolConvert, are ok. '
     epi += ' ... FIXME ...'
-    use = '%(prog)s [options]\n  Version ' + getVersion()
+    use = '%(prog)s [options]\n\nVersion ' + getVersion()
     parser = argparse.ArgumentParser(epilog=epi, description=des, usage=use)
     parser.add_argument('-d', '--dir', dest='dir',
         default='.', metavar='DIR', help='Path to the polconvert '
@@ -115,7 +142,6 @@ def parseOptions():
     parser.add_argument('-w', '--linewidth', dest='width', type=int,
         default=70, metavar=int, help='Linewidth for numpy printing')
     return parser.parse_args()
-
 
 #
 # enter here to do the work
