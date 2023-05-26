@@ -13,6 +13,9 @@ checkfringedata.py -- a program to check fringe binary files
 import argparse
 import glob
 import numpy as np
+#import pylab as pl
+import matplotlib.pyplot as pl
+import matplotlib.cm as cm
 import os
 import re
 import struct as stk
@@ -72,17 +75,19 @@ def examineFRINGE_IF(pli, o):
     else:        ifs = ''
     fringedata = "%s/POLCONVERT.FRINGE/POLCONVERT.FRINGE_%s%i" % (
         o.dir,ifs,pli)
+    o.thisIF = pli
     frfile = open(fringedata,"rb")
     if o.pcvers == '0': dtype,nchPlot = dtype0(fringedata,frfile)
     elif o.pcvers == '1': dtype,nchPlot = dtype1(fringedata,frfile)
     else: raise Exception('Unsupported fringe version ' + o.pcvers)
+    o.nchPlot = int(nchPlot)
     try:
         fringe = np.fromfile(frfile,dtype=dtype)
     except Exception as ex:
         print('Unable to read fringe',str(ex))
     frfile.close()
     print(' ',os.path.basename(fringedata),
-        'successfully with',len(fringe),'blocks and',nchPlot,'channels')
+        'successfully with',len(fringe),'blocks and',o.nchPlot,'channels')
     x = len(fringe)-1
     if o.pcvers == '1':
         file0 = fringe[0]['FILE']
@@ -91,8 +96,9 @@ def examineFRINGE_IF(pli, o):
         file0 = fileX = '--'
     print('  [%04d] File:'%0,file0, 'JDT %f s = %s'%jdt(fringe[0]['JDT']))
     print('  [%04d] File:'%x,fileX, 'JDT %f s = %s'%jdt(fringe[x]['JDT']))
-    print('  ANT1: ',set(list(fringe[:]["ANT1"])),
-        ', ANT2: ',set(list(fringe[:]["ANT2"])))
+    ant1set = set(list(fringe[:]["ANT1"]))
+    ant2set = set(list(fringe[:]["ANT2"]))
+    print('  ANT1: ', ant1set, ', ANT2: ',ant2set)
     maxUVDIST = ''
     if o.pcvers == '1':
         maxUVDIST = (
@@ -102,6 +108,27 @@ def examineFRINGE_IF(pli, o):
             '  PANG2: %.2f'%np.rad2deg(np.min(fringe[:]["PANG2"])),
             '.. %.2f'%np.rad2deg(np.max(fringe[:]["PANG2"])),
             ' (deg);\n', maxUVDIST)
+    try:  o.ant1,o.ant2 = map(int,o.ants.split(','))
+    except: raise Exception('This is not an antenna-index pair: ' + o.ants)
+    if o.ant1 in ant1set and o.ant2 in ant2set:
+        print('  Prepping data for plot on baseline between', o.ant1, o.ant2)
+        AntEntry1 = np.logical_and(
+            fringe[:]["ANT1"] == o.ant1,fringe[:]["ANT2"] == o.ant2)
+        AntEntry2 = np.logical_and(
+            fringe[:]["ANT2"] == o.ant1,fringe[:]["ANT1"] == o.ant2)
+        AntEntry = np.logical_or(AntEntry1,AntEntry2)
+        if np.sum(AntEntry)>0:
+            # this is the polconverted data
+            cal12 = [ (fringe[AntEntry]["MATRICES"])[:,i::12]
+                for i in range(4,8)]
+            # this is the number of delay rate channels
+            o.rchan = np.shape(cal12[0])[0]
+            return prepPlot(cal12, o)
+        else:
+            raise Exception("No data on %d--%d baseline" % (ant1,ant2))
+    else:
+        print(ant1 in ant1set,ant2 in ant2set)
+    raise Exception("The antenna pair %s has no data?" % o.ants)
 
 def jdt(jdts):
     '''
@@ -113,6 +140,76 @@ def jdt(jdts):
     d0 = datetime.datetime(1858,11,17)
     iso = (d0+dt).isoformat()
     return(jdts, iso)
+
+def prepPlot(cal, o):
+    '''
+    Ok, now replicate the steps of task_polconvert.py for fringe
+    plotting.  Ideally, we want to head towards a combined fringe
+    across IFs such as fourfit does so that weaker fringes gain
+    in significance.  The np array cal holds the polconveted
+    data and other things of interest are in o.
+    '''
+    # Fringes in delay-rate space: double fft of the "cal" data
+    # fftshift swaps half-spaces so that the 0 freq at the center and
+    # by default it does this for both axes.  fft2 does a 2dim FFT.
+    RRVis = np.fft.fftshift(np.fft.fft2(cal[0]))
+    RLVis = np.fft.fftshift(np.fft.fft2(cal[1]))
+    LRVis = np.fft.fftshift(np.fft.fft2(cal[2]))
+    LLVis = np.fft.fftshift(np.fft.fft2(cal[3]))
+    # amplitudes
+    RR = np.abs(RRVis)
+    RL = np.abs(RLVis)
+    LR = np.abs(LRVis)
+    LL = np.abs(LLVis)
+    # locate max peak
+    RMAX = np.unravel_index(np.argmax(RR+LL),np.shape(RRVis))
+    MAXVis = np.array([RRVis[RMAX],RLVis[RMAX],LRVis[RMAX],LLVis[RMAX]])
+    MAXl = np.array([RR[RMAX],RL[RMAX],LR[RMAX],LL[RMAX]])
+    MAX = max(MAXl)
+    print("  This IF%d peaks at %s < +/-[%d,%d] with (RR,RL,LR,LL) Vis:" %
+        (o.thisIF, repr(RMAX), int(o.rchan), int(o.nchPlot)))
+    print('  ', MAXVis, '\n  ', MAXl, '; overall max |Vis|: %f'%float(MAX))
+    # provide the data actually needed for a combined plot
+    return ( RR, RL, LR, LL, float(MAX) )
+
+def plotProcessing(plotdata, o):
+    '''
+    Should have a list of plotdata tuples (per IF).  Combine them
+    and make a 2x2 image plot centered around the peaks +/- npix.
+    '''
+    npix = int(o.fringe)
+    print('  Making a plot with npix =',npix,'with %d fringes'%len(plotdata))
+    vis = list(map(np.log, plotdata[0][0:4])) # RR,RL,LR,LL,MX
+    lab = [ 'RR','RL','LR','LL' ]
+    MX = np.log(plotdata[0][4])
+    ratio = vis[0].shape[1] / vis[0].shape[0]
+
+    pl.ioff()
+    fig = pl.figure(figsize=(8,8))
+    fig.clf()
+
+    fig.suptitle('SuperTitle')
+    fig.subplots_adjust(left=0.05,right=0.95,wspace=0.20,hspace=0.20)
+    sub = lab
+    sub[0] = fig.add_subplot(221)
+    sub[1] = fig.add_subplot(222)
+    sub[2] = fig.add_subplot(223)
+    sub[3] = fig.add_subplot(224)
+
+    for sp in range(4):
+        sub[sp].imshow(vis[sp][:,:], vmin=0.0, vmax=MX,
+            aspect=ratio, origin='lower', interpolation='nearest',
+            cmap=cm.cividis)
+        sub[sp].set_title('RR converted')
+        sub[sp].set_xlabel('delay')
+        sub[sp].set_ylabel('delay rate')
+        pl.setp(sub[sp].get_xticklabels(),visible=False)
+        pl.setp(sub[sp].get_yticklabels(),visible=False)
+
+    fig.savefig('%s.png' % o.name)
+    os.system('eog %s.png &' % o.name)
+    
+    return 0
 
 def parseIFarg(o):
     '''
@@ -167,13 +264,13 @@ def parseOptions():
     epi =  'In the typical case you may have run PolConvert, '
     epi += 'something did not work, and you wish to verify that '
     epi += 'binary fringe files, written by PolConvert, are ok. '
-    epi += ' ... FIXME ...'
+    epi += 'For this you need at least -d *polconvert* arguments.'
     use = '%(prog)s [options]\n\nVersion ' + getVersion()
     parser = argparse.ArgumentParser(epilog=epi, description=des, usage=use)
     parser.add_argument('-d', '--dir', dest='dir',
-        default='.', metavar='DIR', help='Path to the polconvert '
-        'output directory.  In production processing, that is '
-        '$job.polconvert-$timestamp')
+        default='.', metavar='DIR', help='(Mandatory) Path to '
+        'the polconvert output directory.  In production processing, '
+        'that is $job.polconvert-$timestamp')
     parser.add_argument('-I', '--IF', dest='IF',
         default='', metavar="IF", help='This controls the IFs '
         'that will be considered.  If unset, all IFs in the '
@@ -183,15 +280,23 @@ def parseOptions():
         default=False, action='store_true',
         help='be chatty about the work')
     parser.add_argument('-p', '--precision', dest='prec', type=int,
-        default=4, metavar=int, help='Precision for numpy printing')
+        default=3, metavar=int, help='Precision for numpy printing')
     parser.add_argument('-t', '--threshold', dest='thres', type=int,
         default=20, metavar=int, help='Threshold for numpy printing')
     parser.add_argument('-w', '--linewidth', dest='width', type=int,
-        default=70, metavar=int, help='Linewidth for numpy printing')
+        default=78, metavar=int, help='Linewidth for numpy printing')
     parser.add_argument('-V', '--pcvers', dest='pcvers',
         default='1', help='Fringe file version: 1 = 2.0.5 and later'
-        ' (with UVDIST), 0 = 2.0.3 and earlier without it, or help')
-    # FIXME: plot options
+        ' (with UVDIST), 0 = 2.0.3 and earlier without it, or "help"'
+        ' to print out a more complete explanation')
+    parser.add_argument('-a', '--antennas', dest='ants',
+        default='1,2', metavar='ANT1,ANT2', help='Indicies for the'
+        ' pair of antennas to use for subsequent checking')
+    parser.add_argument('-f', '--fringe', dest='fringe',
+        default='', help='String to configure fringing checks.'
+        ' Use "help" as an argument for more information')
+    parser.add_argument('-n', '--name', dest='name',
+        default='', help='Basename for any plot generated.')
     return parser.parse_args()
 
 def somehelp(o):
@@ -201,15 +306,23 @@ def somehelp(o):
     and as of 2.0.5 (targetted for DiFX 2.8.2), UVDIST was added.
     Use -V 0 for the earlier format and -V 1 for the later one.
     '''
-    plothelp='''
-
-    FIXME: The next shoe is options to generate plots....
-
+    fringehelp='''
+    Normally polconvert generates plots of before and after the
+    polconversion...with a zoom into "npix" around the peak.  An
+    issue is that if fringes are weak, the peak is not enough to
+    work with.  If this argument is not empty, it is parsed to
+    supply npix and ALL the IFs mentioned in the -I argument are
+    combined, and the result is plotted for a window around npix.
     '''
+#   plothelp='''
+#   FIXME: The next shoe is options to generate plots....
+#   '''
     if o.pcvers == 'help':
         print(pcvershelp)
         return True
-    #if o.wpcvershat == 'plots': return plothelp
+    if o.fringe == 'help':
+        print(fringehelp)
+        return True
     return False
 
 #
@@ -227,15 +340,23 @@ if __name__ == '__main__':
     np.set_printoptions(
         precision=o.prec, threshold=o.thres, linewidth=o.width)
     errors = 0
+    plotdata = list()
     for pli in parseIFarg(o):
         try:
             print()
-            examineFRINGE_IF(int(pli), o)        
+            plotdata.append(examineFRINGE_IF(int(pli), o))
         except Exception as ex:
             print("Unable to read IF %d successfully"%int(pli))
-            if o.verb: print("Exception was:\n",str(ex))
+            print("Exception was:\n",str(ex))
             errors += 1
-    print()
+    print("\nHave plotting data for %d fringes\n"%len(plotdata))
+    if (o.fringe != ''):
+        try:
+            errors += plotProcessing(plotdata, o);
+        except Exception as ex:
+            print("Unable to make a plot")
+            print("Exception was:\n",str(ex))
+            errors += 1
     if errors > 0:
         print('all done with',errors,'errors')
         sys.exit(errors)
