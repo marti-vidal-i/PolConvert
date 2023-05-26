@@ -5,6 +5,7 @@
 #
 # Script to open and assess the POLCONVERT.FRINGE_* binary files.
 # Code cribbed from TOP/task_polconvert.py around line 2550 or so.
+# pylab is "deprecated" so we've converted to matplotlib.*
 #
 '''
 checkfringedata.py -- a program to check fringe binary files
@@ -13,7 +14,6 @@ checkfringedata.py -- a program to check fringe binary files
 import argparse
 import glob
 import numpy as np
-#import pylab as pl
 import matplotlib.pyplot as pl
 import matplotlib.cm as cm
 import os
@@ -123,7 +123,7 @@ def examineFRINGE_IF(pli, o):
                 for i in range(4,8)]
             # this is the number of delay rate channels
             o.rchan = np.shape(cal12[0])[0]
-            return prepPlot(cal12, o)
+            return prepPlot(cal12, pli, o)
         else:
             raise Exception("No data on %d--%d baseline" % (ant1,ant2))
     else:
@@ -141,7 +141,7 @@ def jdt(jdts):
     iso = (d0+dt).isoformat()
     return(jdts, iso)
 
-def prepPlot(cal, o):
+def prepPlot(cal, plif, o):
     '''
     Ok, now replicate the steps of task_polconvert.py for fringe
     plotting.  Ideally, we want to head towards a combined fringe
@@ -170,19 +170,96 @@ def prepPlot(cal, o):
         (o.thisIF, repr(RMAX), int(o.rchan), int(o.nchPlot)))
     print('  ', MAXVis, '\n  ', MAXl, '; overall max |Vis|: %f'%float(MAX))
     # provide the data actually needed for a combined plot
-    return ( RR, RL, LR, LL, float(MAX) )
+    return [ RR, RL, LR, LL, float(MAX), RMAX, plif ]
+
+def setScaling(scale):
+    '''
+    In theory one can be quite creative here...;
+    return a function and a sensible min for it.
+    '''
+    if scale == 'log':
+        scalor = np.log
+        minimum = -2.0
+    elif scale == 'linear':
+        scalor = float
+        minimum = 0.0
+    elif scale == 'sqrt':
+        scalor = np.sqrt
+        minimum = 0.0
+    else:
+        raise Exception("scale option %s is not defined" % (o.scale))
+    return scalor, minimum
+
+def padSlice(mn, cen, mx, pnd):
+    '''
+    Some stupid index games
+    '''
+    before = after = 0
+    if   pnd > cen: after  = pnd - cen
+    elif pnd < cen: before = cen - pnd
+    thismin = mn + after
+    thismax = mx + after
+    padding = (before, after)
+    return thismin, thismax, padding
+
+def combinePlotdata(plotdata, o):
+    '''
+    Should have been given list of plotdata tuples (per IF).  Combine
+    them and make a 2x2 image plot centered around the peaks +/- npix,
+    which we do by padding with np.pad and then slicing out npix around
+    the new center.  Returns the things to be plotted.
+    '''
+    scalor, minimum = setScaling(o.scale)
+    npix = 2*int(int(o.fringe)/2.0) + 1
+    xcen = int(o.nchPlot/2)
+    ycen = int(o.rchan/2)
+    wind = min(npix, xcen, ycen)
+    xmin, xmax = (xcen - wind, xcen + wind + 1)
+    ymin, ymax = (ycen - wind, ycen + wind + 1)
+    print(('Making the %s plot with half-width %d on %d fringes' +
+           ' centered at (%d,%d)') % (
+        o.scale, wind, len(plotdata), xcen, ycen))
+    count = 0
+    for pd in plotdata: # RR,RL,LR,LL,  MX, RMAX, IF
+        # note that y indices precede x indices
+        pndy,pndx = pd[5]
+        plif = pd[6]
+        thismax = scalor(pd[4])
+        # if are multiple peaks, this is definitely not a droid we want
+        if not (type(pndx) is np.int64 and type(pndy) is np.int64 and
+            thismax > minimum):
+            print(' No single max from',plif,'so we shall ignore it')
+            continue
+        # pad the sides so that a slice window puts the peak at the center
+        if count == 0: maximum = thismax
+        else:          maximum += thismax
+        thisxmin,thisxmax,xpadding = padSlice(xmin,xcen,xmax,int(pndx))
+        thisymin,thisymax,ypadding = padSlice(ymin,ycen,ymax,int(pndy))
+        window = np.s_[thisymin:thisymax,thisxmin:thisxmax]
+        pad_width = ( ypadding, xpadding )
+        vis = list()
+        for vi in range(4):
+            vis.append(np.pad(scalor(pd[vi]), pad_width, mode='constant',
+                constant_values=minimum)[window])
+            if count > 0:
+                vizzy[vi] = np.add(vizzy[vi], vis[vi])
+        if count == 0: vizzy = vis
+        count += 1
+    if count == 0:
+        raise Exception("Nothing to plot?")
+    # renormalize
+    for vi in range(4): vizzy[vi] = np.divide(vizzy[vi], float(count))
+    maximum /= count
+    # return plot products
+    ratio = vizzy[0].shape[1] / vizzy[0].shape[0]
+    return vizzy, [minimum, maximum], ratio
 
 def plotProcessing(plotdata, o):
     '''
-    Should have a list of plotdata tuples (per IF).  Combine them
-    and make a 2x2 image plot centered around the peaks +/- npix.
+    Combine the plotdata tuples into abs(visibility), the mx val.
     '''
-    npix = int(o.fringe)
-    print('  Making a plot with npix =',npix,'with %d fringes'%len(plotdata))
-    vis = list(map(np.log, plotdata[0][0:4])) # RR,RL,LR,LL,MX
+    vis, vxn, ratio = combinePlotdata(plotdata, o)
     lab = [ 'RR','RL','LR','LL' ]
-    MX = np.log(plotdata[0][4])
-    ratio = vis[0].shape[1] / vis[0].shape[0]
 
     pl.ioff()
     fig = pl.figure(figsize=(8,8))
@@ -197,7 +274,7 @@ def plotProcessing(plotdata, o):
     sub[3] = fig.add_subplot(224)
 
     for sp in range(4):
-        sub[sp].imshow(vis[sp][:,:], vmin=0.0, vmax=MX,
+        sub[sp].imshow(vis[sp][:,:], vmin=vxn[0], vmax=vxn[1],
             aspect=ratio, origin='lower', interpolation='nearest',
             cmap=cm.cividis)
         sub[sp].set_title('RR converted')
@@ -205,10 +282,8 @@ def plotProcessing(plotdata, o):
         sub[sp].set_ylabel('delay rate')
         pl.setp(sub[sp].get_xticklabels(),visible=False)
         pl.setp(sub[sp].get_yticklabels(),visible=False)
-
     fig.savefig('%s.png' % o.name)
-    os.system('eog %s.png &' % o.name)
-    
+    if o.viewer != '': os.system('%s %s.png &' % (o.viewer, o.name))
     return 0
 
 def parseIFarg(o):
@@ -297,6 +372,11 @@ def parseOptions():
         ' Use "help" as an argument for more information')
     parser.add_argument('-n', '--name', dest='name',
         default='', help='Basename for any plot generated.')
+    parser.add_argument('-s', '--scale', dest='scale',
+        default='log', help='One of "log", "linear", "sqrt".')
+    parser.add_argument('-g', '--viewer', dest='viewer',
+        default='', help='Name of graphic display tool, e.g.'
+        ' eog, okular.... The default is nothing to show nothing.')
     return parser.parse_args()
 
 def somehelp(o):
@@ -349,7 +429,7 @@ if __name__ == '__main__':
             print("Unable to read IF %d successfully"%int(pli))
             print("Exception was:\n",str(ex))
             errors += 1
-    print("\nHave plotting data for %d fringes\n"%len(plotdata))
+    print("\nHave plotting data for %d fringes"%len(plotdata))
     if (o.fringe != ''):
         try:
             errors += plotProcessing(plotdata, o);
