@@ -5,6 +5,11 @@
 #
 # Script to open and assess the POLCONVERT.FRINGE_* binary files.
 # Code cribbed from TOP/task_polconvert.py around line 2550 or so.
+# As usual with stupid python-numpy crap...things get out of control
+# rather quickly.  However this ends up as a bit of a mini-fourfit.
+#
+# This offsers some flexibility for "after the fact" PolConvert assessment.
+#
 # pylab is "deprecated" so we've converted to matplotlib.*
 #
 '''
@@ -19,7 +24,36 @@ import matplotlib.cm as cm
 import os
 import re
 import struct as stk
+import subprocess
 import sys
+
+def findAntennaNames(o):
+    '''
+    Assuming we can locate the PolConvert log, the antennas show up
+    in lines such as these:
+    TELESCOPE AA AT X: 2225061.285 ; Y: -5440061.738 ; Z: -2481681.151
+    TELESCOPE BR AT X: -2112065.351 ; Y: -3705356.500 ; Z: 4726813.606
+    TELESCOPE FD AT X: -1324009.452 ; Y: -5332181.950 ; Z: 3231962.351
+    ...
+    and a simple grep should suffice to complete the mapping.  Apparently
+    subprocess.run() is recommended if it suffices, now.
+    '''
+    pclog = "%s/PolConvert.log" % o.dir
+    if not os.path.exists(pclog): return '??','??'
+    if o.verb: print('  found',pclog)
+    cmd = 'grep ^TELESCOPE....AT.X: %s' % pclog
+    if o.verb: print('  running',cmd.split(' ')[0:2],'...\n')
+    antennas = dict()
+    try:    # CompletedProcess tells the tale
+        cpro = subprocess.run(cmd.split(' '), capture_output=True)
+        if cpro.returncode == 0:
+            for aa,liner in enumerate(cpro.stdout.decode().split('\n')):
+                antennas[aa+1] = liner[10:12]
+        if o.verb: print(' with antennas', antennas)
+        return antennas[o.ant1],antennas[o.ant2]
+    except Exception as ex:
+        if o.verb: print('Unable to dig out TELESCOPE names',str(ex)) 
+        return '??','??'
 
 def dtype0(fringedata,frfile):
     '''
@@ -83,11 +117,11 @@ def examineFRINGE_IF(pli, o):
     o.nchPlot = int(nchPlot)
     try:
         fringe = np.fromfile(frfile,dtype=dtype)
+        frfile.close()
     except Exception as ex:
-        print('Unable to read fringe',str(ex))
-    frfile.close()
-    print(' ',os.path.basename(fringedata),
-        'successfully with',len(fringe),'blocks and',o.nchPlot,'channels')
+        raise Exception('Unable to read fringe',str(ex))
+    if o.verb: print(' ',os.path.basename(fringedata),
+        'has ',len(fringe),'time samples and',o.nchPlot,'channels')
     x = len(fringe)-1
     if o.pcvers == '1':
         file0 = fringe[0]['FILE']
@@ -100,7 +134,7 @@ def examineFRINGE_IF(pli, o):
     ant2set = set(list(fringe[:]["ANT2"]))
     print('  ANT1: ', ant1set, ', ANT2: ',ant2set)
     maxUVDIST = ''
-    if o.pcvers == '1':
+    if o.pcvers == '1' and o.verb:
         maxUVDIST = (
             ' max UVDIST %f'%np.max(fringe[:]["UVDIST"]) + '(units unknown)')
         print('  PANG1: %.2f'%np.rad2deg(np.min(fringe[:]["PANG1"])),
@@ -111,7 +145,9 @@ def examineFRINGE_IF(pli, o):
     try:  o.ant1,o.ant2 = map(int,o.ants.split(','))
     except: raise Exception('This is not an antenna-index pair: ' + o.ants)
     if o.ant1 in ant1set and o.ant2 in ant2set:
-        print('  Prepping data for plot on baseline between', o.ant1, o.ant2)
+        o.antenna1, o.antenna2 = findAntennaNames(o)
+        print('  Prepping data on baseline', o.ant1, '(', o.antenna1, ')',
+            'to', o.ant2, '(', o.antenna2, ') for plot')
         AntEntry1 = np.logical_and(
             fringe[:]["ANT1"] == o.ant1,fringe[:]["ANT2"] == o.ant2)
         AntEntry2 = np.logical_and(
@@ -177,49 +213,107 @@ def setScaling(scale):
     In theory one can be quite creative here...;
     return a function and a sensible min for it.
     '''
-    if scale == 'log':
-        scalor = np.log
-        minimum = -2.0
-    elif scale == 'linear':
-        scalor = float
-        minimum = 0.0
-    elif scale == 'sqrt':
-        scalor = np.sqrt
-        minimum = 0.0
-    else:
-        raise Exception("scale option %s is not defined" % (o.scale))
-    return scalor, minimum
+    if scale == 'log': scalor = np.log
+    elif scale == 'linear': scalor = lambda x:x
+    elif scale == 'sqrt': scalor = np.sqrt
+    else: raise Exception("scale option %s is not defined" % (scale))
+    return scalor
 
-def padSlice(mn, cen, mx, pnd):
+def avePeakPositions(plotdata):
+    count = 0
+    for pd in plotdata:
+        if count == 0: peaks = pd[5]
+        else: peaks = np.add(peaks, pd[5])
+        count += 1
+    peaks = np.divide(peaks, count)        
+    return "(delay %.1f, delay rate %.1f)"%(float(peaks[1]),float(peaks[0]))
+
+def sampleDevFromPlotdata(plotdata, ylim, xlim):
     '''
-    Some stupid index games
+    Estimate the sample deviation from parts of the images away from
+    the peaks.  If we grab some samples from the 4 corners of every
+    plot, make a list and pick the median, we are likely ok.
+    '''
+    samples = list()
+    for pd in plotdata:
+        for vi in range(4):
+           samples.append(np.std(pd[vi][1:ylim,1:xlim].flatten()))
+           samples.append(np.std(pd[vi][1:ylim,xlim:-1].flatten()))
+           samples.append(np.std(pd[vi][ylim-1,xlim:-1].flatten()))
+           samples.append(np.std(pd[vi][ylim-1,1:xlim].flatten()))
+    samedian = np.median(np.array(samples))
+    return samedian
+
+def padSlice(mn, cen, mx, pnd, xtra):
+    '''
+    Some stupid index games: min, max and pad used below...
     '''
     before = after = 0
+    pnd += xtra
     if   pnd > cen: after  = pnd - cen
     elif pnd < cen: before = cen - pnd
     thismin = mn + after
     thismax = mx + after
-    padding = (before, after)
+    padding = (before+xtra, after+xtra)
     return thismin, thismax, padding
+
+def computeSNRs(vizzy, count, samdev, sigma, scale):
+    '''
+    Return a list of the estimated SNRs for the 4 product images in vizzy.
+    Each vizzy image is an average of count images in the scaled space,
+    so we have some math with count to get to the true combined SNRs.
+    Note however we are starting with abs(vis), which is perhaps Raleigh
+    distributed, so the sample deviation computed and passed to us will
+    underestimate the true std dev by sqrt(2-pi/2) or 0.655136377562
+    '''
+    if scale == 'log':
+        scalor = np.exp
+        minimum = float(np.log(samdev / np.sqrt(count)) * sigma)
+    elif scale == 'linear':
+        scalor = lambda x:x
+        minimum = 0.0
+    elif scale == 'sqrt':
+        scalor = np.square
+        minimum = 0.0
+    else: raise Exception("scale option %s is not defined" % (scale))
+    SNRs = np.array(range(4))
+    for ii,vis in enumerate(vizzy):
+        # recover unscaled max
+        maximum = float(scalor(np.max(vis)))
+        # generate SNRs of the combined data -- attempting to correct...
+        SNRs[ii] = ((maximum / samdev) *
+            float(np.sqrt(count)) * 0.655136377562)
+    return SNRs, minimum
 
 def combinePlotdata(plotdata, o):
     '''
     Should have been given list of plotdata tuples (per IF).  Combine
     them and make a 2x2 image plot centered around the peaks +/- npix,
     which we do by padding with np.pad and then slicing out npix around
-    the new center.  Returns the things to be plotted.
+    the new center.  We also add xtra padding so that if there is not
+    much data, we still get some approximation of the original npix.
+    Returns the things to be plotted.
     '''
-    scalor, minimum = setScaling(o.scale)
-    npix = 2*int(int(o.fringe)/2.0) + 1
-    xcen = int(o.nchPlot/2)
-    ycen = int(o.rchan/2)
+    o.fringe += ',0,1.0,junk,'
+    npix,xtra,sigma,junk = o.fringe.split(',',maxsplit=3)
+    if sigma == 0.0: sigma = 1.0
+    npix = 2*int(int(npix)/2.0) + 1
+    xtra = int(xtra)
+    xcen = int((o.nchPlot+2*xtra)/2)
+    ycen = int((o.rchan+2*xtra)/2)
     wind = min(npix, xcen, ycen)
     xmin, xmax = (xcen - wind, xcen + wind + 1)
     ymin, ymax = (ycen - wind, ycen + wind + 1)
-    print(('Making the %s plot with half-width %d on %d fringes' +
-           ' centered at (%d,%d)') % (
-        o.scale, wind, len(plotdata), xcen, ycen))
+    scalor = setScaling(o.scale)
+    # these should all be the same if it is a real fringe
+    truecenter = avePeakPositions(plotdata)
+    # sample median of the original np.abs(visibilities)
+    samdev = sampleDevFromPlotdata(plotdata,
+        min(npix,ycen)//3, min(npix,xcen)//3)
+    print(('  %s plot %dx%d on %d peaks at %s') % (
+        o.scale, 2*wind+1,2*wind+1, len(plotdata), truecenter))
     count = 0
+    minimum = 0.0
     for pd in plotdata: # RR,RL,LR,LL,  MX, RMAX, IF
         # note that y indices precede x indices
         pndy,pndx = pd[5]
@@ -233,8 +327,8 @@ def combinePlotdata(plotdata, o):
         # pad the sides so that a slice window puts the peak at the center
         if count == 0: maximum = thismax
         else:          maximum += thismax
-        thisxmin,thisxmax,xpadding = padSlice(xmin,xcen,xmax,int(pndx))
-        thisymin,thisymax,ypadding = padSlice(ymin,ycen,ymax,int(pndy))
+        thisxmin,thisxmax,xpadding = padSlice(xmin,xcen,xmax,int(pndx),xtra)
+        thisymin,thisymax,ypadding = padSlice(ymin,ycen,ymax,int(pndy),xtra)
         window = np.s_[thisymin:thisymax,thisxmin:thisxmax]
         pad_width = ( ypadding, xpadding )
         vis = list()
@@ -250,22 +344,26 @@ def combinePlotdata(plotdata, o):
     # renormalize
     for vi in range(4): vizzy[vi] = np.divide(vizzy[vi], float(count))
     maximum /= count
-    # return plot products
+    # return plot products; all should have same ratio, so use first
     ratio = vizzy[0].shape[1] / vizzy[0].shape[0]
-    return vizzy, [minimum, maximum], ratio
+    SNRs, minimum = computeSNRs(vizzy, count, samdev, float(sigma), o.scale)
+    print('  SNRs on',o.ants,'(%s && %s)'%(o.antenna1,o.antenna2),
+        SNRs,'|Vis| data e %.2f<%.2f, sample dev %.3f'%(
+        minimum,maximum, samdev))
+    return vizzy, [minimum, maximum], ratio, SNRs
 
 def plotProcessing(plotdata, o):
     '''
     Combine the plotdata tuples into abs(visibility), the mx val.
     '''
-    vis, vxn, ratio = combinePlotdata(plotdata, o)
+    vis, vxn, ratio, SNRs = combinePlotdata(plotdata, o)
     lab = [ 'RR','RL','LR','LL' ]
 
     pl.ioff()
     fig = pl.figure(figsize=(8,8))
     fig.clf()
 
-    fig.suptitle('SuperTitle')
+    fig.suptitle('Composite Fringes (%s)' % ','.join(o.ifused))
     fig.subplots_adjust(left=0.05,right=0.95,wspace=0.20,hspace=0.20)
     sub = lab
     sub[0] = fig.add_subplot(221)
@@ -277,7 +375,7 @@ def plotProcessing(plotdata, o):
         sub[sp].imshow(vis[sp][:,:], vmin=vxn[0], vmax=vxn[1],
             aspect=ratio, origin='lower', interpolation='nearest',
             cmap=cm.cividis)
-        sub[sp].set_title('RR converted')
+        sub[sp].set_title('RR converted, SNR %.2f' % SNRs[sp])
         sub[sp].set_xlabel('delay')
         sub[sp].set_ylabel('delay rate')
         pl.setp(sub[sp].get_xticklabels(),visible=False)
@@ -298,9 +396,8 @@ def parseIFarg(o):
         raise Exception("No POLCONVERT.FRINGE subdir to %s" % odir)
     iflist = list()
     targetdir = "%s/POLCONVERT.FRINGE" % odir
-    if o.verb:
-        print('Locating fringes in:\n %s/\n  %s' %
-            (os.path.dirname(odir), os.path.basename(odir)))
+    if o.verb: print('Locating fringes in:\n %s\n  %s' %
+        (os.path.dirname(odir), os.path.basename(odir)))
     # POLCONVERT.FRINGE_* initially, later POLCONVERT.FRINGE__IF*
     o.withIF = None
     for frng in sorted(glob.glob("%s/*FRINGE_IF*" % targetdir)):
@@ -393,10 +490,13 @@ def somehelp(o):
     work with.  If this argument is not empty, it is parsed to
     supply npix and ALL the IFs mentioned in the -I argument are
     combined, and the result is plotted for a window around npix.
+    A second argument will supply padding around these images so
+    that if this is not enough data for an npix-square image, you
+    will get edge-padding at the minimum value.  Finally, that
+    minimum value is set at the 1-sigma noise level (unless a third
+    argument is added to the comma-sep list.  This sigma may be
+    floating point, but the other items must be integers.
     '''
-#   plothelp='''
-#   FIXME: The next shoe is options to generate plots....
-#   '''
     if o.pcvers == 'help':
         print(pcvershelp)
         return True
@@ -421,7 +521,8 @@ if __name__ == '__main__':
         precision=o.prec, threshold=o.thres, linewidth=o.width)
     errors = 0
     plotdata = list()
-    for pli in parseIFarg(o):
+    o.ifused = parseIFarg(o)
+    for pli in o.ifused:
         try:
             print()
             plotdata.append(examineFRINGE_IF(int(pli), o))
@@ -438,10 +539,10 @@ if __name__ == '__main__':
             print("Exception was:\n",str(ex))
             errors += 1
     if errors > 0:
-        print('all done with',errors,'errors')
+        print('\nall done with',errors,'errors')
         sys.exit(errors)
     else:
-        print('all done with no errors')
+        print('\nall done with no errors')
     sys.exit(0)
 
 #
