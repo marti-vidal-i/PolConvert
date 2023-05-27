@@ -29,10 +29,15 @@ import sys
 
 def formatDescription(o):
     '''
-    This generates a legend below the main title
+    This generates a legend below the main title.  Things to say are
+    captured in o.description, and we reformat that to fit a header
+    and a footer.  If the publish option is set, then we create a
+    text file with the information as well
     '''
-    story = 'blah blah blah blah blah blah blah blah blah blah blah blah\n'*4
-    return story[:-1],story[:-1]
+    header = o.description['time0'] + '\n' + o.description['timex']
+    footer = o.description['antennas']
+    saved = '%s.%s' % (o.name, o.ext)
+    return header, footer, saved
 
 def findAntennaNames(o):
     '''
@@ -57,9 +62,11 @@ def findAntennaNames(o):
             for aa,liner in enumerate(cpro.stdout.decode().split('\n')):
                 antennas[aa+1] = liner[10:12]
         if o.verb: print(' with antennas', antennas)
+        o.description['antennas'] = 'Antennas: ' + str(antennas)
         return antennas[o.ant1],antennas[o.ant2]
     except Exception as ex:
         if o.verb: print('Unable to dig out TELESCOPE names',str(ex)) 
+        o.description['antennas'] = 'Antennas: (no antenna information)'
         return '??','??'
 
 def getAntennaNames(o):
@@ -143,8 +150,10 @@ def examineFRINGE_IF(pli, o):
         fileX = fringe[x]['FILE']
     else:
         file0 = fileX = '--'
-    print('  [%04d] File:'%0,file0, 'JDT %f s = %s'%jdt(fringe[0]['JDT']))
-    print('  [%04d] File:'%x,fileX, 'JDT %f s = %s'%jdt(fringe[x]['JDT']))
+    o.description['time0'] = 'JDT %f s = %s'%jdt(fringe[0]['JDT'])
+    o.description['timex'] = 'JDT %f s = %s'%jdt(fringe[x]['JDT'])
+    print('  [%04d] File:'%0,file0, o.description['time0'])
+    print('  [%04d] File:'%x,fileX, o.description['timex'])
     ant1set = set(list(fringe[:]["ANT1"]))
     ant2set = set(list(fringe[:]["ANT2"]))
     print('  ANT1: ', ant1set, ', ANT2: ',ant2set)
@@ -231,6 +240,27 @@ def setScaling(scale):
     else: raise Exception("scale option %s is not defined" % (scale))
     return scalor
 
+def invScaling(scale):
+    '''
+    And then provide an inverse so that cb range can be known
+    '''
+    if scale == 'log': scalor = np.exp
+    elif scale == 'linear': scalor = lambda x:x
+    elif scale == 'sqrt': scalor = np.square
+    else: raise Exception("scale option %s is not defined" % (scale))
+    return scalor
+
+def plotMinimum(scale, samdev, count, sigma):
+    '''
+    Choose a sensible minimum; log is the only tricky case since
+    log (0) is not a good thing.
+    '''
+    if scale == 'log': minimum = float(np.log(samdev/np.sqrt(count))*sigma)
+    elif scale == 'linear': minimum = 0.0
+    elif scale == 'sqrt': minimum = 0.0
+    else: raise Exception("scale option %s is not defined" % (scale))
+    return minimum
+
 def avePeakPositions(plotdata):
     count = 0
     for pd in plotdata:
@@ -278,16 +308,8 @@ def computeSNRs(vizzy, count, samdev, sigma, scale):
     distributed, so the sample deviation computed and passed to us will
     underestimate the true std dev by sqrt(2-pi/2) or 0.655136377562
     '''
-    if scale == 'log':
-        scalor = np.exp
-        minimum = float(np.log(samdev / np.sqrt(count)) * sigma)
-    elif scale == 'linear':
-        scalor = lambda x:x
-        minimum = 0.0
-    elif scale == 'sqrt':
-        scalor = np.square
-        minimum = 0.0
-    else: raise Exception("scale option %s is not defined" % (scale))
+    minimum = plotMinimum(scale, samdev, count, sigma)
+    scalor = invScaling(scale)
     SNRs = np.array(range(4))
     for ii,vis in enumerate(vizzy):
         # recover unscaled max
@@ -296,6 +318,22 @@ def computeSNRs(vizzy, count, samdev, sigma, scale):
         SNRs[ii] = ((maximum / samdev) *
             float(np.sqrt(count)) * 0.655136377562)
     return SNRs, minimum
+
+def parseFringeRequest(fringe, verb):
+    '''
+    The o.fringe var is npix[,xtra[,sigma]] but split gets upset.
+    The plots look nicer when npix is odd when there is a fringe.
+    If npix is larger than the amount of data, we need xtra nonzero
+    '''
+    npix,xtra,sigma,junk = (o.fringe + ',,,').split(',',maxsplit=3)
+    npix = 2*int(int(npix)/2.0) + 1
+    if xtra == '':
+        xtra = npix//2
+    if sigma == '': sigma = 1.0
+    xtra = int(xtra)
+    sigma = float(sigma)
+    if o.verb: print('  npix,xtra,sigma: ',npix,xtra,sigma)
+    return npix, xtra, sigma
 
 def combinePlotdata(plotdata, o):
     '''
@@ -306,12 +344,7 @@ def combinePlotdata(plotdata, o):
     much data, we still get some approximation of the original npix.
     Returns the things to be plotted.
     '''
-    o.fringe += ',0,1.0,junk,'
-    npix,xtra,sigma,junk = o.fringe.split(',',maxsplit=3)
-    if sigma == 0.0: sigma = 1.0
-    npix = 2*int(int(npix)/2.0) + 1
-    if o.verb: print('  npix,xtra,sigma: ',npix,xtra,sigma)
-    xtra = int(xtra)
+    npix,xtra,sigma = parseFringeRequest(o.fringe, o.verb)
     xcen = int((o.nchPlot+2*xtra)/2)
     ycen = int((o.rchan+2*xtra)/2)
     wind = min(npix, xcen, ycen)
@@ -359,42 +392,11 @@ def combinePlotdata(plotdata, o):
     maximum /= count
     # return plot products; all should have same ratio, so use first
     ratio = vizzy[0].shape[1] / vizzy[0].shape[0]
-    SNRs, minimum = computeSNRs(vizzy, count, samdev, float(sigma), o.scale)
+    SNRs, minimum = computeSNRs(vizzy, count, samdev, sigma, o.scale)
     print('  SNRs on',o.ants,'(%s && %s)'%(o.antenna1,o.antenna2),
         SNRs,'\n  %s|Vis| data e %.2f<%.2f +/- %.3f'%(
         o.scale, minimum, maximum, samdev))
     return vizzy, [minimum, maximum], ratio, SNRs
-
-def plotProcessingPyLabbish(plotdata, o):
-    '''
-    Combine the plotdata tuples into abs(visibility), the mx val.
-    This version is minimally modified from the first simplifications
-    of the pylab original (in task_polconvert.py).  This is is intended
-    to replace that one....
-    '''
-    vis, vxn, ratio, SNRs = combinePlotdata(plotdata, o)
-    pl.ioff()
-    fig = pl.figure(figsize=(8,8))
-    fig.clf()
-    fig.suptitle('Composite Fringes (%s)' % ','.join(o.ifused))
-    fig.subplots_adjust(left=0.05,right=0.95,wspace=0.20,hspace=0.20)
-    sub = lab
-    sub[0] = fig.add_subplot(221)
-    sub[1] = fig.add_subplot(222)
-    sub[2] = fig.add_subplot(223)
-    sub[3] = fig.add_subplot(224)
-    for sp in range(4):
-        sub[sp].imshow(vis[sp][:,:], vmin=vxn[0], vmax=vxn[1],
-            aspect=ratio, origin='lower', interpolation='nearest',
-            cmap=cm.cividis)
-        sub[sp].set_title('RR converted, SNR %.2f' % SNRs[sp])
-        sub[sp].set_xlabel('delay')
-        sub[sp].set_ylabel('delay rate')
-        pl.setp(sub[sp].get_xticklabels(),visible=False)
-        pl.setp(sub[sp].get_yticklabels(),visible=False)
-    fig.savefig('%s.png' % o.name)
-    if o.viewer != '': os.system('%s %s.png &' % (o.viewer, o.name))
-    return 0
 
 def plotProcessing(plotdata, o):
     '''
@@ -402,72 +404,87 @@ def plotProcessing(plotdata, o):
     '''
     vis, vxn, ratio, SNRs = combinePlotdata(plotdata, o)
     lab = [ 'RR','RL','LR','LL' ]
+    end = [ '','\n' ]
+    scalor = invScaling(o.scale)
+    cbrange = '..'.join(list(map(lambda x:"%.2f"%x, scalor(vxn))))
     pl.ioff()
-
+    # lengendary
     fig, axs = pl.subplots(2, 2, figsize=(8,9),
         subplot_kw={'xticks':[], 'yticks':[]})
     fig.suptitle(('IF-Averaged Fringes (IFs: %s)' % ','.join(o.ifused)) +
         '   Job: ' + o.job + '   BL: ' + o.antenna1 + ' && ' + o.antenna2)
     fig.subplots_adjust(left=0.05,right=0.97,wspace=0.15,hspace=0.15)
-    # this should be assembled earlier
-    props = dict(boxstyle='round', facecolor='wheat', alpha=1.0)
-    header,footer = formatDescription(o)
+    props = dict(boxstyle='round', facecolor='snow', alpha=1.0)
+    header,footer,saved = formatDescription(o)
     fig.text(0.5, 0.92, header, fontsize=8,
         ha='center', va='center', wrap=True, bbox=props)
     fig.text(0.5, 0.05, footer, fontsize=8,
         ha='center', va='center', wrap=True, bbox=props)
-    for col in range(2):
-        for row in range(2):
-            # debug
+    # subplots
+    for row in range(2):
+        for col in range(2):
             ndx = 2*(1-row)+(1-col)
-            if o.verb: print('  IM',ndx,
-                lab[ndx],list(map(lambda x:"%.2f"%x, vxn)))
+            if o.verb:
+                print('  Vis[',ndx, lab[ndx],'] range',cbrange,
+                '% 7.2f'% SNRs[ndx], end=end[col])
             ax = axs[row, col]
-            ax.set_title(lab[ndx] + ' converted, SNR %.1f' % SNRs[ndx])
+            ax.set_title(lab[ndx] + ' converted, SNR %5.1f' % SNRs[ndx])
             ax.set_xlabel('delay')
             ax.set_ylabel('delay rate')
             im = ax.imshow(vis[ndx], vmin=vxn[0], vmax=vxn[1],
                 interpolation='nearest', cmap=cm.viridis, origin='lower')
             fig.colorbar(im, ax=ax, label=o.scale+'(|Vis(%s)|)'%lab[ndx])
-    saved = '%s.%s' % (o.name, o.ext)
     fig.savefig(saved)
-    if o.viewer != '': os.system('%s %s.%s &' % (o.viewer, o.name, o.ext))
-    print("  plot placed in '%s'" % saved)
+    plotCoda(saved, o)
     return 0
+
+def plotCoda(saved, o):
+    '''
+    Tell the human
+    '''
+    print("  plot placed in '%s'" % saved)
+    if o.viewer != '':
+        cmd = '%s %s.%s &' % (o.viewer, o.name, o.ext)
+        os.system(cmd)
+        print(' ',cmd,'launched')
 
 def parseJobStamp(o):
     '''
     It is somewhat convenient to parse the dirname for correlation
     job number as well as timestamp (for plot labels). Do that now.
-    FIXME: with a better choice of default filename...
+    And this is a good place to check stupid stuff.
     '''
+    if not os.path.exists(o.dir):
+        raise Exception("Directory %s does not exist" % o.dir)
+    if not os.path.exists(o.dir + '/POLCONVERT.FRINGE'):
+        raise Exception("No POLCONVERT.FRINGE subdir to %s" % o.dir)
+    o.description = {}
+    getAntennaNames(o)
+    if o.name == '':
+        if o.antenna1+o.antenna2 == '????':
+            o.name = 'checkFringe-%d-%d' % (o.ant1,o.ant2)
+        else:
+            o.name = 'checkFringe-%s-%s' % (o.antenna1,o.antenna2)
+    if o.publish:
+        o.name = o.dir + '/' + o.name
+    if o.verb: print('plotting to', o.name)
     try:
         parts = o.dir.split('.polconvert-')
         o.job = parts[0]
         o.stamp = parts[1]
-        if o.name == '': o.name = 'test'
     except Exception as ex:
         print(str(ex))
         o.job = ''
         o.stamp = ''
-        o.name = 'test'
 
 def parseIFarg(o):
     '''
     Convert the IF input option to a list of IFs to examine.
     '''
-    ifargs = o.IF
-    odir = o.dir
-    if not os.path.exists(odir):
-        raise Exception("Directory %s does not exist" % odir)
-    if not os.path.exists(odir + '/POLCONVERT.FRINGE'):
-        raise Exception("No POLCONVERT.FRINGE subdir to %s" % odir)
-    parseJobStamp(o)
-    getAntennaNames(o)
     iflist = list()
-    targetdir = "%s/POLCONVERT.FRINGE" % odir
+    targetdir = "%s/POLCONVERT.FRINGE" % o.dir
     if o.verb: print('Locating fringes in:\n %s\n  %s' %
-        (os.path.dirname(odir), os.path.basename(odir)))
+        (os.path.dirname(o.dir), os.path.basename(o.dir)))
     # POLCONVERT.FRINGE_* initially, later POLCONVERT.FRINGE__IF*
     o.withIF = None
     for frng in sorted(glob.glob("%s/*FRINGE_IF*" % targetdir)):
@@ -480,20 +497,20 @@ def parseIFarg(o):
         if o.verb: print('   ',os.path.basename(frng),'as IF',iflist[-1])
         o.withIF = False
     # if no selection provide full list
-    if ifargs == '': return iflist
+    if o.IF == '': return iflist
     # else make a cut to those requested
     ifcull = list()
-    for iffy in ifargs.split(','):
+    for iffy in o.IF.split(','):
         if iffy in iflist: ifcull.append(iffy)
     if o.verb: print(' limiting actions to these IFs:', ','.join(ifcull),'\n')
-    if len(ifcull) == 0: print('No IFs match: -I',ifargs,'choose wisely.')
+    if len(ifcull) == 0: print('No IFs match: -I',o.IF,'choose wisely.')
     return ifcull
 
 def getVersion():
     '''
     There has to be a better solution than editing all the files.
     '''
-    return 'Unknown'
+    return 'unspecified'
 
 def parseOptions():
     '''
@@ -605,6 +622,7 @@ if __name__ == '__main__':
         precision=o.prec, threshold=o.thres, linewidth=o.width)
     errors = 0
     plotdata = list()
+    parseJobStamp(o)
     o.ifused = parseIFarg(o)
     for pli in o.ifused:
         try:
