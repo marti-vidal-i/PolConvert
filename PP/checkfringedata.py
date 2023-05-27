@@ -27,6 +27,13 @@ import struct as stk
 import subprocess
 import sys
 
+def formatDescription(o):
+    '''
+    This generates a legend below the main title
+    '''
+    story = 'blah blah blah blah blah blah blah blah blah blah blah blah\n'*4
+    return story[:-1],story[:-1]
+
 def findAntennaNames(o):
     '''
     Assuming we can locate the PolConvert log, the antennas show up
@@ -54,6 +61,14 @@ def findAntennaNames(o):
     except Exception as ex:
         if o.verb: print('Unable to dig out TELESCOPE names',str(ex)) 
         return '??','??'
+
+def getAntennaNames(o):
+    '''
+    Do this at the outset.
+    '''
+    try:  o.ant1,o.ant2 = map(int,o.ants.split(','))
+    except: raise Exception('This is not an antenna-index pair: ' + o.ants)
+    o.antenna1, o.antenna2 = findAntennaNames(o)
 
 def dtype0(fringedata,frfile):
     '''
@@ -142,10 +157,7 @@ def examineFRINGE_IF(pli, o):
             '  PANG2: %.2f'%np.rad2deg(np.min(fringe[:]["PANG2"])),
             '.. %.2f'%np.rad2deg(np.max(fringe[:]["PANG2"])),
             ' (deg);\n', maxUVDIST)
-    try:  o.ant1,o.ant2 = map(int,o.ants.split(','))
-    except: raise Exception('This is not an antenna-index pair: ' + o.ants)
     if o.ant1 in ant1set and o.ant2 in ant2set:
-        o.antenna1, o.antenna2 = findAntennaNames(o)
         print('  Prepping data on baseline', o.ant1, '(', o.antenna1, ')',
             'to', o.ant2, '(', o.antenna2, ') for plot')
         AntEntry1 = np.logical_and(
@@ -298,6 +310,7 @@ def combinePlotdata(plotdata, o):
     npix,xtra,sigma,junk = o.fringe.split(',',maxsplit=3)
     if sigma == 0.0: sigma = 1.0
     npix = 2*int(int(npix)/2.0) + 1
+    if o.verb: print('  npix,xtra,sigma: ',npix,xtra,sigma)
     xtra = int(xtra)
     xcen = int((o.nchPlot+2*xtra)/2)
     ycen = int((o.rchan+2*xtra)/2)
@@ -348,21 +361,21 @@ def combinePlotdata(plotdata, o):
     ratio = vizzy[0].shape[1] / vizzy[0].shape[0]
     SNRs, minimum = computeSNRs(vizzy, count, samdev, float(sigma), o.scale)
     print('  SNRs on',o.ants,'(%s && %s)'%(o.antenna1,o.antenna2),
-        SNRs,'|Vis| data e %.2f<%.2f, sample dev %.3f'%(
-        minimum,maximum, samdev))
+        SNRs,'\n  %s|Vis| data e %.2f<%.2f +/- %.3f'%(
+        o.scale, minimum, maximum, samdev))
     return vizzy, [minimum, maximum], ratio, SNRs
 
-def plotProcessing(plotdata, o):
+def plotProcessingPyLabbish(plotdata, o):
     '''
     Combine the plotdata tuples into abs(visibility), the mx val.
+    This version is minimally modified from the first simplifications
+    of the pylab original (in task_polconvert.py).  This is is intended
+    to replace that one....
     '''
     vis, vxn, ratio, SNRs = combinePlotdata(plotdata, o)
-    lab = [ 'RR','RL','LR','LL' ]
-
     pl.ioff()
     fig = pl.figure(figsize=(8,8))
     fig.clf()
-
     fig.suptitle('Composite Fringes (%s)' % ','.join(o.ifused))
     fig.subplots_adjust(left=0.05,right=0.95,wspace=0.20,hspace=0.20)
     sub = lab
@@ -370,7 +383,6 @@ def plotProcessing(plotdata, o):
     sub[1] = fig.add_subplot(222)
     sub[2] = fig.add_subplot(223)
     sub[3] = fig.add_subplot(224)
-
     for sp in range(4):
         sub[sp].imshow(vis[sp][:,:], vmin=vxn[0], vmax=vxn[1],
             aspect=ratio, origin='lower', interpolation='nearest',
@@ -384,6 +396,62 @@ def plotProcessing(plotdata, o):
     if o.viewer != '': os.system('%s %s.png &' % (o.viewer, o.name))
     return 0
 
+def plotProcessing(plotdata, o):
+    '''
+    Combine the plotdata tuples into abs(visibility), the mx val.
+    '''
+    vis, vxn, ratio, SNRs = combinePlotdata(plotdata, o)
+    lab = [ 'RR','RL','LR','LL' ]
+    pl.ioff()
+
+    fig, axs = pl.subplots(2, 2, figsize=(8,9),
+        subplot_kw={'xticks':[], 'yticks':[]})
+    fig.suptitle(('IF-Averaged Fringes (IFs: %s)' % ','.join(o.ifused)) +
+        '   Job: ' + o.job + '   BL: ' + o.antenna1 + ' && ' + o.antenna2)
+    fig.subplots_adjust(left=0.05,right=0.97,wspace=0.15,hspace=0.15)
+    # this should be assembled earlier
+    props = dict(boxstyle='round', facecolor='wheat', alpha=1.0)
+    header,footer = formatDescription(o)
+    fig.text(0.5, 0.92, header, fontsize=8,
+        ha='center', va='center', wrap=True, bbox=props)
+    fig.text(0.5, 0.05, footer, fontsize=8,
+        ha='center', va='center', wrap=True, bbox=props)
+    for col in range(2):
+        for row in range(2):
+            # debug
+            ndx = 2*(1-row)+(1-col)
+            if o.verb: print('  IM',ndx,
+                lab[ndx],list(map(lambda x:"%.2f"%x, vxn)))
+            ax = axs[row, col]
+            ax.set_title(lab[ndx] + ' converted, SNR %.1f' % SNRs[ndx])
+            ax.set_xlabel('delay')
+            ax.set_ylabel('delay rate')
+            im = ax.imshow(vis[ndx], vmin=vxn[0], vmax=vxn[1],
+                interpolation='nearest', cmap=cm.viridis, origin='lower')
+            fig.colorbar(im, ax=ax, label=o.scale+'(|Vis(%s)|)'%lab[ndx])
+    saved = '%s.%s' % (o.name, o.ext)
+    fig.savefig(saved)
+    if o.viewer != '': os.system('%s %s.%s &' % (o.viewer, o.name, o.ext))
+    print("  plot placed in '%s'" % saved)
+    return 0
+
+def parseJobStamp(o):
+    '''
+    It is somewhat convenient to parse the dirname for correlation
+    job number as well as timestamp (for plot labels). Do that now.
+    FIXME: with a better choice of default filename...
+    '''
+    try:
+        parts = o.dir.split('.polconvert-')
+        o.job = parts[0]
+        o.stamp = parts[1]
+        if o.name == '': o.name = 'test'
+    except Exception as ex:
+        print(str(ex))
+        o.job = ''
+        o.stamp = ''
+        o.name = 'test'
+
 def parseIFarg(o):
     '''
     Convert the IF input option to a list of IFs to examine.
@@ -394,6 +462,8 @@ def parseIFarg(o):
         raise Exception("Directory %s does not exist" % odir)
     if not os.path.exists(odir + '/POLCONVERT.FRINGE'):
         raise Exception("No POLCONVERT.FRINGE subdir to %s" % odir)
+    parseJobStamp(o)
+    getAntennaNames(o)
     iflist = list()
     targetdir = "%s/POLCONVERT.FRINGE" % odir
     if o.verb: print('Locating fringes in:\n %s\n  %s' %
@@ -439,41 +509,55 @@ def parseOptions():
     epi += 'For this you need at least -d *polconvert* arguments.'
     use = '%(prog)s [options]\n\nVersion ' + getVersion()
     parser = argparse.ArgumentParser(epilog=epi, description=des, usage=use)
-    parser.add_argument('-d', '--dir', dest='dir',
+    major = parser.add_argument_group('Major Options')
+    minor = parser.add_argument_group('Minor Options')
+    major.add_argument('-v', '--verbose', dest='verb',
+        default=False, action='store_true',
+        help='be chatty about the work')
+    major.add_argument('-d', '--dir', dest='dir',
         default='.', metavar='DIR', help='(Mandatory) Path to '
         'the polconvert output directory.  In production processing, '
         'that is $job.polconvert-$timestamp')
-    parser.add_argument('-I', '--IF', dest='IF',
+    major.add_argument('-P', '--publish', dest='publish',
+        default=False, action='store_true', help='place results in'
+        ' the -d directory under "PC_CHECKS"')
+    major.add_argument('-I', '--IF', dest='IF',
         default='', metavar="IF", help='This controls the IFs '
         'that will be considered.  If unset, all IFs in the '
         'directory are examined.  You may also supply a comma-sep '
         'list of IF numbers to process.')
-    parser.add_argument('-v', '--verbose', dest='verb',
-        default=False, action='store_true',
-        help='be chatty about the work')
-    parser.add_argument('-p', '--precision', dest='prec', type=int,
-        default=3, metavar=int, help='Precision for numpy printing')
-    parser.add_argument('-t', '--threshold', dest='thres', type=int,
-        default=20, metavar=int, help='Threshold for numpy printing')
-    parser.add_argument('-w', '--linewidth', dest='width', type=int,
-        default=78, metavar=int, help='Linewidth for numpy printing')
-    parser.add_argument('-V', '--pcvers', dest='pcvers',
+    major.add_argument('-a', '--antennas', dest='ants',
+        default='1,2', metavar='ANT1,ANT2', help='Indicies for the'
+        ' pair of antennas to use for subsequent checking')
+    major.add_argument('-f', '--fringe', dest='fringe',
+        default='', help='String to configure fringing checks.'
+        ' Use "help" as an argument for more information')
+    #
+    minor.add_argument('-n', '--name', dest='name',
+        default='', help='Basename for any plot generated.  If no name'
+        ' is supplied, one will be created for you')
+    minor.add_argument('-V', '--pcvers', dest='pcvers',
         default='1', help='Fringe file version: 1 = 2.0.5 and later'
         ' (with UVDIST), 0 = 2.0.3 and earlier without it, or "help"'
         ' to print out a more complete explanation')
-    parser.add_argument('-a', '--antennas', dest='ants',
-        default='1,2', metavar='ANT1,ANT2', help='Indicies for the'
-        ' pair of antennas to use for subsequent checking')
-    parser.add_argument('-f', '--fringe', dest='fringe',
-        default='', help='String to configure fringing checks.'
-        ' Use "help" as an argument for more information')
-    parser.add_argument('-n', '--name', dest='name',
-        default='', help='Basename for any plot generated.')
-    parser.add_argument('-s', '--scale', dest='scale',
-        default='log', help='One of "log", "linear", "sqrt".')
-    parser.add_argument('-g', '--viewer', dest='viewer',
+    minor.add_argument('-s', '--scale', dest='scale',
+        default='log', help='One of "log" (default), "linear", "sqrt".')
+    minor.add_argument('-g', '--viewer', dest='viewer',
         default='', help='Name of graphic display tool, e.g.'
-        ' eog, okular.... The default is nothing to show nothing.')
+        ' eog, okular.... The default is nothing to make a PNG'
+        ' file (see -n) and display nothing show nothing.')
+    minor.add_argument('-p', '--precision', dest='prec', type=int,
+        default=3, metavar=int,
+        help='Precision for numpy printing if verbosity active')
+    minor.add_argument('-t', '--threshold', dest='thres', type=int,
+        default=20, metavar=int,
+        help='Threshold for numpy printing if verbosity active')
+    minor.add_argument('-w', '--linewidth', dest='width', type=int,
+        default=78, metavar=int,
+        help='Linewidth for numpy printing if verbosity active')
+    minor.add_argument('-e', '--extension', dest='ext',
+        default='png', metavar='EXT', help='Graphics extension for'
+        ' the file produced: png (default), pdf, ...')
     return parser.parse_args()
 
 def somehelp(o):
