@@ -34,10 +34,37 @@ def formatDescription(o):
     and a footer.  If the publish option is set, then we create a
     text file with the information as well
     '''
-    header = o.description['time0'] + '\n' + o.description['timex']
+    header =  'Start:  ' + o.description['time0'] + '\n'
+    header += 'Finish: ' + o.description['timex']
     footer = o.description['antennas']
+    footer += "AMPs: LL %8.2f LR %8.2f RL %8.2f RR %8.2f" % (
+        o.description['amps'])
+    o.description['snrs'].reverse()
+    footer += "\nSNRs: LL %8.2f LR %8.2f RL %8.2f RR %8.2f" % tuple(
+        o.description['snrs'])
     saved = '%s.%s' % (o.name, o.ext)
-    return header, footer, saved
+    pname = '%s.%s' % (o.name, 'txt')
+    return header, footer, saved, pname
+
+def antennaBlock(legend, antprow, antdict):
+    '''
+    Simply doing str(antdict) is ugly; try for two equal lines
+    if we have more than 8 antennas
+    '''
+    if antprow == 0:
+        if len(antdict) > 10: antprow = (len(antdict) + 1) // 2
+        else:                 antprow = len(antdict)
+    text = [" %d:%s" % (ky,antdict[ky]) for ky in antdict]
+    for runt in range((antprow - len(text) % antprow) % antprow):
+        text.append(' '*5)
+    for endr in range(1+len(text)//antprow):
+        try:
+            text[endr*antprow + 0] = legend + text[endr*antprow]
+            text[endr*antprow + antprow-1] += '\n'
+        except:
+            pass
+    print(text)
+    return ''.join(text)
 
 def findAntennaNames(o):
     '''
@@ -60,14 +87,13 @@ def findAntennaNames(o):
         cpro = subprocess.run(cmd.split(' '), capture_output=True)
         if cpro.returncode == 0:
             for aa,liner in enumerate(cpro.stdout.decode().split('\n')):
-                antennas[aa+1] = liner[10:12]
-        if o.verb: print(' with antennas', antennas)
-        o.description['antennas'] = 'Antennas: ' + str(antennas)
-        return antennas[o.ant1],antennas[o.ant2]
+                if len(liner) > 10: antennas[aa+1] = liner[10:12]
     except Exception as ex:
         if o.verb: print('Unable to dig out TELESCOPE names',str(ex)) 
-        o.description['antennas'] = 'Antennas: (no antenna information)'
-        return '??','??'
+        antennas[o.ant1] = antennas[o.ant2] = '??'
+    o.description['antennas'] = antennaBlock(o.antlegend, o.antprow, antennas)
+    if o.verb: print(o.description['antennas'])
+    return antennas[o.ant1],antennas[o.ant2]
 
 def getAntennaNames(o):
     '''
@@ -156,7 +182,7 @@ def examineFRINGE_IF(pli, o):
     print('  [%04d] File:'%x,fileX, o.description['timex'])
     ant1set = set(list(fringe[:]["ANT1"]))
     ant2set = set(list(fringe[:]["ANT2"]))
-    print('  ANT1: ', ant1set, ', ANT2: ',ant2set)
+    if o.verb: print('  ANT1: ', ant1set, ', ANT2: ',ant2set)
     maxUVDIST = ''
     if o.pcvers == '1' and o.verb:
         maxUVDIST = (
@@ -167,7 +193,8 @@ def examineFRINGE_IF(pli, o):
             '.. %.2f'%np.rad2deg(np.max(fringe[:]["PANG2"])),
             ' (deg);\n', maxUVDIST)
     if o.ant1 in ant1set and o.ant2 in ant2set:
-        print('  Prepping data on baseline', o.ant1, '(', o.antenna1, ')',
+        if o.verb:
+            print('  Prepping data on baseline', o.ant1, '(', o.antenna1, ')',
             'to', o.ant2, '(', o.antenna2, ') for plot')
         AntEntry1 = np.logical_and(
             fringe[:]["ANT1"] == o.ant1,fringe[:]["ANT2"] == o.ant2)
@@ -223,9 +250,11 @@ def prepPlot(cal, plif, o):
     MAXVis = np.array([RRVis[RMAX],RLVis[RMAX],LRVis[RMAX],LLVis[RMAX]])
     MAXl = np.array([RR[RMAX],RL[RMAX],LR[RMAX],LL[RMAX]])
     MAX = max(MAXl)
+    o.description["amps"] = (LL[RMAX],LR[RMAX],RL[RMAX],RR[RMAX])
     print("  This IF%d peaks at %s < +/-[%d,%d] with (RR,RL,LR,LL) Vis:" %
         (o.thisIF, repr(RMAX), int(o.rchan), int(o.nchPlot)))
-    print('  ', MAXVis, '\n  ', MAXl, '; overall max |Vis|: %f'%float(MAX))
+    if o.verb: print('  ', MAXVis)
+    print('  ', MAXl, '; overall max |Vis|: %f'%float(MAX))
     # provide the data actually needed for a combined plot
     return [ RR, RL, LR, LL, float(MAX), RMAX, plif ]
 
@@ -234,31 +263,35 @@ def setScaling(scale):
     In theory one can be quite creative here...;
     return a function and a sensible min for it.
     '''
-    if scale == 'log': scalor = np.log
+    if scale == 'loge': scale = 'elog'
+    if   scale == 'elog': scalor = np.log
+    elif scale == 'log10': scalor = np.log10
     elif scale == 'linear': scalor = lambda x:x
     elif scale == 'sqrt': scalor = np.sqrt
-    else: raise Exception("scale option %s is not defined" % (scale))
+    else: raise Exception("scale option %s not defined (set)" % (scale))
     return scalor
 
 def invScaling(scale):
     '''
     And then provide an inverse so that cb range can be known
     '''
-    if scale == 'log': scalor = np.exp
+    if   scale == 'elog': scalor = np.exp
+    elif scale == 'log10': scalor = lambda x:np.power(x, 10)
     elif scale == 'linear': scalor = lambda x:x
     elif scale == 'sqrt': scalor = np.square
-    else: raise Exception("scale option %s is not defined" % (scale))
+    else: raise Exception("scale option %s not defined (inv)" % (scale))
     return scalor
 
 def plotMinimum(scale, samdev, count, sigma):
     '''
-    Choose a sensible minimum; log is the only tricky case since
+    Choose a sensible minimum; log are the only tricky case since
     log (0) is not a good thing.
     '''
-    if scale == 'log': minimum = float(np.log(samdev/np.sqrt(count))*sigma)
+    if   scale == 'elog': minimum=float(np.log(samdev/np.sqrt(count))*sigma)
+    elif scale == 'log10': minimum=float(np.log10(samdev/np.sqrt(count))*sigma)
     elif scale == 'linear': minimum = 0.0
     elif scale == 'sqrt': minimum = 0.0
-    else: raise Exception("scale option %s is not defined" % (scale))
+    else: raise Exception("scale option %s not defined (min)" % (scale))
     return minimum
 
 def avePeakPositions(plotdata):
@@ -299,7 +332,7 @@ def padSlice(mn, cen, mx, pnd, xtra):
     padding = (before+xtra, after+xtra)
     return thismin, thismax, padding
 
-def computeSNRs(vizzy, count, samdev, sigma, scale):
+def computeSNRs(vizzy, maximum, count, samdev, sigma, scale):
     '''
     Return a list of the estimated SNRs for the 4 product images in vizzy.
     Each vizzy image is an average of count images in the scaled space,
@@ -307,17 +340,19 @@ def computeSNRs(vizzy, count, samdev, sigma, scale):
     Note however we are starting with abs(vis), which is perhaps Raleigh
     distributed, so the sample deviation computed and passed to us will
     underestimate the true std dev by sqrt(2-pi/2) or 0.655136377562
+
+    FIXME: SNRs are not the same in log10 as in others.  WTF?
     '''
     minimum = plotMinimum(scale, samdev, count, sigma)
     scalor = invScaling(scale)
     SNRs = np.array(range(4))
     for ii,vis in enumerate(vizzy):
-        # recover unscaled max
-        maximum = float(scalor(np.max(vis)))
+        # recover unscaled max on this visibility
+        maxvis = float(scalor(np.max(vis)))
         # generate SNRs of the combined data -- attempting to correct...
-        SNRs[ii] = ((maximum / samdev) *
+        SNRs[ii] = ((maxvis / samdev) *
             float(np.sqrt(count)) * 0.655136377562)
-    return SNRs, minimum
+    return SNRs, minimum, maximum
 
 def parseFringeRequest(fringe, verb):
     '''
@@ -356,7 +391,7 @@ def combinePlotdata(plotdata, o):
     # sample median of the original np.abs(visibilities)
     samdev = sampleDevFromPlotdata(plotdata,
         min(npix,ycen)//3, min(npix,xcen)//3)
-    print(('  %s plot %dx%d on %d peaks at %s') % (
+    if o.verb: print(('  %s plot %dx%d on %d peaks at %s') % (
         o.scale, 2*wind+1,2*wind+1, len(plotdata), truecenter))
     count = 0
     minimum = 0.0
@@ -364,7 +399,7 @@ def combinePlotdata(plotdata, o):
         # note that y indices precede x indices
         pndy,pndx = pd[5]
         plif = pd[6]
-        thismax = scalor(pd[4])
+        thismax = pd[4]
         # if are multiple peaks, this is definitely not a droid we want
         if not (type(pndx) is np.int64 and type(pndy) is np.int64 and
             thismax > minimum):
@@ -378,9 +413,10 @@ def combinePlotdata(plotdata, o):
         window = np.s_[thisymin:thisymax,thisxmin:thisxmax]
         pad_width = ( ypadding, xpadding )
         vis = list()
+        # finally generate the centered, sliced images
         for vi in range(4):
-            vis.append(np.pad(scalor(pd[vi]), pad_width, mode='constant',
-                constant_values=minimum)[window])
+            vis.append(np.pad(pd[vi], pad_width, mode='constant',
+                constant_values=samdev/10.0)[window])
             if count > 0:
                 vizzy[vi] = np.add(vizzy[vi], vis[vi])
         if count == 0: vizzy = vis
@@ -388,14 +424,18 @@ def combinePlotdata(plotdata, o):
     if count == 0:
         raise Exception("Nothing to plot?")
     # renormalize
-    for vi in range(4): vizzy[vi] = np.divide(vizzy[vi], float(count))
+    for vi in range(4): vizzy[vi] = scalor(np.divide(vizzy[vi], float(count)))
     maximum /= count
+    maximum = scalor(maximum)
     # return plot products; all should have same ratio, so use first
     ratio = vizzy[0].shape[1] / vizzy[0].shape[0]
-    SNRs, minimum = computeSNRs(vizzy, count, samdev, sigma, o.scale)
+    SNRs, minimum, maximum = computeSNRs(
+        vizzy, maximum, count, samdev, sigma, o.scale)
+    o.description['snrs'] = list(SNRs)
+    invscalor = invScaling(o.scale)
     print('  SNRs on',o.ants,'(%s && %s)'%(o.antenna1,o.antenna2),
-        SNRs,'\n  %s|Vis| data e %.2f<%.2f +/- %.3f'%(
-        o.scale, minimum, maximum, samdev))
+        SNRs,'\n  %s|Vis| data e [%.2f..%.2f] +/- %.3f (std.dev)'%(
+        o.scale, invscalor(minimum), invscalor(maximum), samdev))
     return vizzy, [minimum, maximum], ratio, SNRs
 
 def plotProcessing(plotdata, o):
@@ -411,14 +451,14 @@ def plotProcessing(plotdata, o):
     # lengendary
     fig, axs = pl.subplots(2, 2, figsize=(8,9),
         subplot_kw={'xticks':[], 'yticks':[]})
-    fig.suptitle(('IF-Averaged Fringes (IFs: %s)' % ','.join(o.ifused)) +
-        '   Job: ' + o.job + '   BL: ' + o.antenna1 + ' && ' + o.antenna2)
+    fig.suptitle(('Averaged Fringes (IFs: %s)' % ','.join(o.ifused)) +
+        '   Job: ' + o.job + '   Vis(' + o.antenna1 + ' && ' + o.antenna2 + ')')
     fig.subplots_adjust(left=0.05,right=0.97,wspace=0.15,hspace=0.15)
     props = dict(boxstyle='round', facecolor='snow', alpha=1.0)
-    header,footer,saved = formatDescription(o)
-    fig.text(0.5, 0.92, header, fontsize=8,
+    header,footer,saved,pname = formatDescription(o)
+    fig.text(0.5, 0.92, header, fontsize=10, fontfamily='monospace',
         ha='center', va='center', wrap=True, bbox=props)
-    fig.text(0.5, 0.05, footer, fontsize=8,
+    fig.text(0.5, 0.05, footer, fontsize=10, fontfamily='monospace',
         ha='center', va='center', wrap=True, bbox=props)
     # subplots
     for row in range(2):
@@ -435,18 +475,27 @@ def plotProcessing(plotdata, o):
                 interpolation='nearest', cmap=cm.viridis, origin='lower')
             fig.colorbar(im, ax=ax, label=o.scale+'(|Vis(%s)|)'%lab[ndx])
     fig.savefig(saved)
-    plotCoda(saved, o)
+    plotCoda(header, footer, saved, pname, o)
     return 0
 
-def plotCoda(saved, o):
+def plotCoda(header, footer, saved, pname, o):
     '''
     Tell the human
     '''
-    print("  plot placed in '%s'" % saved)
+    if o.publish:
+        fp = open(pname, 'w')
+        fp.write('Job: ' + o.job + '\n');
+        fp.write('Stamp: ' + o.stamp + '\n');
+        fp.write('Ants: ' + str(o.ant1) + ' v ' + str(o.ant2) + '\n');
+        fp.write(header + '\n')
+        fp.write(footer + '\n')
+        fp.close()
+        print("  text in '%s'" % pname)
+    print("  plot in '%s'" % saved)
     if o.viewer != '':
         cmd = '%s %s.%s &' % (o.viewer, o.name, o.ext)
+        print('  ' + o.viewer + ' ....' + o.ext + ' launched')
         os.system(cmd)
-        print(' ',cmd,'launched')
 
 def parseJobStamp(o):
     '''
@@ -558,7 +607,8 @@ def parseOptions():
         ' (with UVDIST), 0 = 2.0.3 and earlier without it, or "help"'
         ' to print out a more complete explanation')
     minor.add_argument('-s', '--scale', dest='scale',
-        default='log', help='One of "log" (default), "linear", "sqrt".')
+        default='elog', help='One of "elog" (or "loge", default),'
+        ' "log10", "linear", "sqrt".')
     minor.add_argument('-g', '--viewer', dest='viewer',
         default='', help='Name of graphic display tool, e.g.'
         ' eog, okular.... The default is nothing to make a PNG'
@@ -575,6 +625,10 @@ def parseOptions():
     minor.add_argument('-e', '--extension', dest='ext',
         default='png', metavar='EXT', help='Graphics extension for'
         ' the file produced: png (default), pdf, ...')
+    minor.add_argument('-L', '--antenna-legend', dest='antlegend',
+        default='Ant. Map:', help='Label for lines of antenna map')
+    minor.add_argument('-M', '--antenna-per-row', dest='antprow',
+        default='0', type=int, help='Number of antennas per row in map')
     return parser.parse_args()
 
 def somehelp(o):
