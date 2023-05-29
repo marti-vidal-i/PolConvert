@@ -5,15 +5,14 @@
 #
 # Script to open and assess the POLCONVERT.FRINGE_* binary files.
 # Code cribbed from TOP/task_polconvert.py around line 2550 or so.
-# As usual with stupid python-numpy crap...things get out of control
-# rather quickly.  However this ends up as a bit of a mini-fourfit.
+# As usual with stupid python-numpy-pylab crap...things get rather out of
+# control rather quickly.  However this ends up as a bit of a mini-fourfit.
 #
-# This offsers some flexibility for "after the fact" PolConvert assessment.
-#
-# pylab is "deprecated" so we've converted to matplotlib.*
+# pylab is "deprecated" so we've converted to matplotlib.* and played with
+# it a bit further to try for a make for a more useful postmortem tool.
 #
 '''
-checkfringedata.py -- a program to check fringe binary files
+checkfringedata.py -- a program to check POLCONVERT.FRINGE binary files
 '''
 
 import argparse
@@ -26,6 +25,7 @@ import re
 import struct as stk
 import subprocess
 import sys
+import warnings
 
 def formatDescription(o):
     '''
@@ -63,7 +63,6 @@ def antennaBlock(legend, antprow, antdict):
             text[endr*antprow + antprow-1] += '\n'
         except:
             pass
-    print(text)
     return ''.join(text)
 
 def findAntennaNames(o):
@@ -97,21 +96,21 @@ def findAntennaNames(o):
 
 def getAntennaNames(o):
     '''
-    Do this at the outset.
+    Do this at the outset and save it for later use.
     '''
     try:  o.ant1,o.ant2 = map(int,o.ants.split(','))
     except: raise Exception('This is not an antenna-index pair: ' + o.ants)
     o.antenna1, o.antenna2 = findAntennaNames(o)
 
-def dtype0(fringedata,frfile):
+def dtype0(fringedata,frfile,quiet):
     '''
     The version with PANG? but not UVDIST..DiFX 2.6 through 2.8.1
-    (through PolConvert version 2.0.3).
+    (through PolConvert version 2.0.3).  Note that PANG? is junk.
     '''
-    print('reading',os.path.basename(fringedata),'...',end=' ')
+    if not quiet: print('Reading',os.path.basename(fringedata),'...',end=' ')
     alldats = frfile.read(4)
     nchPlot = stk.unpack("i", alldats[:4])[0]
-    print('no UVDIST')
+    if not quiet: print('no UVDIST')
     dtype = np.dtype(
         [
             ("JDT", np.float64),
@@ -124,14 +123,14 @@ def dtype0(fringedata,frfile):
     )
     return dtype,nchPlot
 
-def dtype1(fringedata,frfile):
+def dtype1(fringedata,frfile,quiet):
     '''
     The version with PANG? and UVDIST..DiFX 2.8.2 (after 2.0.4)
     '''
-    print('reading',os.path.basename(fringedata),'...',end=' ')
+    if not quiet: print('Reading',os.path.basename(fringedata),'...',end=' ')
     alldats = frfile.read(5)
     nchPlot,isParang = stk.unpack("i?", alldats)
-    print('with Parang?',isParang,'w/UVDIST')
+    if not quiet: print('with Parang?',isParang,'w/UVDIST')
     dtype = np.dtype(
         [
             ("FILE", np.int32),
@@ -151,7 +150,10 @@ def examineFRINGE_IF(pli, o):
     pli is the index of the file, so .../POLCONVERT.FRINGE_IF??
     is expected to hold some binary data this task will try to
     unpack it and report on what it holds.  Options in o affect
-    what it does with the data.
+    what it does with the data.  The FRINGE data file holds records
+    by time for antenna pairs (including only baselines to the
+    "plotAnt") and for that a matrix of unconverted, converted
+    and the conversion matrices.
     '''
     if o.withIF: ifs = 'IF'
     else:        ifs = ''
@@ -159,8 +161,8 @@ def examineFRINGE_IF(pli, o):
         o.dir,ifs,pli)
     o.thisIF = pli
     frfile = open(fringedata,"rb")
-    if o.pcvers == '0': dtype,nchPlot = dtype0(fringedata,frfile)
-    elif o.pcvers == '1': dtype,nchPlot = dtype1(fringedata,frfile)
+    if o.pcvers == '0': dtype,nchPlot = dtype0(fringedata,frfile,o.quiet)
+    elif o.pcvers == '1': dtype,nchPlot = dtype1(fringedata,frfile,o.quiet)
     else: raise Exception('Unsupported fringe version ' + o.pcvers)
     o.nchPlot = int(nchPlot)
     try:
@@ -168,7 +170,7 @@ def examineFRINGE_IF(pli, o):
         frfile.close()
     except Exception as ex:
         raise Exception('Unable to read fringe',str(ex))
-    if o.verb: print(' ',os.path.basename(fringedata),
+    if o.verb and not o.quiet: print(' ',os.path.basename(fringedata),
         'has ',len(fringe),'time samples and',o.nchPlot,'channels')
     x = len(fringe)-1
     if o.pcvers == '1':
@@ -178,13 +180,14 @@ def examineFRINGE_IF(pli, o):
         file0 = fileX = '--'
     o.description['time0'] = 'JDT %f s = %s'%jdt(fringe[0]['JDT'])
     o.description['timex'] = 'JDT %f s = %s'%jdt(fringe[x]['JDT'])
-    print('  [%04d] File:'%0,file0, o.description['time0'])
-    print('  [%04d] File:'%x,fileX, o.description['timex'])
+    if not o.quiet:
+        print('  [%04d] File:'%0,file0, o.description['time0'])
+        print('  [%04d] File:'%x,fileX, o.description['timex'])
     ant1set = set(list(fringe[:]["ANT1"]))
     ant2set = set(list(fringe[:]["ANT2"]))
     if o.verb: print('  ANT1: ', ant1set, ', ANT2: ',ant2set)
     maxUVDIST = ''
-    if o.pcvers == '1' and o.verb:
+    if o.pcvers == '1' and o.verb and not o.quiet:
         maxUVDIST = (
             ' max UVDIST %f'%np.max(fringe[:]["UVDIST"]) + '(units unknown)')
         print('  PANG1: %.2f'%np.rad2deg(np.min(fringe[:]["PANG1"])),
@@ -193,7 +196,7 @@ def examineFRINGE_IF(pli, o):
             '.. %.2f'%np.rad2deg(np.max(fringe[:]["PANG2"])),
             ' (deg);\n', maxUVDIST)
     if o.ant1 in ant1set and o.ant2 in ant2set:
-        if o.verb:
+        if o.verb and not o.quiet:
             print('  Prepping data on baseline', o.ant1, '(', o.antenna1, ')',
             'to', o.ant2, '(', o.antenna2, ') for plot')
         AntEntry1 = np.logical_and(
@@ -217,7 +220,8 @@ def examineFRINGE_IF(pli, o):
 def jdt(jdts):
     '''
     Apparently the unit is (Modified) Julian Date in seconds.
-    The time origin for that is 11 Nov 1858.
+    The time origin for that is 11 Nov 1858.  It is not clear
+    what way to code this is least likely to lose precision.
     '''
     import datetime
     dt = datetime.timedelta(seconds=jdts)
@@ -251,12 +255,12 @@ def prepPlot(cal, plif, o):
     MAXl = np.array([RR[RMAX],RL[RMAX],LR[RMAX],LL[RMAX]])
     MAX = max(MAXl)
     o.description["amps"] = (LL[RMAX],LR[RMAX],RL[RMAX],RR[RMAX])
-    print("  This IF%d peaks at %s < +/-[%d,%d] with (RR,RL,LR,LL) Vis:" %
+    print("  IF%d peaks at %s < +/-[%d,%d] with (RR,RL,LR,LL) Vis:" %
         (o.thisIF, repr(RMAX), int(o.rchan), int(o.nchPlot)))
     if o.verb: print('  ', MAXVis)
-    print('  ', MAXl, '; overall max |Vis|: %f'%float(MAX))
+    print('  ', MAXl, '; overall max |Vis|: %f\n'%float(MAX))
     # provide the data actually needed for a combined plot
-    return [ RR, RL, LR, LL, float(MAX), RMAX, plif ]
+    return [ RR, RL, LR, LL, float(MAX), RMAX, plif, MAXl ]
 
 def scaleAlias(scale):
     if scale == 'loge': scale = 'elog'
@@ -313,7 +317,7 @@ def sampleDevFromPlotdata(plotdata, ylim, xlim):
     '''
     Estimate the sample deviation from parts of the images away from
     the peaks.  If we grab some samples from the 4 corners of every
-    plot, make a list and pick the median, we are likely ok.
+    plot, make a list and pick the median, we are very likely ok.
     '''
     samples = list()
     for pd in plotdata:
@@ -401,10 +405,12 @@ def combinePlotdata(plotdata, o):
     if o.verb: print(('  %s plot %dx%d on %d peaks at %s') % (
         o.scale, 2*wind+1,2*wind+1, len(plotdata), truecenter))
     count = 0
-    for pd in plotdata: # RR,RL,LR,LL,  4:MX, 5:RMAX, 6:IF
+    AMPs = np.zeros(4)
+    for pd in plotdata: # RR,RL,LR,LL,  4:MX, 5:RMAX, 6:IF,  7:MAXl
         # note that y indices precede x indices
         pndy,pndx = pd[5]
         thismax = pd[4]
+        AMPs = np.add(AMPs, pd[7])
         # if are multiple peaks, this is definitely not a droid we want
         if not (type(pndx) is np.int64 and type(pndy) is np.int64 and
             thismax > 0.0):     # there better be a peak somewhere
@@ -429,7 +435,8 @@ def combinePlotdata(plotdata, o):
         count += 1
     if count == 0:
         raise Exception("Nothing to plot?")
-    # renormalize and scale
+    # average and scale
+    AMPs = np.divide(AMPs, float(count))
     scalor = setScaling(o.scale)
     for vi in range(4): vizzy[vi] = scalor(np.divide(vizzy[vi], float(count)))
     # compute SNRs and scaled image max,min
@@ -443,31 +450,33 @@ def combinePlotdata(plotdata, o):
         o.scale, invscalor(minimum), invscalor(maximum), samdev))
     # return plot products; all should have same ratio, so use first
     ratio = vizzy[0].shape[1] / vizzy[0].shape[0]
-    return vizzy, [minimum, maximum], ratio, SNRs
+    return vizzy, [minimum, maximum], ratio, SNRs, AMPs
 
 def plotProcessing(plotdata, o):
     '''
     Combine the plotdata tuples into abs(visibility), the mx val.
+    Note that we have reversed the order of visibilities to be
+    the canonical alphabetical one.  The 'constrained' layout will
+    prevent the axis labels from getting buried, but it then doesn't
+    leave much control over placement of other things.
     '''
-    vis, vxn, ratio, SNRs = combinePlotdata(plotdata, o)
+    vis, vxn, ratio, SNRs, AMPs = combinePlotdata(plotdata, o)
     lab = [ 'RR','RL','LR','LL' ]
-    end = [ '','\n' ]
     scalor = invScaling(o.scale)
     cbrange = '..'.join(list(map(lambda x:"%.2f"%x, scalor(vxn))))
     pl.ioff()
-    # lengendary
+    # lengendary--blank lines in tile opens space for header block
+    # space for footer is created by padding (above) the colorbar
     fig, axs = pl.subplots(2, 2, figsize=(8.5,11), layout='constrained',
         subplot_kw={'xticks':[], 'yticks':[]})
     fig.suptitle(('Averaged Fringes (IFs: %s)' % ','.join(o.ifused)) +
-        '   Job: ' + o.job + '   Vis(' + o.antenna1 + ' && ' + o.antenna2 + ')'
-        + "\n")
-    # fig.subplots_adjust(left=0.05,right=0.97,wspace=0.15,hspace=0.15)
+        '\nJob: ' + o.job + '   Vis(' + o.antenna1 + ' && ' + o.antenna2 + ')'
+        + "\n\n\n", fontsize=14)   # open up space for header
     props = dict(boxstyle='round', facecolor='snow', alpha=1.0)
     header,footer,saved,pname = formatDescription(o)
-    #fig.text(0.5, 0.530, header, fontsize=10, fontfamily='monospace',
-    #    ha='center', va='center', wrap=True, bbox=props)
-    fig.text(0.51, 0.140, header+'\n'+footer,
-        fontsize=10, fontfamily='monospace',
+    fig.text(0.5, 0.930, header, fontsize=10, fontfamily='monospace',
+        ha='center', va='center', wrap=True, bbox=props)
+    fig.text(0.51, 0.130, footer, fontsize=10, fontfamily='monospace',
         ha='center', va='center', wrap=True, bbox=props)
     # subplots
     for row in range(2):
@@ -475,23 +484,29 @@ def plotProcessing(plotdata, o):
             ndx = 2*(1-row)+(1-col)
             if o.verb:
                 print('  Vis[',ndx, lab[ndx],'] range',cbrange,
-                '% 7.2f'% SNRs[ndx], end=end[col])
+                '% 7.2f Amp %.1f'% (SNRs[ndx], AMPs[ndx]))
             ax = axs[row, col]
-            ax.set_title(lab[ndx] + ' converted, SNR %5.1f' % SNRs[ndx])
+            ax.set_title(lab[ndx] + ' Vis., SNR %5.1f Amp %.1f' % 
+                (SNRs[ndx], AMPs[ndx]))
             ax.set_xlabel('delay\n')
             ax.set_ylabel('delay rate')
             im = ax.imshow(vis[ndx], vmin=vxn[0], vmax=vxn[1],
                 interpolation='nearest', cmap=cm.viridis, origin='lower')
-            if row == 0 and col == 0:
-                fig.colorbar(im, ax=axs, label=o.scale+'(|Vis(%s)|)'%lab[ndx],
-                location='bottom', shrink=0.60, pad=0.14)
+    # common colorbar, with updated labels for scaling: replace('−','-')
+    cbar = fig.colorbar(im, ax=axs,
+        label='('+o.scale+'-scaled) |Vis(LL,LR,RL,RR)|',
+        location='bottom', shrink=0.60, pad=0.12)
+    ttt = ['%.0f'%scalor(float(text.get_text().replace('\u2212','\u002d')))
+        for text in cbar.ax.get_xticklabels()]
+    warnings.filterwarnings(action='ignore', category=UserWarning)
+    cbar.ax.set_xticklabels(ttt)
     fig.savefig(saved)
     plotCoda(header, footer, saved, pname, o)
     return 0
 
 def plotCoda(header, footer, saved, pname, o):
     '''
-    Tell the human
+    Tell the human about what is now available
     '''
     if o.publish:
         fp = open(pname, 'w')
@@ -501,8 +516,8 @@ def plotCoda(header, footer, saved, pname, o):
         fp.write(header + '\n')
         fp.write(footer + '\n')
         fp.close()
-        print("  text in '%s'" % pname)
-    print("  plot in '%s'" % saved)
+        print("  text: '%s'" % pname)
+    print("  plot: '%s'" % saved)
     if o.viewer != '':
         cmd = '%s %s.%s &' % (o.viewer, o.name, o.ext)
         print('  ' + o.viewer + ' ....' + o.ext + ' launched')
@@ -540,11 +555,14 @@ def parseJobStamp(o):
 def parseIFarg(o):
     '''
     Convert the IF input option to a list of IFs to examine.
+    We also make sure that the named IFs have data to plot.
     '''
     iflist = list()
     targetdir = "%s/POLCONVERT.FRINGE" % o.dir
-    if o.verb: print('Locating fringes in:\n %s\n  %s' %
-        (os.path.dirname(o.dir), os.path.basename(o.dir)))
+    dirdir = os.path.dirname(o.dir)
+    if len(dirdir) > 0: dirdir = '\n ' + dirdir + '/'
+    if o.verb: print('Locating fringes in:%s\n  %s' %
+        (dirdir, os.path.basename(o.dir)))
     # POLCONVERT.FRINGE_* initially, later POLCONVERT.FRINGE__IF*
     o.withIF = None
     for frng in sorted(glob.glob("%s/*FRINGE_IF*" % targetdir)):
@@ -570,7 +588,12 @@ def getVersion():
     '''
     There has to be a better solution than editing all the files.
     '''
-    return 'unspecified'
+    try:
+        import pcvers
+        return pcvers
+    except:
+        return 'not available'
+    return 'total failure'
 
 def parseOptions():
     '''
@@ -580,24 +603,23 @@ def parseOptions():
     binary files and reports on what it finds.
     '''
     des = parseOptions.__doc__
-    epi =  'In the typical case you may have run PolConvert, '
+    epi =  'In the typical case, you may have run PolConvert, '
     epi += 'something did not work, and you wish to verify that '
-    epi += 'binary fringe files, written by PolConvert, are ok. '
-    epi += 'For this you need at least -d *polconvert* arguments.'
+    epi += 'binary fringe files written by PolConvert, are ok (or not). '
+    epi += 'For this you need at least the -d *polconvert* argument '
+    epi += 'which will located the PolConvert.log and the binary '
+    epi += 'fringe files.  The remaining arguments controls what '
+    epi += '(exactly) is done with those files. '
+    epi += 'Use -f "example" for sample invocations.'
     use = '%(prog)s [options]\n\nVersion ' + getVersion()
     parser = argparse.ArgumentParser(epilog=epi, description=des, usage=use)
     major = parser.add_argument_group('Major Options')
     minor = parser.add_argument_group('Minor Options')
-    major.add_argument('-v', '--verbose', dest='verb',
-        default=False, action='store_true',
-        help='be chatty about the work')
+    picky = parser.add_argument_group('Picky Options')
     major.add_argument('-d', '--dir', dest='dir',
         default='.', metavar='DIR', help='(Mandatory) Path to '
         'the polconvert output directory.  In production processing, '
         'that is $job.polconvert-$timestamp')
-    major.add_argument('-P', '--publish', dest='publish',
-        default=False, action='store_true', help='place results in'
-        ' the -d directory under "PC_CHECKS"')
     major.add_argument('-I', '--IF', dest='IF',
         default='', metavar="IF", help='This controls the IFs '
         'that will be considered.  If unset, all IFs in the '
@@ -605,69 +627,122 @@ def parseOptions():
         'list of IF numbers to process.')
     major.add_argument('-a', '--antennas', dest='ants',
         default='1,2', metavar='ANT1,ANT2', help='Indicies for the'
-        ' pair of antennas to use for subsequent checking')
+        ' pair of antennas to use for subsequent checking.  Ideally,'
+        ' the first one is a linear station (ALMA) and the second'
+        ' is a short baseline to a good station.')
     major.add_argument('-f', '--fringe', dest='fringe',
         default='', help='String to configure fringing checks.'
-        ' Use "help" as an argument for more information')
+        ' Use "help" as an argument for more information; reminder:'
+        ' npix,pads,sigma')
+    major.add_argument('-P', '--publish', dest='publish',
+        default=False, action='store_true', help='place results in'
+        ' the -d directory (a graphic and a text file).')
     #
+    minor.add_argument('-v', '--verbose', dest='verb',
+        default=False, action='store_true',
+        help='be chatty about the work')
+    minor.add_argument('-q', '--quiet', dest='quiet',
+        default=False, action='store_true',
+        help='this is useful if you are playing with the plots'
+            ' and no longer need to see the fringe file details.')
     minor.add_argument('-n', '--name', dest='name',
         default='', help='Basename for any plot generated.  If no name'
-        ' is supplied, one will be created for you')
+        ' is supplied, one will be created for you based on the baseline.')
     minor.add_argument('-V', '--pcvers', dest='pcvers',
         default='1', help='Fringe file version: 1 = 2.0.5 and later'
-        ' (with UVDIST), 0 = 2.0.3 and earlier without it, or "help"'
-        ' to print out a more complete explanation')
+        ' (with UVDIST), 0 = 2.0.3 and earlier (without UVDIST); or "help"'
+        ' to print out a more complete explanation.')
     minor.add_argument('-s', '--scale', dest='scale',
         default='log10', help='One of "elog" (or "loge"),'
-        ' "log10" (the default), "linear", "sqrt".')
+        ' "log10" (the default), "linear", "sqrt".  Use "help" '
+        ' for more information.')
     minor.add_argument('-g', '--viewer', dest='viewer',
         default='', help='Name of graphic display tool, e.g.'
-        ' eog, okular.... The default is nothing to make a PNG'
-        ' file (see -n) and display nothing show nothing.')
-    minor.add_argument('-p', '--precision', dest='prec', type=int,
-        default=3, metavar=int,
-        help='Precision for numpy printing if verbosity active')
-    minor.add_argument('-t', '--threshold', dest='thres', type=int,
-        default=20, metavar=int,
-        help='Threshold for numpy printing if verbosity active')
-    minor.add_argument('-w', '--linewidth', dest='width', type=int,
-        default=78, metavar=int,
-        help='Linewidth for numpy printing if verbosity active')
+        ' eog, okular.... The default is "" to just make a PNG'
+        ' file (see -n) and to not display it.')
     minor.add_argument('-e', '--extension', dest='ext',
         default='png', metavar='EXT', help='Graphics extension for'
-        ' the file produced: png (default), pdf, ...')
-    minor.add_argument('-L', '--antenna-legend', dest='antlegend',
-        default='Ant. Map:', help='Label for lines of antenna map')
-    minor.add_argument('-M', '--antenna-per-row', dest='antprow',
-        default='0', type=int, help='Number of antennas per row in map')
+        ' the file produced: png (default), pdf, ... (Cf. Matplotlib).')
+    #
+    picky.add_argument('-p', '--precision', dest='prec', type=int,
+        default=3, metavar=int,
+        help='Precision for numpy printing if verbosity active')
+    picky.add_argument('-t', '--threshold', dest='thres', type=int,
+        default=20, metavar=int,
+        help='Threshold for numpy printing if verbosity active')
+    picky.add_argument('-w', '--linewidth', dest='width', type=int,
+        default=78, metavar=int,
+        help='Linewidth for numpy printing if verbosity active')
+    picky.add_argument('-L', '--antenna-legend', dest='antlegend',
+        default='Ant. Map:', help='Number of lines in antenna map legend.')
+    picky.add_argument('-M', '--antenna-per-row', dest='antprow',
+        default='0', type=int,
+        help='Number of antennas per row in map legend.')
     return parser.parse_args()
 
-def somehelp(o):
-    pcvershelp='''
+def pcvershelp():
+    return '''
     The fringe file is binary packed for numpy to read it
     The early versions had parallactic angles (not implemented)
     and as of 2.0.5 (targetted for DiFX 2.8.2), UVDIST was added.
     Use -V 0 for the earlier format and -V 1 for the later one.
     '''
-    fringehelp='''
+def fringehelp():
+    return '''
     Normally polconvert generates plots of before and after the
     polconversion...with a zoom into "npix" around the peak.  An
     issue is that if fringes are weak, the peak is not enough to
-    work with.  If this argument is not empty, it is parsed to
-    supply npix and ALL the IFs mentioned in the -I argument are
-    combined, and the result is plotted for a window around npix.
-    A second argument will supply padding around these images so
-    that if this is not enough data for an npix-square image, you
-    will get edge-padding at the minimum value.  Finally, that
-    minimum value is set at the 1-sigma noise level (unless a third
-    argument is added to the comma-sep list.  This sigma may be
-    floating point, but the other items must be integers.
+    work with.  If the 'fringe' argument is not empty, it is parsed
+    first to supply npix.  Then ALL the IFs mentioned in the -I
+    argument are combined into an average image, and the result is
+    plotted for a window around npix.  The image may need to be
+    padded and you can also scale it.  Use -f "more" to find out
+    about that.
     '''
+def fringemore():
+    return '''
+    After npix, a comma and a second argument indicates the amount
+    of padding you want.  If the delay or delay-rate is at the edge,
+    you will need to pad in order to combine the images.  (If you
+    do not supply a pad, the code will try and may fail...)  A
+    third argument affects the image range...use -s "help" for more
+    about that.
+    '''
+def scalehelp():
+    return '''
+    For some of the scalings, a zero minimum is safe to use.  For
+    log-scaled plots, however, you'll need to set the minimum.  The
+    final fringe argument specifies the number of sigma to multiply
+    the noise floor by for the minimum.  The default is 1.0, but
+    you can do as you like.
+    '''
+def fringeexam():
+    return '''
+    To generate a plot from the fringe data in pdir for the 1,8 antenna
+    baseline pair, put the result in pdir and display the result with eog:
+
+    checkfringedata.py -d pdir -a 1,8 -g eog -f 50 -P
+
+    A more verbose version with padding of 25 pixels and a 0.1-sigma
+    noise floor:
+
+    checkfringedata.py -d pdir -a 1,8 -g eog -f 50,25,0.1 -P
+    '''
+def somehelp(o):
     if o.pcvers == 'help':
-        print(pcvershelp)
+        print(pcvershelp())
         return True
     if o.fringe == 'help':
-        print(fringehelp)
+        print(fringehelp())
+        return True
+    if o.fringe == 'more':
+        print(fringehelp())
+        return True
+    if o.fringe == 'example':
+        print(fringeexam())
+        return True
+    if o.scale == 'help':
+        print(scalehelp())
         return True
     return False
 
@@ -676,7 +751,7 @@ def somehelp(o):
 #
 if __name__ == '__main__':
     if sys.version_info.major < 3:
-        print('Sorry, this code is Python3 only')
+        print('Sorry, this code works in Python3 only.')
         sys.exit(1)
     o = parseOptions()
     if somehelp(o): sys.exit(0)
@@ -689,15 +764,15 @@ if __name__ == '__main__':
     plotdata = list()
     parseJobStamp(o)
     o.ifused = parseIFarg(o)
+    print("\nOpening POLCONVERT.FRINGE files\n")
     for pli in o.ifused:
         try:
-            print()
             plotdata.append(examineFRINGE_IF(int(pli), o))
         except Exception as ex:
             print("Unable to read IF %d successfully"%int(pli))
             print("Exception was:\n",str(ex))
             errors += 1
-    print("\nHave plotting data for %d fringes"%len(plotdata))
+    print("Have plotting data for %d fringes"%len(plotdata))
     if (o.fringe != ''):
         try:
             errors += plotProcessing(plotdata, o);
