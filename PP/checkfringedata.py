@@ -258,12 +258,16 @@ def prepPlot(cal, plif, o):
     # provide the data actually needed for a combined plot
     return [ RR, RL, LR, LL, float(MAX), RMAX, plif ]
 
+def scaleAlias(scale):
+    if scale == 'loge': scale = 'elog'
+    return scale
+
 def setScaling(scale):
     '''
     In theory one can be quite creative here...;
     return a function and a sensible min for it.
     '''
-    if scale == 'loge': scale = 'elog'
+    scale = scaleAlias(scale)
     if   scale == 'elog': scalor = np.log
     elif scale == 'log10': scalor = np.log10
     elif scale == 'linear': scalor = lambda x:x
@@ -275,8 +279,9 @@ def invScaling(scale):
     '''
     And then provide an inverse so that cb range can be known
     '''
+    scale = scaleAlias(scale)
     if   scale == 'elog': scalor = np.exp
-    elif scale == 'log10': scalor = lambda x:np.power(x, 10)
+    elif scale == 'log10': scalor = lambda x:np.power(10.0, x)
     elif scale == 'linear': scalor = lambda x:x
     elif scale == 'sqrt': scalor = np.square
     else: raise Exception("scale option %s not defined (inv)" % (scale))
@@ -287,6 +292,7 @@ def plotMinimum(scale, samdev, count, sigma):
     Choose a sensible minimum; log are the only tricky case since
     log (0) is not a good thing.
     '''
+    scale = scaleAlias(scale)
     if   scale == 'elog': minimum=float(np.log(samdev/np.sqrt(count))*sigma)
     elif scale == 'log10': minimum=float(np.log10(samdev/np.sqrt(count))*sigma)
     elif scale == 'linear': minimum = 0.0
@@ -332,23 +338,25 @@ def padSlice(mn, cen, mx, pnd, xtra):
     padding = (before+xtra, after+xtra)
     return thismin, thismax, padding
 
-def computeSNRs(vizzy, maximum, count, samdev, sigma, scale):
+def computeSNRs(vizzy, maximum, count, samdev, nsigma, scale, fwdscalor):
     '''
-    Return a list of the estimated SNRs for the 4 product images in vizzy.
-    Each vizzy image is an average of count images in the scaled space,
-    so we have some math with count to get to the true combined SNRs.
+    Return a list of the estimated SNRs for the 4 product images in vizzy
+    and the scaled maximum and minimum for in the image arrays.  The maximum
+    should be the total max/count, the mimimum is zero or sigma-scaled stdev.
     Note however we are starting with abs(vis), which is perhaps Raleigh
     distributed, so the sample deviation computed and passed to us will
     underestimate the true std dev by sqrt(2-pi/2) or 0.655136377562
-
-    FIXME: SNRs are not the same in log10 as in others.  WTF?
     '''
-    minimum = plotMinimum(scale, samdev, count, sigma)
-    scalor = invScaling(scale)
+    maximum = fwdscalor(maximum/count)
+    minimum = plotMinimum(scale, samdev, count, nsigma)
+    invscalor = invScaling(scale)
     SNRs = np.array(range(4))
+    ocmpmax = cmpmax = invscalor(minimum)
     for ii,vis in enumerate(vizzy):
         # recover unscaled max on this visibility
-        maxvis = float(scalor(np.max(vis)))
+        npmaxvis = np.max(vis)
+        if npmaxvis > cmpmax: cmpmax = npmaxvis
+        maxvis = float(invscalor(npmaxvis))
         # generate SNRs of the combined data -- attempting to correct...
         SNRs[ii] = ((maxvis / samdev) *
             float(np.sqrt(count)) * 0.655136377562)
@@ -385,7 +393,6 @@ def combinePlotdata(plotdata, o):
     wind = min(npix, xcen, ycen)
     xmin, xmax = (xcen - wind, xcen + wind + 1)
     ymin, ymax = (ycen - wind, ycen + wind + 1)
-    scalor = setScaling(o.scale)
     # these should all be the same if it is a real fringe
     truecenter = avePeakPositions(plotdata)
     # sample median of the original np.abs(visibilities)
@@ -394,20 +401,19 @@ def combinePlotdata(plotdata, o):
     if o.verb: print(('  %s plot %dx%d on %d peaks at %s') % (
         o.scale, 2*wind+1,2*wind+1, len(plotdata), truecenter))
     count = 0
-    minimum = 0.0
-    for pd in plotdata: # RR,RL,LR,LL,  MX, RMAX, IF
+    for pd in plotdata: # RR,RL,LR,LL,  4:MX, 5:RMAX, 6:IF
         # note that y indices precede x indices
         pndy,pndx = pd[5]
-        plif = pd[6]
         thismax = pd[4]
         # if are multiple peaks, this is definitely not a droid we want
         if not (type(pndx) is np.int64 and type(pndy) is np.int64 and
-            thismax > minimum):
-            print(' No single max from',plif,'so we shall ignore it')
+            thismax > 0.0):     # there better be a peak somewhere
+            print(' No single max from',pd[6],'so we shall ignore it')
             continue
-        # pad the sides so that a slice window puts the peak at the center
+        # accumulate a maximum value
         if count == 0: maximum = thismax
         else:          maximum += thismax
+        # pad the sides so that a slice window puts the peak at the center
         thisxmin,thisxmax,xpadding = padSlice(xmin,xcen,xmax,int(pndx),xtra)
         thisymin,thisymax,ypadding = padSlice(ymin,ycen,ymax,int(pndy),xtra)
         window = np.s_[thisymin:thisymax,thisxmin:thisxmax]
@@ -423,19 +429,20 @@ def combinePlotdata(plotdata, o):
         count += 1
     if count == 0:
         raise Exception("Nothing to plot?")
-    # renormalize
+    # renormalize and scale
+    scalor = setScaling(o.scale)
     for vi in range(4): vizzy[vi] = scalor(np.divide(vizzy[vi], float(count)))
-    maximum /= count
-    maximum = scalor(maximum)
-    # return plot products; all should have same ratio, so use first
-    ratio = vizzy[0].shape[1] / vizzy[0].shape[0]
+    # compute SNRs and scaled image max,min
     SNRs, minimum, maximum = computeSNRs(
-        vizzy, maximum, count, samdev, sigma, o.scale)
+        vizzy, maximum, count, samdev, sigma, o.scale, scalor)
+    #   vizzy, scalor(maximum/count), count, samdev, sigma, o.scale, scalor)
     o.description['snrs'] = list(SNRs)
     invscalor = invScaling(o.scale)
     print('  SNRs on',o.ants,'(%s && %s)'%(o.antenna1,o.antenna2),
         SNRs,'\n  %s|Vis| data e [%.2f..%.2f] +/- %.3f (std.dev)'%(
         o.scale, invscalor(minimum), invscalor(maximum), samdev))
+    # return plot products; all should have same ratio, so use first
+    ratio = vizzy[0].shape[1] / vizzy[0].shape[0]
     return vizzy, [minimum, maximum], ratio, SNRs
 
 def plotProcessing(plotdata, o):
@@ -607,8 +614,8 @@ def parseOptions():
         ' (with UVDIST), 0 = 2.0.3 and earlier without it, or "help"'
         ' to print out a more complete explanation')
     minor.add_argument('-s', '--scale', dest='scale',
-        default='elog', help='One of "elog" (or "loge", default),'
-        ' "log10", "linear", "sqrt".')
+        default='log10', help='One of "elog" (or "loge"),'
+        ' "log10" (the default), "linear", "sqrt".')
     minor.add_argument('-g', '--viewer', dest='viewer',
         default='', help='Name of graphic display tool, e.g.'
         ' eog, okular.... The default is nothing to make a PNG'
