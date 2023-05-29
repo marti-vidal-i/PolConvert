@@ -456,16 +456,18 @@ def plotProcessing(plotdata, o):
     cbrange = '..'.join(list(map(lambda x:"%.2f"%x, scalor(vxn))))
     pl.ioff()
     # lengendary
-    fig, axs = pl.subplots(2, 2, figsize=(8,9),
+    fig, axs = pl.subplots(2, 2, figsize=(8.5,11), layout='constrained',
         subplot_kw={'xticks':[], 'yticks':[]})
     fig.suptitle(('Averaged Fringes (IFs: %s)' % ','.join(o.ifused)) +
-        '   Job: ' + o.job + '   Vis(' + o.antenna1 + ' && ' + o.antenna2 + ')')
-    fig.subplots_adjust(left=0.05,right=0.97,wspace=0.15,hspace=0.15)
+        '   Job: ' + o.job + '   Vis(' + o.antenna1 + ' && ' + o.antenna2 + ')'
+        + "\n")
+    # fig.subplots_adjust(left=0.05,right=0.97,wspace=0.15,hspace=0.15)
     props = dict(boxstyle='round', facecolor='snow', alpha=1.0)
     header,footer,saved,pname = formatDescription(o)
-    fig.text(0.5, 0.92, header, fontsize=10, fontfamily='monospace',
-        ha='center', va='center', wrap=True, bbox=props)
-    fig.text(0.5, 0.05, footer, fontsize=10, fontfamily='monospace',
+    #fig.text(0.5, 0.530, header, fontsize=10, fontfamily='monospace',
+    #    ha='center', va='center', wrap=True, bbox=props)
+    fig.text(0.51, 0.140, header+'\n'+footer,
+        fontsize=10, fontfamily='monospace',
         ha='center', va='center', wrap=True, bbox=props)
     # subplots
     for row in range(2):
@@ -476,11 +478,13 @@ def plotProcessing(plotdata, o):
                 '% 7.2f'% SNRs[ndx], end=end[col])
             ax = axs[row, col]
             ax.set_title(lab[ndx] + ' converted, SNR %5.1f' % SNRs[ndx])
-            ax.set_xlabel('delay')
+            ax.set_xlabel('delay\n')
             ax.set_ylabel('delay rate')
             im = ax.imshow(vis[ndx], vmin=vxn[0], vmax=vxn[1],
                 interpolation='nearest', cmap=cm.viridis, origin='lower')
-            fig.colorbar(im, ax=ax, label=o.scale+'(|Vis(%s)|)'%lab[ndx])
+            if row == 0 and col == 0:
+                fig.colorbar(im, ax=axs, label=o.scale+'(|Vis(%s)|)'%lab[ndx],
+                location='bottom', shrink=0.60, pad=0.14)
     fig.savefig(saved)
     plotCoda(header, footer, saved, pname, o)
     return 0
