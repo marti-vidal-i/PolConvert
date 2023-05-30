@@ -1,11 +1,14 @@
 This directory contains top-level files in DiFX that either have
-no corresponding file in git or else conflict (same name).
+no corresponding file in git or else conflict (same name) or where
+well, it is mess and we have to do something...
 
 AUTHORS
 ChangeLog
 configure.ac
 contents
 Copyright
+Makefile.am
+polconvert.xml
 README
 setup.py
-
+task_polconvert.py

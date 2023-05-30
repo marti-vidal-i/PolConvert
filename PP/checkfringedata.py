@@ -8,9 +8,6 @@
 # As usual with stupid python-numpy-pylab crap...things get rather out of
 # control rather quickly.  However this ends up as a bit of a mini-fourfit.
 #
-# pylab is "deprecated" so we've converted to matplotlib.* and played with
-# it a bit further to try for a make for a more useful postmortem tool.
-#
 '''
 checkfringedata.py -- a program to check POLCONVERT.FRINGE binary files
 '''
@@ -18,14 +15,23 @@ checkfringedata.py -- a program to check POLCONVERT.FRINGE binary files
 import argparse
 import glob
 import numpy as np
-import matplotlib.pyplot as pl
-import matplotlib.cm as cm
 import os
 import re
 import struct as stk
 import subprocess
 import sys
 import warnings
+
+# pylab is "deprecated" so we've converted to matplotlib.* and played with
+# it a bit further to try for a make for a more useful postmortem tool.
+try:
+    import matplotlib.pyplot as pl
+except:
+    try:
+        import pylab as pl
+    except Exception as ex:
+        print('at least one of matplotlib or pylab must be available')
+        raise(ex)
 
 def formatDescription(o):
     '''
@@ -91,7 +97,7 @@ def findAntennaNames(o):
         if o.verb: print('Unable to dig out TELESCOPE names',str(ex)) 
         antennas[o.ant1] = antennas[o.ant2] = '??'
     o.description['antennas'] = antennaBlock(o.antlegend, o.antprow, antennas)
-    if o.verb: print(o.description['antennas'])
+    if o.verb: print(' ',o.description['antennas'])
     return antennas[o.ant1],antennas[o.ant2]
 
 def getAntennaNames(o):
@@ -145,6 +151,26 @@ def dtype1(fringedata,frfile,quiet):
     )
     return dtype,nchPlot
 
+def deducePCvers(pcdir, verb):
+    '''
+    Look for VERSION and make a choice....
+    '''
+    pclog = pcdir + '/PolConvert.log'
+    if not os.path.exists(pclog): raise Exception('No file ' + pclog + 'to examine.')
+    cmd = 'grep VERSION %s' % pclog
+    if verb: print('  running',cmd.split(' ')[0:2],'... PolConvert.log')
+    try:    # CompletedProcess tells the tale
+        cpro = subprocess.run(cmd.split(' '), capture_output=True)
+        if cpro.returncode == 0:
+            versio = re.sub(r'.*VERSION ','', cpro.stdout.decode().split('\n')[0])
+            if versio >= '2.0.5': vers = '1'
+            else:                 vers = '0'
+            if verb: print('  version string from log:', versio,'using "-V ',vers,'"\n')
+            return vers
+    except Exception as ex:
+        print("Unable to work out a good choice for -V argument; try -V help")
+        raise(ex)
+
 def examineFRINGE_IF(pli, o):
     '''
     pli is the index of the file, so .../POLCONVERT.FRINGE_IF??
@@ -161,6 +187,7 @@ def examineFRINGE_IF(pli, o):
         o.dir,ifs,pli)
     o.thisIF = pli
     frfile = open(fringedata,"rb")
+    if o.pcvers == '': o.pcvers = deducePCvers(o.dir, o.verb)
     if o.pcvers == '0': dtype,nchPlot = dtype0(fringedata,frfile,o.quiet)
     elif o.pcvers == '1': dtype,nchPlot = dtype1(fringedata,frfile,o.quiet)
     else: raise Exception('Unsupported fringe version ' + o.pcvers)
@@ -171,7 +198,7 @@ def examineFRINGE_IF(pli, o):
     except Exception as ex:
         raise Exception('Unable to read fringe',str(ex))
     if o.verb and not o.quiet: print(' ',os.path.basename(fringedata),
-        'has ',len(fringe),'time samples and',o.nchPlot,'channels')
+        'has ',len(fringe),'time-baseline samples and',o.nchPlot,'channels')
     x = len(fringe)-1
     if o.pcvers == '1':
         file0 = fringe[0]['FILE']
@@ -208,7 +235,8 @@ def examineFRINGE_IF(pli, o):
             # this is the polconverted data
             cal12 = [ (fringe[AntEntry]["MATRICES"])[:,i::12]
                 for i in range(4,8)]
-            # this is the number of delay rate channels
+            # this is the number of delay rate channels for the baseline:
+            # typically this is (time-baseline samples) / (number antennas)
             o.rchan = np.shape(cal12[0])[0]
             return prepPlot(cal12, pli, o)
         else:
@@ -491,7 +519,7 @@ def plotProcessing(plotdata, o):
             ax.set_xlabel('delay\n')
             ax.set_ylabel('delay rate')
             im = ax.imshow(vis[ndx], vmin=vxn[0], vmax=vxn[1],
-                interpolation='nearest', cmap=cm.viridis, origin='lower')
+                interpolation='nearest', cmap=pl.cm.viridis, origin='lower')
     # common colorbar, with updated labels for scaling: replace('−','-')
     cbar = fig.colorbar(im, ax=axs,
         label='('+o.scale+'-scaled) |Vis(LL,LR,RL,RR)|',
@@ -649,7 +677,7 @@ def parseOptions():
         default='', help='Basename for any plot generated.  If no name'
         ' is supplied, one will be created for you based on the baseline.')
     minor.add_argument('-V', '--pcvers', dest='pcvers',
-        default='1', help='Fringe file version: 1 = 2.0.5 and later'
+        default='', help='Fringe file version: 1 = 2.0.5 and later'
         ' (with UVDIST), 0 = 2.0.3 and earlier (without UVDIST); or "help"'
         ' to print out a more complete explanation.')
     minor.add_argument('-s', '--scale', dest='scale',
@@ -686,6 +714,7 @@ def pcvershelp():
     The early versions had parallactic angles (not implemented)
     and as of 2.0.5 (targetted for DiFX 2.8.2), UVDIST was added.
     Use -V 0 for the earlier format and -V 1 for the later one.
+    The default is to examine the PolConvert.log and make a choice.
     '''
 def fringehelp():
     return '''
