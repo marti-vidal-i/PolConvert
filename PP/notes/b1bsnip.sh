@@ -34,7 +34,13 @@ pcal=oct04_IK_Tau_a_01_TM1
 
 drivepolconvert.py -v -p -k -D $dout $opts -l $pcal $jobs
 pcout=`ls -1trd ta037b-2-b1_3060.polconvert-* | tail -1`
-checkpolconvertfringe.py -d $pcout -g eog -f 15,3 -P -q
+
+viewer=''
+eog=`type -p eog` && viewer="-g eog"
+okular=`type -p okular` && viewer="-g okular"
+[ -z "$viewer" ] && echo not displaying the plot
+
+checkpolconvertfringe.py -d $pcout -f 15,3 -P -q $viewer
 
 # To recover for another test (the -p option does the "prepolconvert part",
 # which in this case saves copies of the originals in *.orig):
