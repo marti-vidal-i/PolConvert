@@ -6,7 +6,6 @@
 # Script to run PolConvert at the correlators from with CASA
 # This version only works with SWIN files
 #
-
 from __future__ import absolute_import
 from __future__ import print_function
 import datetime
@@ -15,12 +14,11 @@ import shutil
 import re
 import sys
 
+pcvers='2.0.5'
 if sys.version_info.major < 3:
     pass
 else:
     from polconvertpkg.private.task_polconvert import polconvert as polconvert
-
-pcvers='2.0.3'
 
 # Begin by verifying everthing that should be defined at this point.
 # If we can't print something, that's probably enough for a test.
@@ -74,6 +72,20 @@ try:
             del calgains[3+int(g)]
         print('Revised calgains list is:')
         for c in calgains: print('    ', c)
+    elif type(gainDel) == str and gainDel != '':
+        try:
+            g = int(gainDel)
+            what = calgains[3+g]
+            del calgains[3+g]
+            print('Deleted %s' % what)
+        except:
+            try:
+                g = gdblst.index(gainDel)
+                what = calgains[3+g]
+                del calgains[3+g]
+                print('Deleted %s' % what)
+            except:
+                raise Exception('gainDel arg %s not understood'%gainDel)
     elif gainDel == '':
         print('No gain deletion requested')
     else:

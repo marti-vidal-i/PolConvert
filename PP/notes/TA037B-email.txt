@@ -1,0 +1,83 @@
+email of 5/21/23, 10:55
+
+mkdir ... ; cd ...
+tar tvf ../oct04_IK_Tau_a_01_TM1-20230518.APP_DELIVERABLES.tgz
+tar xf ../b1bsnip.tgz ; mv b1bsnip/* .
+
+In theory, if you have built the tools, unpacked the QA2 tarball and
+have drivepolconvert.py in your path:
+
+I have a difx build, with CASA (6.5.3) located via
+  printenv | grep CASA
+  DIFXCASAPATH=/opt/CASA/casa-release/bin
+
+  jobs=ta037b-2-b1_3060.input
+  opts="-r -P 8 -S OV -f 6 -A 0.03 -q v9 -s 0 -Y XY0kcrs.APP -B bandpassAPP"
+  dout=`pwd`
+  pcal=oct04_IK_Tau_a_01_TM1
+  drivepolconvert.py -v -p -k -D $dout $opts -l $pcal $jobs
+
+should be the incantation that I would use.  Then
+
+  ta037b-2-b1_3060.polconvert-timestamp
+
+should appear once polconvert finishes, and the *TS/ALL* plot should be
+sufficient to see the result.  Adding
+
+E.g.
+  ta037b-2-b1_3060.polconvert-2023-05-23T10.51.50/FRINGE.PLOTS/ALL_IFs_ANT_1_8.png
+
+To recover for another test (the -p option does the "prepolconvert part", which
+in this case saves copies of the originals in *.orig):
+
+  for x in *orig ; do y=${x/.orig/} ; rm -rf $y ; mv $x $y ; done
+
+E.g. you can change the opts variable
+
+  opts="$opts -x 'AA':135.0"
+  drivepolconvert.py -v -p -k -D $dout $opts -l $pcal $jobs
+
+E.g.
+  ta037b-2-b1_3060.polconvert-2023-05-23T10.56.05/FRINGE.PLOTS/ALL_IFs_ANT_1_8.png
+
+which is what looks plausible.  You can do the turn off XY0 with
+
+  -G xyrelphs
+
+(in the new version of drivepolconvert.py) and see the Kmatrix difference.
+I still have no clue how the Kmatrix can be different and produce the
+same fringe results.
+
+Since I can fringe...
+
+expn=3824
+exp=ta037b
+cat >> $exp.codes <<EOF
+A Aa
+b Br
+f Fd
+k Kp
+l La
+m Mk
+n Nl
+o Ov
+p Pt
+t Kt
+EOF
+
+for j in $jobs ;\
+do difx2mark4 -e $expn -s $exp.codes \
+    --localdir --override-version ${j/input/difx} ; done
+fourfit -pt -b A? 3824/No0021/J0510+1800.2QCOWP
+# generates some ~100 SNR fringes
+
+### merger 2.0.5 notes
+proceding to fringe plots with plotAnt 8...
+Plotting selected fringe for IF #37
+Read fringe data from file POLCONVERT.FRINGE_IF37
+np.sum(AntEntry) > 0: '0'
+Nothing to plot, apparently
+### issue was the change in the binary format of the fringe files
+fixed up a bunch of whitespace issues.
+
+eof vim: set nospell:

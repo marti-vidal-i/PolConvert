@@ -51,8 +51,8 @@
 from __future__ import absolute_import
 from __future__ import print_function
 
-__version__ = "2.0.4  "  # 7 characters
-date = "Dec 5, 2022"
+__version__ = "2.0.5  "  # 7 characters
+date = "May 23, 2023"
 
 
 ################
