@@ -66,6 +66,9 @@ to_compute = true
 # Wherever PolConvert will apply the conversion into the FITS-IDI files (all listed idi_files).
 to_apply = true
 
+# List of gain files to apply if to_compute=false *and* to_apply=true
+gainfiles = ['polconvert_CD.gains', 'polconvert_PA.gains']
+
 
 [config]
 

@@ -141,11 +141,14 @@ def main(ref_idi, idi_files, linear_antennas, ref_antenna, exclude_antennas, exc
             # The solutions must have been recorded from a previous run in the file
             # Otherwise they should already be available in the XYadd/XYratio dicts.
             # with open(path / 'PolConvert.XYGains.dat', 'rb') as gain_file:
-            with open(path / 'polconvert.gains', 'rb') as gain_file:
-                gains = pk.load(gain_file)
-                for lant in linear_antennas:
-                    XYadd[lant] = gains['XYadd'][lant]
-                    XYratio[lant] = gains['XYratio'][lant]
+            for gain_file_path in args['options']['gainfiles']:
+                print(gain_file_path)
+                with open(Path(gain_file_path), 'rb') as gain_file:
+                    gains = pk.load(gain_file)
+                    for lant in linear_antennas:
+                        if lant in gains['XYadd'].keys():
+                            XYadd[lant] = gains['XYadd'][lant]
+                            XYratio[lant] = gains['XYratio'][lant]
 
         for an_idi in idi_files:
             an_idi_path = Path(an_idi + suffix)
