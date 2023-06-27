@@ -90,12 +90,16 @@ def smooth_chans(gains, chanavg=9):
     if not (chanavg % 2 == 1):
         chanavg -= 1
     #gains = signal.savgol_filter(gains, chanavg, 2)
-    gains = signal.medfilt(gains, chanavg)
+    if chanavg > len(gains):
+        gains[:] = numpy.median(gains)
+        print("Window too large, setting all values to median")
+    else:
+        gains = signal.medfilt(gains, chanavg)
     return gains
 
 
 def main(infile, ants, infile2=None, subbands=[], zoomfreqs=None,
-        nchan_out=None, do_smooth=False, outfile=None, override_gains=None):
+        nchan_out=None, do_smooth=None, outfile=None, override_gains=None):
 
     # read in cross-gains from previous run
     gains_in = {}
@@ -146,11 +150,11 @@ def main(infile, ants, infile2=None, subbands=[], zoomfreqs=None,
             xyadd = numpy.degrees(numpy.unwrap(numpy.radians(xyadd)))
 
             # optionally smooth the data before doing anything else
-            if do_smooth:
+            if do_smooth is not None:
                 print (f"smoothing {ant} subband {subband}")
-                xyadd = smooth_chans(xyadd)
-                #xyratio = smooth_chans(xyratio, nchan)
                 xyratio[:] = numpy.median(xyratio)
+                #xyratio = smooth_chans(xyratio, do_smooth[0])
+                xyadd = smooth_chans(xyadd, do_smooth[1])
 
             # select the data
             bchan = bchans[isub]
@@ -170,6 +174,7 @@ def main(infile, ants, infile2=None, subbands=[], zoomfreqs=None,
                         xyadd[:] = phase
                     if amp is not None:
                         xyratio[:] = amp
+
             if nchan_out is not None:
                 print(
                         f"resampling subband {subband} to have {nchan_out}"
@@ -214,6 +219,11 @@ if __name__ == '__main__':
     first. Gains from infile2 overwrite gains from infile if any subbands
     appear in both.
     '''
+    help_do_smooth='''2 values to specify number of channels to smooth xyratio
+    and xyadd data respectively (default is no smoothing). If number of
+    smoothing channels exceeds number of channels in data then all channels are
+    set to the median value.'''
+
 
     parser = argparse.ArgumentParser(
             description=description, usage=usage)
@@ -241,9 +251,9 @@ if __name__ == '__main__':
             '--nchan', '-n', action='store', type=int, default=None,
             help=help_nchan)
     parser.add_argument(
-            '--smooth', '-m', action='store_true', default=False,
+            '--smooth', '-m', nargs=2, default=None, type=int,
             dest='do_smooth', 
-            help='smooth data')
+            help=help_do_smooth            )
     parser.add_argument(
             '--outfile', '-o', action='store', default=None,
             dest='outfile', 
