@@ -84,8 +84,8 @@ def resample_chans(gains_in, nchan_out):
     return gains_out
 
 
-def smooth_chans(gains, chanavg=9):
-    '''smooth all input gains'''
+def smooth_chans_mwf(gains, chanavg=9):
+    '''smooth input gains with a MWF'''
 
     if not (chanavg % 2 == 1):
         chanavg -= 1
@@ -97,9 +97,25 @@ def smooth_chans(gains, chanavg=9):
         gains = signal.medfilt(gains, chanavg)
     return gains
 
+def smooth_chans_poly(gains, order):
+    '''Smooth input gains with a weighted polynomial'''
+
+    # weights very roughly approximate a typical bandpass SNR 
+    nchan = len(gains)
+    weights = numpy.ones(nchan)
+    edgechans = nchan//8
+    weights[0:edgechans] = numpy.linspace(0.25, 1, edgechans)
+    weights[nchan-edgechans:] = numpy.linspace(1, 0.25, edgechans)
+    print (weights)
+    polyfit = numpy.polynomial.chebyshev.chebfit(
+            range(nchan), gains, order, w=weights)
+    gains = numpy.polynomial.chebyshev.chebval(
+            list(range(nchan)), polyfit)
+    return gains
 
 def main(infile, ants, infile2=None, subbands=[], zoomfreqs=None,
-        nchan_out=None, do_smooth=None, outfile=None, override_gains=None):
+        nchan_out=None, mwf_smooth=None, poly_smooth=None, outfile=None,
+        override_gains=None):
 
     # read in cross-gains from previous run
     gains_in = {}
@@ -149,12 +165,17 @@ def main(infile, ants, infile2=None, subbands=[], zoomfreqs=None,
             # unwrap the phase. 
             xyadd = numpy.degrees(numpy.unwrap(numpy.radians(xyadd)))
 
-            # optionally smooth the data before doing anything else
-            if do_smooth is not None:
-                print (f"smoothing {ant} subband {subband}")
-                xyratio[:] = numpy.median(xyratio)
-                #xyratio = smooth_chans(xyratio, do_smooth[0])
-                xyadd = smooth_chans(xyadd, do_smooth[1])
+            # optionally smooth the data before making any selections
+            if mwf_smooth is not None:
+                print (f"MWF smoothing {ant} subband {subband}")
+                #xyratio[:] = numpy.median(xyratio)
+                xyratio = smooth_chans_mwf(xyratio, mwf_smooth[0])
+                xyadd = smooth_chans_mwf(xyadd, mwf_smooth[1])
+            if poly_smooth is not None:
+                print (f"Poly smoothing {ant} subband {subband}")
+                #xyratio[:] = numpy.median(xyratio)
+                xyratio = smooth_chans_poly(xyratio, poly_smooth[0])
+                xyadd = smooth_chans_poly(xyadd, poly_smooth[1])
 
             # select the data
             bchan = bchans[isub]
@@ -196,33 +217,43 @@ def main(infile, ants, infile2=None, subbands=[], zoomfreqs=None,
 
 if __name__ == '__main__':
     usage = "%(prog)s [options] <gainsfile> <ants>"
-    description = '''Will read Gains files created by PolConvert for antennas
+    description = '''Will read a Gains file created by PolConvert for antennas
     in <ants> and optionally select a frequency range, resample and/or smooth
-    the results to apply to a new dataset
+    the results to apply to a new dataset. It can also merge the results of two
+    input gains files on a per-subband basis (any subband present in the second
+    file will replace the corresponding subband in the first).
+
+    Data can also be smoothed with either a polynomial fit or a median window
+    filter (or both if you really want - the MWF will come first). The
+    polynomial fit downweights the edge channels of each subband (outer 1/8th
+    of subband). 
      '''
 
-    help_subbands = '''triplets of values to extract - subband; bchan; echan.
+    help_zoomfreqs = '''Specify zoom frequencies to extract.
+    Quadruplets of: input subband; bandwidth of input band; bandwidth of zoom band; offset of zoomband lower edge from lower edge of input band.
+    First subband is *1*. 0 => use all. (If subband=0, then only 1 quadruplet allowed). Multiple zoom bands can be specified.
+    '''
+    help_subbands = '''Specify subbands/channels to extract (similar to --zoomfreqs, but specify channel ranges explicitly).
+    Triplets of input subband; bchan; echan.
     Multiple subband triplets can be given. 
     First subband is *1*. 0 => use all. (If subband = 0 used, then only 1 triplet allowed.)
     First channel is *0*.
     echan=0 => echan=nchan
     '''
-    help_zoomfreqs = '''similar to subbands except specifying zoom frequency rather than channel number.
-    Quadruplets of: input subband; bandwidth of input band; bandwidth of zoom band; offset of zoomband lower edge from lower edge of input band.
-    First subband is *1*. 0 => use all. (If subband=0, then only 1 quadruplet allowed)
-    '''
     help_nchan = '''number of output channels for each subband'''
-    help_gains = '''Specify gains (amp phase) for any subband you wish to
+    help_gains = '''Specify gains (xyratio xyadd) for any subband you wish to
     override. Given as "subband xyratio xyadd" triplets. Only works if single
     antenna selected'''
     help_infile2 = '''Second gains file created by PolConvert to merge with
     first. Gains from infile2 overwrite gains from infile if any subbands
     appear in both.
     '''
-    help_do_smooth='''2 values to specify number of channels to smooth xyratio
-    and xyadd data respectively (default is no smoothing). If number of
-    smoothing channels exceeds number of channels in data then all channels are
-    set to the median value.'''
+    help_poly_smooth='''2 values to specify order of polynomial to smooth
+    xyratio and xyadd data respectively (default is no poly).'''
+    help_mwf_smooth='''2 values to specify number of channels for Median Window
+    Filter to smooth xyratio and xyadd data respectively (default is no
+    MWF). If number of smoothing channels exceeds number of channels in
+    data then all channels are set to the median value.'''
 
 
     parser = argparse.ArgumentParser(
@@ -234,26 +265,30 @@ if __name__ == '__main__':
             default=None, 
             help='antennas to process')
     parser.add_argument(
-            '--infile2', type=str,  default=None,
-            help=help_infile2)
-    parser.add_argument(
             '--version', action='version', 
             version='%(prog)s {}'.format(__version__))
-    parser.add_argument(
-            '--subbands', '-s', action='store', type=int, nargs='+',
-            default=[], 
-            help=help_subbands)
     parser.add_argument(
             '--zoomfreqs', '-z', action='store', nargs='+', type=float,
             default=None, 
             help=help_zoomfreqs)
     parser.add_argument(
+            '--subbands', '-s', action='store', type=int, nargs='+',
+            default=[], 
+            help=help_subbands)
+    parser.add_argument(
             '--nchan', '-n', action='store', type=int, default=None,
             help=help_nchan)
     parser.add_argument(
-            '--smooth', '-m', nargs=2, default=None, type=int,
-            dest='do_smooth', 
-            help=help_do_smooth            )
+            '--infile2', type=str,  default=None,
+            help=help_infile2)
+    parser.add_argument(
+            '--poly', '-p', nargs=2, default=None, type=int,
+            dest='poly_smooth', metavar='poly_order',
+            help=help_poly_smooth)
+    parser.add_argument(
+            '--mwf', '-m', nargs=2, default=None, type=int,
+            dest='mwf_smooth',  metavar='nchan',
+            help=help_mwf_smooth)
     parser.add_argument(
             '--outfile', '-o', action='store', default=None,
             dest='outfile', 
@@ -289,5 +324,6 @@ if __name__ == '__main__':
     main(
             infile=args.infile, ants=args.ants, infile2=args.infile2,
             subbands=args.subbands, zoomfreqs = args.zoomfreqs,
-            nchan_out=args.nchan, do_smooth=args.do_smooth,
-            outfile=args.outfile, override_gains=args.gains)
+            nchan_out=args.nchan, mwf_smooth=args.mwf_smooth,
+            poly_smooth=args.poly_smooth, outfile=args.outfile,
+            override_gains=args.gains)
