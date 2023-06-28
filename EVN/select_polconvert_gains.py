@@ -97,6 +97,7 @@ def smooth_chans_mwf(gains, chanavg=9):
         gains = signal.medfilt(gains, chanavg)
     return gains
 
+
 def smooth_chans_poly(gains, order):
     '''Smooth input gains with a weighted polynomial'''
 
@@ -106,12 +107,13 @@ def smooth_chans_poly(gains, order):
     edgechans = nchan//8
     weights[0:edgechans] = numpy.linspace(0.25, 1, edgechans)
     weights[nchan-edgechans:] = numpy.linspace(1, 0.25, edgechans)
-    print (weights)
+    #print (weights)
     polyfit = numpy.polynomial.chebyshev.chebfit(
             range(nchan), gains, order, w=weights)
     gains = numpy.polynomial.chebyshev.chebval(
             list(range(nchan)), polyfit)
     return gains
+
 
 def main(infile, ants, infile2=None, subbands=[], zoomfreqs=None,
         nchan_out=None, mwf_smooth=None, poly_smooth=None, outfile=None,
@@ -226,7 +228,7 @@ if __name__ == '__main__':
     Data can also be smoothed with either a polynomial fit or a median window
     filter (or both if you really want - the MWF will come first). The
     polynomial fit downweights the edge channels of each subband (outer 1/8th
-    of subband). 
+    at each end of subband). 
      '''
 
     help_zoomfreqs = '''Specify zoom frequencies to extract.
@@ -249,10 +251,10 @@ if __name__ == '__main__':
     appear in both.
     '''
     help_poly_smooth='''2 values to specify order of polynomial to smooth
-    xyratio and xyadd data respectively (default is no poly).'''
+    xyratio and xyadd data respectively (default is no poly smoothing).'''
     help_mwf_smooth='''2 values to specify number of channels for Median Window
     Filter to smooth xyratio and xyadd data respectively (default is no
-    MWF). If number of smoothing channels exceeds number of channels in
+    MWF). NB: if number of smoothing channels exceeds number of channels in
     data then all channels are set to the median value.'''
 
 
