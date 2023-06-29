@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Script to read then manipulate the gains stored in a pickle from previous run
 # of PolConvert
 # Cormac Reynolds June 2023
@@ -9,7 +9,7 @@ import sys
 import math
 import numpy
 import argparse
-from scipy import interpolate
+#from scipy import interpolate
 from scipy import signal
 
 __version__ = '0.1'
@@ -97,6 +97,12 @@ def smooth_chans_mwf(gains, chanavg=9):
         gains = signal.medfilt(gains, chanavg)
     return gains
 
+
+def get_constant_gains(subband, constants, indices):
+    '''get values from the constant gains inputs, referenced by subband
+    index'''
+    gain = constants[indices.index(subband)]
+    return gain
 
 def smooth_chans_poly(gains, order):
     '''Smooth input gains with a weighted polynomial'''
@@ -191,12 +197,10 @@ def main(infile, ants, infile2=None, subbands=[], zoomfreqs=None,
             if override_gains is not None:
                 if subband in override_gains_index:
                     print(f"Overriding gains for subband {subband}")
-                    amp = override_amp[override_gains_index.index(subband)]
-                    phase = override_phase[override_gains_index.index(subband)]
-                    if phase is not None:
-                        xyadd[:] = phase
-                    if amp is not None:
-                        xyratio[:] = amp
+                    xyratio[:] = get_constant_gains(
+                            subband, override_amp, override_gains_index)
+                    xyadd[:] = get_constant_gains(
+                            subband, override_phase, override_gains_index)
 
             if nchan_out is not None:
                 print(
@@ -320,8 +324,8 @@ if __name__ == '__main__':
     if args.gains is not None:
         if (len(args.gains)%3 != 0):
             raise Exception(
-                    "Gain override values should be triplet of subband, amp,"
-                    " phase")
+                    "Gain override values should be triplet of subband,"
+                    "  xyratio, xyadd")
 
     main(
             infile=args.infile, ants=args.ants, infile2=args.infile2,
