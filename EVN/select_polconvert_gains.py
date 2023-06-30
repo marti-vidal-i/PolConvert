@@ -16,10 +16,10 @@ __version__ = '0.1'
 
 
 def expand_subband_string(subbands, nsubbands_in):
-    '''expand the input subband selection
-    subbands is triplets of subband; bchan; echan
-    subband 0 => all subbands
-    echan 0 => echan=nchan
+    '''expand the input subband selection.
+    subbands is triplets of subband; bchan; echan.
+    subband 0 => all subbands.
+    echan 0 => echan=nchan.
     '''
 
     subband_index = subbands[0::3]
@@ -45,8 +45,8 @@ def subbandzero(subband_index, nsubbands_in, bchans, echans):
 
 
 def zoomfreqs2subbands(zoomfreqs, nsubbands_in, nchan):
-    '''convert the input zoomfreq selection to channels
-    zoomfreqs is quadruplets of subband; bandwidth; zoom bandwidth; zoom offset
+    '''convert the input zoomfreq selection to channels.
+    zoomfreqs is quadruplets of subband; bandwidth; zoom bandwidth; zoom offset.
     subband = 0 => all subbands
     '''
 
@@ -176,12 +176,10 @@ def main(infile, ants, infile2=None, subbands=[], zoomfreqs=None,
             # optionally smooth the data before making any selections
             if mwf_smooth is not None:
                 print (f"MWF smoothing {ant} subband {subband}")
-                #xyratio[:] = numpy.median(xyratio)
                 xyratio = smooth_chans_mwf(xyratio, mwf_smooth[0])
                 xyadd = smooth_chans_mwf(xyadd, mwf_smooth[1])
             if poly_smooth is not None:
                 print (f"Poly smoothing {ant} subband {subband}")
-                #xyratio[:] = numpy.median(xyratio)
                 xyratio = smooth_chans_poly(xyratio, poly_smooth[0])
                 xyadd = smooth_chans_poly(xyadd, poly_smooth[1])
 
@@ -229,10 +227,9 @@ if __name__ == '__main__':
     input gains files on a per-subband basis (any subband present in the second
     file will replace the corresponding subband in the first).
 
-    Data can also be smoothed with either a polynomial fit or a median window
-    filter (or both if you really want - the MWF will come first). The
-    polynomial fit downweights the edge channels of each subband (outer 1/8th
-    at each end of subband). 
+    Data can also be smoothed with a polynomial fit and/or a median window
+    filter (polynomial is recommended). The polynomial fit downweights the edge
+    channels of each subband (outer 1/8th at each end of subband). 
      '''
 
     help_zoomfreqs = '''Specify zoom frequencies to extract.
@@ -248,8 +245,8 @@ if __name__ == '__main__':
     '''
     help_nchan = '''number of output channels for each subband'''
     help_gains = '''Specify gains (xyratio xyadd) for any subband you wish to
-    override. Given as "subband xyratio xyadd" triplets. Only works if single
-    antenna selected'''
+    override. Given as "subband xyratio xyadd" triplets. Applies to all
+    antennas selected'''
     help_infile2 = '''Second gains file created by PolConvert to merge with
     first. Gains from infile2 overwrite gains from infile if any subbands
     appear in both.
