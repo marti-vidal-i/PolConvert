@@ -3,18 +3,18 @@
 # polconvert_lba.py
 # Cormac Reynolds 2022
 ######
-#import os
 import pickle
+import argparse
+from matplotlib import pyplot
+#import os
 #import sys
 #import math
 #import numpy
-import argparse
-from matplotlib import pyplot
 #import matplotlib
 #matplotlib.use('tkagg')
 
 usage = '%(prog)s [options] <polconvert.gains>'
-description = 'Will print plot the contents of a polconvert more gains file'
+description = 'Will print plot the contents of polconvert gains files'
 parser = argparse.ArgumentParser(description=description, usage=usage)
 parser.add_argument('infile', type=str, nargs='+', help='infile.')
 parser.add_argument('ant', type=str, help='antenna to print')
