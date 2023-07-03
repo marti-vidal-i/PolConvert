@@ -6,6 +6,7 @@
 import pickle
 import argparse
 from matplotlib import pyplot
+import pprint
 #import os
 #import sys
 #import math
@@ -42,8 +43,11 @@ for infile in args.infile:
     XYadd = GainsOut['XYadd']
     XYratio = GainsOut['XYratio']
 
-    print ('xyadd for {:s}'.format(args.ant), XYadd[args.ant])
-    print ('xyratio for {:s}'.format(args.ant), XYratio[args.ant])
+    print (f'xyadd for {args.ant}:\n {pprint.pformat(XYadd[args.ant])}')
+    print (f'xyratio for {args.ant}:\n {pprint.pformat(XYratio[args.ant])}')
+    #pprint.pprint(XYadd[args.ant])
+    #print (f'xyratio for {args.ant}')
+    #pprint.pprint(XYratio[args.ant])
 
     if args.plot:
         for subband in XYadd[args.ant].keys():
