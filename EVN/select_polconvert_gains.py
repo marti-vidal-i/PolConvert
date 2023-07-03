@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Script to read then manipulate the gains stored in a pickle from previous run
 # of PolConvert
-# Cormac Reynolds June 2023
+# Cormac Reynolds (cormac.reynolsd@csiro.au) June 2023
 ######
 import os
 import pickle
@@ -12,10 +12,10 @@ import argparse
 #from scipy import interpolate
 from scipy import signal
 
-__version__ = '0.1'
+__version__ = '1.0'
 
 
-def expand_subband_string(subbands, nsubbands_in):
+def expand_subband_string(subbands, subbands_in):
     '''expand the input subband selection.
     subbands is triplets of subband; bchan; echan.
     subband 0 => all subbands.
@@ -27,21 +27,21 @@ def expand_subband_string(subbands, nsubbands_in):
     echans = subbands[2::3]
     if subband_index[0] == 0:
         subband_index, bchans, echans = subbandzero(
-                subband_index, nsubbands_in, bchans, echans)
+                subband_index, subbands_in, bchans, echans)
 
     subband_index = [int(sub) for sub in subband_index]
     return subband_index, bchans, echans
 
 
-def subbandzero(subband_index, nsubbands_in, bchans, echans):
+def subbandzero(subband_index, subbands_in, bchans, echans):
     '''Convert subband=0 to a list of subbands from 1 through nsubbands.
     Note the output dataset will not necessarily have the same subband
     numbering as the input if the input is not 1 through N'''
     # expand subband 0 to mean all subbands in the input.
     # subband=0 only allowed for a single triplet
-    subband_index = range(1, nsubbands_in+1)
-    bchans = bchans*nsubbands_in
-    echans = echans*nsubbands_in
+    subband_index = subbands_in
+    bchans = bchans*len(subbands_in)
+    echans = echans*len(subbands_in)
     return subband_index, bchans, echans
 
 
@@ -105,16 +105,18 @@ def get_constant_gains(subband, constants, indices):
     gain = constants[indices.index(subband)]
     return gain
 
+
 def smooth_chans_poly(gains, order):
     '''Smooth input gains with a weighted polynomial'''
 
-    # weights very roughly approximate a typical bandpass SNR 
     nchan = len(gains)
+
+    # weights very roughly approximate a typical bandpass SNR. 
     weights = numpy.ones(nchan)
     edgechans = nchan//8
     weights[0:edgechans] = numpy.linspace(0.25, 1, edgechans)
     weights[nchan-edgechans:] = numpy.linspace(1, 0.25, edgechans)
-    #print (weights)
+
     polyfit = numpy.polynomial.chebyshev.chebfit(
             range(nchan), gains, order, w=weights)
     gains = numpy.polynomial.chebyshev.chebval(
@@ -132,33 +134,35 @@ def main(infile, ants, infile2=None, subbands=[], zoomfreqs=None,
         with open(infile, "rb") as gainfile:
                 gains_in = pickle.load(gainfile)
     if infile2 is not None:
+        #open infile2 and merger with infile on a *per subband* basis
         with open(infile2, "rb") as gainfile:
                 gains2_in = pickle.load(gainfile)
                 for ant in ants:
                     gains_in['XYadd'][ant] |=  gains2_in['XYadd'][ant] 
                     gains_in['XYratio'][ant] |=  gains2_in['XYratio'][ant] 
-    #print (gains_in['XYadd'][ants[0]])
 
-    #print (xyadd, xyratio)
     gains_out = {}
     gains_out['XYadd'] = {}
     gains_out['XYratio'] = {}
-    nsubbands_in = len(gains_in['XYadd'][ants[0]].keys())
+    subbands_in = gains_in['XYadd'][ants[0]].keys()
     first_sub = list(gains_in['XYadd'][ants[0]].keys())[0]
+    # assume all subbands have same number of channels...
     nchan = len(gains_in['XYadd'][ants[0]][first_sub])
     if zoomfreqs is not None:
+        # convert the zoom frequency specifications to bchan, echan for this
+        # dataset
         subbands2 = zoomfreqs2subbands(zoomfreqs, nsubbands_in, nchan)
         subbands = subbands + subbands2
     elif not subbands:
         subbands = [0,0,0]
     subband_index, bchans, echans = expand_subband_string( 
-            subbands, nsubbands_in)
+            subbands, subbands_in)
     if override_gains is not None:
         override_gains_index, override_amp, override_phase = expand_subband_string(
             override_gains, nsubbands_in)
     else:
         override_gains_index = []
-    #print (override_gains_index)
+
     for ant in ants:
         gains_out['XYadd'][ant] = {}
         gains_out['XYratio'][ant] = {}
@@ -261,7 +265,6 @@ if __name__ == '__main__':
     MWF). NB: if number of smoothing channels exceeds number of channels in
     data then all channels are set to the median value.'''
 
-
     parser = argparse.ArgumentParser(
             description=description, usage=usage)
     parser.add_argument(
@@ -272,7 +275,7 @@ if __name__ == '__main__':
             help='antennas to process')
     parser.add_argument(
             '--version', action='version', 
-            version='%(prog)s {}'.format(__version__))
+            version=f'%(prog)s version {__version__}')
     parser.add_argument(
             '--zoomfreqs', '-z', action='store', nargs='+', type=float,
             default=None, 
