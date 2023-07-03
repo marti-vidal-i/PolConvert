@@ -1,13 +1,13 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Trivial script to print the gains stored in a pickle from previous run of
 # polconvert_lba.py
 # Cormac Reynolds 2022
 ######
-import os
+#import os
 import pickle
-import sys
-import math
-import numpy
+#import sys
+#import math
+#import numpy
 import argparse
 from matplotlib import pyplot
 #import matplotlib
