@@ -45,7 +45,7 @@ def subbandzero(subband_index, subbands_in, bchans, echans):
     return subband_index, bchans, echans
 
 
-def zoomfreqs2subbands(zoomfreqs, nsubbands_in, nchan):
+def zoomfreqs2subbands(zoomfreqs, nchan):
     '''convert the input zoomfreq selection to channels.
     zoomfreqs is quadruplets of subband; bandwidth; zoom bandwidth; zoom offset.
     subband = 0 => all subbands
@@ -151,7 +151,7 @@ def main(infile, ants, infile2=None, subbands=[], zoomfreqs=None,
     if zoomfreqs is not None:
         # convert the zoom frequency specifications to bchan, echan for this
         # dataset
-        subbands2 = zoomfreqs2subbands(zoomfreqs, nsubbands_in, nchan)
+        subbands2 = zoomfreqs2subbands(zoomfreqs, nchan)
         subbands = subbands + subbands2
     elif not subbands:
         subbands = [0,0,0]
