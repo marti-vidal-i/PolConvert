@@ -34,13 +34,14 @@ def expand_subband_string(subbands, nsubbands_in):
 
 
 def subbandzero(subband_index, nsubbands_in, bchans, echans):
-    '''Convert subband=0 to a list of all subbands'''
-    for subband in subband_index:
-        # expand subband 0 to mean all subbands in the input.
-        # subband=0 only allowed for a single triplet
-        subband_index = range(1, nsubbands_in+1)
-        bchans = bchans*nsubbands_in
-        echans = echans*nsubbands_in
+    '''Convert subband=0 to a list of subbands from 1 through nsubbands.
+    Note the output dataset will not necessarily have the same subband
+    numbering as the input if the input is not 1 through N'''
+    # expand subband 0 to mean all subbands in the input.
+    # subband=0 only allowed for a single triplet
+    subband_index = range(1, nsubbands_in+1)
+    bchans = bchans*nsubbands_in
+    echans = echans*nsubbands_in
     return subband_index, bchans, echans
 
 
@@ -230,6 +231,8 @@ if __name__ == '__main__':
     Data can also be smoothed with a polynomial fit and/or a median window
     filter (polynomial is recommended). The polynomial fit downweights the edge
     channels of each subband (outer 1/8th at each end of subband). 
+
+    Output subbands will always be numbered 1 through Nsubbands.
      '''
 
     help_zoomfreqs = '''Specify zoom frequencies to extract.
