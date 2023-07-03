@@ -15,12 +15,14 @@ import pprint
 #matplotlib.use('tkagg')
 
 usage = '%(prog)s [options] <polconvert.gains>'
-description = 'Will print plot the contents of polconvert gains files'
+description = '''Will print and optionally plot the contents of polconvert gains
+files.
+'''
 parser = argparse.ArgumentParser(description=description, usage=usage)
 parser.add_argument('infile', type=str, nargs='+', help='infile.')
 parser.add_argument('ant', type=str, help='antenna to print')
 parser.add_argument('--subbands', '-s', type=int, nargs='+',
-        help='subbands to print')
+        help='list of subbands to plot, default=all')
 parser.add_argument('-p', '--plot', action='store_true', default=False,
         help='plot the data')
 parser.add_argument( '--outfile', '-o', action='store',
@@ -45,9 +47,6 @@ for infile in args.infile:
 
     print (f'xyadd for {args.ant}:\n {pprint.pformat(XYadd[args.ant])}')
     print (f'xyratio for {args.ant}:\n {pprint.pformat(XYratio[args.ant])}')
-    #pprint.pprint(XYadd[args.ant])
-    #print (f'xyratio for {args.ant}')
-    #pprint.pprint(XYratio[args.ant])
 
     if args.plot:
         for subband in XYadd[args.ant].keys():
