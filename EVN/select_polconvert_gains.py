@@ -86,14 +86,17 @@ def resample_chans(gains_in, nchan_out):
 
 
 def smooth_chans_mwf(gains, chanavg=9):
-    '''smooth input gains with a MWF'''
+    '''smooth input gains with a MWF.
+    If chanavg>len(gains) then set all values to median of gains.'''
 
     if not (chanavg % 2 == 1):
         chanavg -= 1
     #gains = signal.savgol_filter(gains, chanavg, 2)
     if chanavg > len(gains):
         gains[:] = numpy.median(gains)
-        print("Window too large, setting all values to median")
+        print(
+                "Window greater than number channels, setting all values to"
+                " median")
     else:
         gains = signal.medfilt(gains, chanavg)
     return gains
