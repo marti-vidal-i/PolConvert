@@ -129,7 +129,7 @@ def smooth_chans_poly(gains, order):
 
 def main(infile, ants, infile2=None, subbands=[], zoomfreqs=None,
         nchan_out=None, mwf_smooth=None, poly_smooth=None, outfile=None,
-        override_gains=None):
+        override_gains=None, keep_subs=False):
 
     # read in cross-gains from previous run
     gains_in = {}
@@ -174,7 +174,12 @@ def main(infile, ants, infile2=None, subbands=[], zoomfreqs=None,
         print (f"{'='*8} Processing antenna {ant}")
 
         for isub, subband in enumerate(subband_index):
-            print(f"input subband {subband} will be output subband {isub+1}")
+            if not keep_subs:
+                out_sub = isub+1
+            else:
+                out_sub = subband
+
+            print(f"input subband {subband} will be output subband {out_sub}")
             xyadd = gains_in['XYadd'][ant][subband]
             xyratio = gains_in['XYratio'][ant][subband]
 
@@ -215,8 +220,16 @@ def main(infile, ants, infile2=None, subbands=[], zoomfreqs=None,
                 xyadd = resample_chans(xyadd, nchan_out)
                 xyratio = resample_chans(xyratio, nchan_out)
 
-            gains_out['XYadd'][ant][isub+1] = xyadd
-            gains_out['XYratio'][ant][isub+1] = xyratio
+            # check that the output subband not already assigned. (Only
+            # possible with --keep_subs.)
+            if out_sub in gains_out['XYadd'][ant].keys():
+                print( f"WARNING: output subband {out_sub} appears twice!"
+                       f" First zoom will be overwritten."
+                       f" Did you mean to use -k option?")
+                raise Exception("Duplicate output subband numbers!")
+
+            gains_out['XYadd'][ant][out_sub] = xyadd
+            gains_out['XYratio'][ant][out_sub] = xyratio
     #print (gains_out)
 
     if outfile is None:
@@ -239,7 +252,12 @@ if __name__ == '__main__':
     filter (polynomial is recommended). The polynomial fit downweights the edge
     channels of each subband (outer 1/8th at each end of subband). 
 
-    Output subbands will always be numbered 1 through Nsubbands.
+    By default output subbands will always be numbered 1 through the number of
+    output subbands (see -k option if this is not desired).
+
+    Example usage: to extract the central 4 MHz from the second 16 MHz
+    subband for antenna PA:
+    %(prog)s polconvert.gains PA -z 2 16 4 8
      '''
 
     help_zoomfreqs = '''Specify zoom frequencies to extract.
@@ -308,6 +326,14 @@ if __name__ == '__main__':
     parser.add_argument(
             '--gains', '-g', action='store', default=None, nargs='+',
             type=float, dest='gains', help=help_gains )
+    parser.add_argument(
+            '--keep_subs', '-k', action='store_true', default=False, 
+            dest='keep_subs', 
+            help='''Keep the same subband numbering in the output file as in
+            the input file - default is to renumber as 1 through number output
+            subbands. Note if two output bands have the same input band, a
+            clash will occur!'''
+            )
     args = parser.parse_args()
     #print (args)
     if not os.path.isfile(args.infile):
@@ -338,4 +364,4 @@ if __name__ == '__main__':
             subbands=args.subbands, zoomfreqs = args.zoomfreqs,
             nchan_out=args.nchan, mwf_smooth=args.mwf_smooth,
             poly_smooth=args.poly_smooth, outfile=args.outfile,
-            override_gains=args.gains)
+            override_gains=args.gains, keep_subs=args.keep_subs)
