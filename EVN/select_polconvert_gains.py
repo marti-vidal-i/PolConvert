@@ -178,6 +178,13 @@ def main(infile, ants, infile2=None, subbands=[], zoomfreqs=None,
                 out_sub = isub+1
             else:
                 out_sub = subband
+                # check that the output subband not already assigned. (Only
+                # possible with --keep_subs.)
+                if out_sub in gains_out['XYadd'][ant].keys():
+                    print( f"WARNING: output subband {out_sub} appears twice!"
+                           f" First zoom will be overwritten."
+                           f" Did you mean to use -k option?")
+                    raise Exception("Duplicate output subband numbers!")
 
             print(f"input subband {subband} will be output subband {out_sub}")
             xyadd = gains_in['XYadd'][ant][subband]
@@ -220,13 +227,6 @@ def main(infile, ants, infile2=None, subbands=[], zoomfreqs=None,
                 xyadd = resample_chans(xyadd, nchan_out)
                 xyratio = resample_chans(xyratio, nchan_out)
 
-            # check that the output subband not already assigned. (Only
-            # possible with --keep_subs.)
-            if out_sub in gains_out['XYadd'][ant].keys():
-                print( f"WARNING: output subband {out_sub} appears twice!"
-                       f" First zoom will be overwritten."
-                       f" Did you mean to use -k option?")
-                raise Exception("Duplicate output subband numbers!")
 
             gains_out['XYadd'][ant][out_sub] = xyadd
             gains_out['XYratio'][ant][out_sub] = xyratio
