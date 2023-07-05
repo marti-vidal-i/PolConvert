@@ -256,8 +256,8 @@ if __name__ == '__main__':
     output subbands (see -k option if this is not desired).
 
     Example usage: to extract the central 4 MHz from the second 16 MHz
-    subband for antenna PA:
-    %(prog)s polconvert.gains PA -z 2 16 4 8
+    subband for antenna PA and re-sample to 4096 channels:
+    %(prog)s polconvert.gains PA -z 2 16 4 8 -n 4096
      '''
 
     help_zoomfreqs = '''Specify zoom frequencies to extract.
