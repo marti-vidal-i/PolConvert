@@ -34,8 +34,14 @@ if args.plot:
     #matplotlib.rcParams.update({'font.size': 9})
     fig, axes = pyplot.subplots(2)
     fig.suptitle(args.ant)
+    fig.tight_layout(h_pad=2)
+    for axis in axes:
+        # force integer labels
+        axis.xaxis.get_major_locator().set_params(integer=True)
     axes[0].set_title('XYadd')
     axes[1].set_title('XYratio')
+    axes[1].set_xlabel('Channel number')
+    #axes[0].set_ylabel('Degrees')
 
 # read in cross-gains from previous run of polconvert
 for infile in args.infile:
@@ -58,7 +64,10 @@ for infile in args.infile:
                 axes[1].plot(x, XYratio[args.ant][subband], '.')
 
 if args.plot:
-    fig.legend(title='Subband', title_fontsize='small')
+    fig.legend(
+            title='Subband', title_fontsize='small', loc='upper right',
+            bbox_to_anchor=(1.05,1))
     print(f'saving plot to {args.outfile}')
-    pyplot.savefig(args.outfile)
+    #pyplot.savefig(args.outfile)
+    pyplot.savefig(args.outfile, bbox_inches='tight')
     #pyplot.show()
