@@ -52,7 +52,7 @@ timeavg = 20
 # How much the circular antennas weight in the calculation over the linear ones.
 # For high S/N, several scans, and with mostly linear antennas: 0.0 should be fine.
 # If not optimal solutions obtained, use small values (e.g. 0.001 or 0.01) which could improve solutions.
-solve_weight = 0.0
+solve_weight = 0.01
 
 # NOTE THAT IN THIS FILE (TOML FORMAT)  TRUE or FALSE are in lower cases
 
