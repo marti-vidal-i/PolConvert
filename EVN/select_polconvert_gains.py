@@ -34,9 +34,9 @@ def expand_subband_string(subbands, subbands_in):
 
 
 def subbandzero(subband_index, subbands_in, bchans, echans):
-    '''Convert subband=0 to a list of subbands from 1 through nsubbands.
-    Note the output dataset will not necessarily have the same subband
-    numbering as the input if the input is not 1 through N'''
+    '''Convert subband=0 to a list of subbands matching those in subbands_in.
+    Format corresponding bchans and echans.
+    '''
     # expand subband 0 to mean all subbands in the input.
     # subband=0 only allowed for a single triplet
     subband_index = subbands_in
@@ -203,7 +203,7 @@ def main(infile, ants, infile2=None, subbands=[], zoomfreqs=None,
                 xyratio = smooth_chans_poly(xyratio, poly_smooth[0])
                 xyadd = smooth_chans_poly(xyadd, poly_smooth[1])
 
-            # select the data
+            # select the desired channels for this subband
             bchan = bchans[isub]
             echan = echans[isub]
             print (
@@ -213,6 +213,7 @@ def main(infile, ants, infile2=None, subbands=[], zoomfreqs=None,
             xyratio = select_chans(xyratio, bchan, echan)
 
             if override_gains is not None:
+                # set the gains for this subband to a constant value.
                 if subband in override_gains_index:
                     print(f"Overriding gains for subband {subband}")
                     xyratio[:] = get_constant_gains(
@@ -221,6 +222,7 @@ def main(infile, ants, infile2=None, subbands=[], zoomfreqs=None,
                             subband, override_phase, override_gains_index)
 
             if nchan_out is not None:
+                # resample to a new number of output channels
                 print(
                         f"resampling subband {subband} to have {nchan_out}"
                         f" channels")
@@ -258,7 +260,7 @@ if __name__ == '__main__':
     Example usage: to extract the central 4 MHz from the second 16 MHz
     subband for antenna PA and re-sample to 4096 channels:
     %(prog)s polconvert.gains PA -z 2 16 4 8 -n 4096
-     '''
+    '''
 
     help_zoomfreqs = '''Specify zoom frequencies to extract.
     Quadruplets of: input subband; bandwidth of input band; bandwidth of zoom band; offset of zoomband lower edge from lower edge of input band.
@@ -285,6 +287,12 @@ if __name__ == '__main__':
     Filter to smooth xyratio and xyadd data respectively (default is no
     MWF). NB: if number of smoothing channels exceeds number of channels in
     data then all channels are set to the median value.'''
+    help_keep_subs='''Keep the same subband numbering in the output file as in
+    the input file - default is to renumber as 1 through number output
+    subbands. Note if two output bands have the same input band, a clash will
+    occur!
+    '''
+
 
     parser = argparse.ArgumentParser(
             description=description, usage=usage)
@@ -329,11 +337,7 @@ if __name__ == '__main__':
     parser.add_argument(
             '--keep_subs', '-k', action='store_true', default=False, 
             dest='keep_subs', 
-            help='''Keep the same subband numbering in the output file as in
-            the input file - default is to renumber as 1 through number output
-            subbands. Note if two output bands have the same input band, a
-            clash will occur!'''
-            )
+            help=help_keep_subs)
     args = parser.parse_args()
     #print (args)
     if not os.path.isfile(args.infile):
