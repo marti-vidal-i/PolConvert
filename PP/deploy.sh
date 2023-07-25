@@ -73,6 +73,7 @@ if loadPolConvert: loadPolConvertFun()
 
 case ${1-'help'} in
 tldr)   echo "$TLDR" ; exit 0 ;;
+--help) echo "$USAGE" ; exit 0 ;;
 help)   echo "$USAGE" ; exit 0 ;;
 casa)   echo "$CASAHELP" ; exit 0 ;;
 check)  action='check'  ;;
