@@ -208,6 +208,19 @@ done
     and adjust your CASA startup to load polconvert
 
 ....EOF
+    # hack for institutions that do not have py3 available
+    pv=`python --version 2>&1`
+    [ `expr "$pv" : 'Python 2'` -eq 8 ] && {
+        echo fixing python scripts use CASA python3...
+        for pp in checkpolconvertfringe.py
+        do
+            mv $DIFXPC/bin/$pp $DIFXPC/bin/$pp.orig
+            echo "#!$DIFXCASAPATH/python3" > $DIFXPC/bin/$pp
+            cat $DIFXPC/bin/$pp.orig >> $DIFXPC/bin/$pp
+            chmod +w $DIFXPC/bin/$pp
+            ls -l $DIFXPC/bin/$pp
+        done
+    }
     ${ok-'false'} && exit 0
     ${ok-'false'} || { echo something went wrong... ; exit 18 ; }
 }
