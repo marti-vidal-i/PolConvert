@@ -217,7 +217,7 @@ done
             mv $DIFXPC/bin/$pp $DIFXPC/bin/$pp.orig
             echo "#!$DIFXCASAPATH/python3" > $DIFXPC/bin/$pp
             cat $DIFXPC/bin/$pp.orig >> $DIFXPC/bin/$pp
-            chmod +w $DIFXPC/bin/$pp
+            chmod +x $DIFXPC/bin/$pp
             ls -l $DIFXPC/bin/$pp
         done
     }
