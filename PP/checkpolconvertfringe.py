@@ -522,7 +522,7 @@ def plotProcessing(plotdata, o):
             ax.set_ylabel('delay rate')
             im = ax.imshow(vis[ndx], vmin=vxn[0], vmax=vxn[1],
                 interpolation='nearest', cmap=pl.cm.viridis, origin='lower')
-    # common colorbar, with updated labels for scaling: replace('−','-')
+    # common colorbar, with updated labels for scaling: replace('-','-')
     cbar = fig.colorbar(im, ax=axs,
         label='('+o.scale+'-scaled) |Vis(LL,LR,RL,RR)|',
         location='bottom', shrink=0.60, pad=0.12)
