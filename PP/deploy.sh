@@ -154,7 +154,9 @@ done
     rm -rf "$trunk"
     mkdir -p "$trunk/src" "$trunk/src/PP"
 
-    ( cd "$source" ; git="$source" dfx="$trunk/src" $dfxcmp cp * */* ) |\
+    echo DFX=/ git="$source" dfx="$trunk/src" $dfxcmp cp ...
+    ( cd "$source" ;
+      DFX=/ git="$source" dfx="$trunk/src" $dfxcmp cp * */* ) |\
     grep -v skipping
     echo "SUBDIRS = . src" > $trunk/Makefile.am
 
