@@ -108,9 +108,10 @@ def parseOptions():
             'doSolve == 0 you minimize the cross-hands; if doSolve >> 1, '
             'you are assuming negligible Stokes V.')
     secondy.add_argument('-m', '--method', dest='method',
-        default='gradient', metavar='STRING',
+        default='COBYLA', metavar='STRING',
         help='solve method: "gradient" or "LM" (or "Levenberg-Marquardt"), or '
-            'if scipy is available, also "COBYLA" or "NM" (or "Nelder-Mead")')
+            'if scipy is available, also "COBYLA" or "NM" (or "Nelder-Mead")'
+            'COBYLA is the VGOS/EVN default')
     secondy.add_argument('-A', '--exAnts', dest='exAnts',
         default='', metavar='LIST',
         help='comma-separated list of antennas to exclude from gain solution')
@@ -417,6 +418,8 @@ def compatChecks(o):
 def methodChecks(o):
     '''
     Check that the method names are legal, and update with longer names.
+
+    COBYLA is the VGOS/EVN default
     '''
     if o.method == 'gradient':
         return
