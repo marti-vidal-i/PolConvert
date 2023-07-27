@@ -2795,7 +2795,7 @@ def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
 
           cbar = fig2.colorbar(im, cax=cbar_ax)
           cbar.set_label("Amplitude (Norm)")
-          pl.suptitle('CAL. MATRIX FOR IF %i FROM %i-%02i:%02i:%02i TO %i-%02i:%02i:%02i - FREQ = X ; TIME = Y'%tuple([pli]+plotRange))
+          pl.suptitle('CAL.MATRIX.AMP IF %i - FREQ = Y - TIME = X'%pli)
 
           pl.savefig('CONVERSION.MATRIX/Kmatrix_AMP_IF%i-ANT%i.png'%(pli,ant1))
 
@@ -2835,7 +2835,7 @@ def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
 
           cbar = fig2.colorbar(im, cax=cbar_ax)
           cbar.set_label("Phase (deg.)")
-          pl.suptitle('CAL. MATRIX FOR IF %i FROM %i-%02i:%02i:%02i TO %i-%02i:%02i:%02i - FREQ = X ; TIME = Y'%tuple([pli]+plotRange))
+          pl.suptitle('CAL.MATRIX.PHAS IF %i - FREQ = Y - TIME = X'%pli)
 
           pl.savefig('CONVERSION.MATRIX/Kmatrix_PHAS_IF%i-ANT%i.png'%(pli,ant1))
  
