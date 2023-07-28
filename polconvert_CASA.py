@@ -1274,6 +1274,7 @@ calibrated phased arrays (i.e., phased ALMA).
       tabants = tb.getcol('NAME')
       tb.close()
       tb.open(gain)
+      gainType = tb.getkeyword('VisCal')
       spmask = tb.getcol('SPECTRAL_WINDOW_ID')==int(spw)
       trowns = tb.getcol('TIME')[spmask]
       tsort = np.argsort(trowns)
@@ -1298,6 +1299,10 @@ calibrated phased arrays (i.e., phased ALMA).
 
       data = (np.array(data)).transpose(1,2,0)[:,:,tsort]
       flagrow = (np.array(flagrow)).transpose(1,2,0)[:,:,tsort]
+
+### FOR DEBUG:
+#      print(gain, nchan, len(tsort), np.round(data[0,:,0],3), np.round(data[1,:,0],3))
+#############
 
       antrow = []
       for ai in tb.getcol('ANTENNA1')[spmask]:
@@ -1324,17 +1329,27 @@ calibrated phased arrays (i.e., phased ALMA).
           if gainmode[i][j] in ['G','S']:
             dd0 = data[0,:,:]
             dd1 = data[1,:,:]
-          else:  # DUAL-POL GAIN FORCED TO 'T' MODE:
-            Aux = np.sqrt(data[0,:,:]*data[1,:,:])
-            dd0 = Aux
-            dd1 = Aux
-        else:  # A GAIN ALREADY IN MODE 'T'
-          dd0 = data[0,:,:]
-          dd1 = data[0,:,:]
+          else:  # DUAL-POL GAIN FORCED TO 'T' MODE OR NEW XY-PHASE:
+            if gainType == 'Xfparang Jones':
+               dd0 = data[0,:,:]
+               dd1 = data[0,:,:]; dd1[:] = 1.0
+            else:
+               Aux = np.sqrt(data[0,:,:]*data[1,:,:])
+               dd0 = Aux
+               dd1 = Aux
+        else:  # A GAIN ALREADY IN MODE 'T' OR NEW XY-PHASE:
+       #  print("ONLY ONE POL", gainType)
+         dd0 = np.copy(data[0,:,:])
+         dd1 = np.copy(data[0,:,:])
+         if gainType == 'Xfparang Jones':
+       #     print("Setting it")
+            dd1[:] = 1.0
+
         antrowant = antrow==ant
         dims = np.shape(dd0[:,antrowant])
         isFlagged=False
-        if ".XY0" in gain:
+#        if ".XY0" in gain:
+        if gainType == 'Xfparang Jones':
           if dims[1]==0:
             antrowant = antrow==refants[0]
             dims = np.shape(dd0[:,antrowant])
@@ -1381,7 +1396,7 @@ calibrated phased arrays (i.e., phased ALMA).
           'plotAnt':plotAnt, 'excludeAnts':excludeAnts, 'excludeBaselines':excludeBaselines, 
           'doSolve':doSolve, 'solint':solint, 'doTest':doTest, 'npix':npix, 
           'solveAmp':solveAmp, 'solveMethod':solveMethod, 'calstokes':calstokes, 
-          'calfield':calfield, 'ALMAstuff':ALMAstuff,'saveArgs':saveArgs}
+          'calfield':calfield, 'ALMAstuff':ALMAstuff,'saveArgs':saveArgs,'amp_norm':amp_norm}
 
   if saveArgs:
     OFF = open('PolConvert_CASA.last','wb')
