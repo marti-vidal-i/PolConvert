@@ -1342,9 +1342,7 @@ calibrated phased arrays (i.e., phased ALMA).
          dd0 = np.copy(data[0,:,:])
          dd1 = np.copy(data[0,:,:])
          if gainType == 'Xfparang Jones':
-       #     print("Setting it")
             dd1[:] = 1.0
-
         antrowant = antrow==ant
         dims = np.shape(dd0[:,antrowant])
         isFlagged=False

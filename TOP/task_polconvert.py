@@ -1741,6 +1741,7 @@ def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
       tabants = tb.getcol('NAME')
       tb.close()
       tb.open(gain)
+      gainType = tb.getkeyword('VisCal')
       spmask = tb.getcol('SPECTRAL_WINDOW_ID')==int(spw)
       trowns = tb.getcol('TIME')[spmask]
       tsort = np.argsort(trowns)
@@ -1796,19 +1797,25 @@ def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
           if gainmode[i][j] in ['G','S']:
             dd0 = data[0,:,:]
             dd1 = data[1,:,:]
-          else:  # DUAL-POL GAIN FORCED TO 'T' MODE:
-            Aux = np.sqrt(data[0,:,:]*data[1,:,:])
-            dd0 = Aux
-            dd1 = Aux
-        else:  # A GAIN ALREADY IN MODE 'T'
+          else:  # DUAL-POL GAIN FORCED TO 'T' MODE OR NEW XY-PHASE:
+            if gainType == 'Xfparang Jones':
+               dd0 = data[0,:,:]
+               dd1 = data[0,:,:]; dd1[:] = 1.0
+            else:
+               Aux = np.sqrt(data[0,:,:]*data[1,:,:])
+               dd0 = Aux
+               dd1 = Aux
+        else:  # A GAIN ALREADY IN MODE 'T' OR NEW XY-PHASE:
           dd0 = data[0,:,:]
           dd1 = data[0,:,:]
+         if gainType == 'Xfparang Jones':
+            dd1[:] = 1.0
         antrowant = antrow==ant
         dims = np.shape(dd0[:,antrowant])
         isFlagged=False
    # All antennas MUST have the re-ref XY0 phase, even if not used 
    # in the pol. calibration!
-        if ".XY0" in gain:
+        if gainType == 'Xfparang Jones':
           if dims[1]==0:
             antrowant = antrow==refants[0]
             dims = np.shape(dd0[:,antrowant])
