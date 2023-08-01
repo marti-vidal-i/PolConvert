@@ -1814,8 +1814,11 @@ def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
         dims = np.shape(dd0[:,antrowant])
         isFlagged=False
    # All antennas MUST have the re-ref XY0 phase, even if not used 
-   # in the pol. calibration!
-        if gainType == 'Xfparang Jones':
+   # in the pol. calibration!  Traditionally .XY0 appears in the file
+   # name, but there may be other gainTypes defined now or in the future.
+        if (gainType == 'Xfparang Jones' or
+            gainType == 'GlinXphf Jones' or
+            ".XY0" in gain):
           if dims[1]==0:
             antrowant = antrow==refants[0]
             dims = np.shape(dd0[:,antrowant])
