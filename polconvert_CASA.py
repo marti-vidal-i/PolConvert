@@ -1,4 +1,4 @@
-# Copyright (c) Ivan Marti-Vidal 2012-2022
+# Copyright (c) Ivan Marti-Vidal 2012-2023
 #               EU ALMA Regional Center. Nordic node.
 #               Universitat de Valencia (Spain)
 #
@@ -83,16 +83,14 @@ if True:
     raise ex
  else:
   try:
+    # ms is not actually used
     from casatools import ms as ms_casa
     from casatools import table as tb_casa
     tb = tb_casa()
   except Exception as ex:
     print('unable to load casa tools in python3\n\n')
     raise ex
-
-
-
-
+################
 
 def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntIdx=[1], 
                Range=[], ALMAant='', spw=-1, calAPP='', calAPPTime=[0.,5.], APPrefant='', 
@@ -104,7 +102,7 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
                doSolve=-1, solint=[1,1], doTest=True, npix=-1, solveAmp=True,
                solveMethod='COBYLA', calstokes=[1.,0.,0.,0.], calfield=-1, saveArgs=False):
 
-  """ POLCONVERT - CASA INTERFACE VERSION 2.0.5.
+  """ POLCONVERT - CASA INTERFACE VERSION 2.0.6.
 
 Converts VLBI visibilities from mixed-polarization (linear-circular)
 into circular basis. Works with single VLBI stations as well as with
@@ -308,7 +306,6 @@ calibrated phased arrays (i.e., phased ALMA).
   print('DEBUG setting is ' + str(DEBUG))
   print('__name__ is ' + __name__)
 
-
 # Auxiliary function: print error and raise exception:
   def printError(msg):
     print(msg,'\n') 
@@ -318,9 +315,6 @@ calibrated phased arrays (i.e., phased ALMA).
     sys.stdout.flush()
     raise Exception(msg)
 
-
-
-
 # Auxiliary function: print message (terminal and log):
   def printMsg(msg, doterm=True, dolog=True):
     if doterm:
@@ -328,10 +322,8 @@ calibrated phased arrays (i.e., phased ALMA).
     if dolog:
       lfile = open("PolConvert.log","a")
       print(msg,file=lfile)
+      sys.stdout.flush()
       lfile.close()
-
-
-
 
 
 # Auxiliary function: Geometric Median of a complex number:
@@ -579,19 +571,6 @@ calibrated phased arrays (i.e., phased ALMA).
     plsub.set_ylim((-250,250))
     pl.savefig('%s_RE-REF_XYPHASES.png'%XY0)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 # Auxiliary function: unwrap phases for time interpolation
   def unwrap(phases, check=False):
 
@@ -678,7 +657,7 @@ calibrated phased arrays (i.e., phased ALMA).
 
 
   if not os.path.exists(IDI):
-    raise Exception("ERROR! IDI file (or SWIN folder) does not exist!")
+    printError("ERROR! IDI file (or SWIN folder) does not exist!")
 
 
   if type(calAPP) is list:
@@ -702,8 +681,6 @@ calibrated phased arrays (i.e., phased ALMA).
       printError("ERROR! calAPP and/or ALMAant WERE NOT FOUND!")
     else:
       isPhased = True
-
-
 
 
   try:
@@ -804,9 +781,6 @@ calibrated phased arrays (i.e., phased ALMA).
 
 #########################################
 
-
-
-
 ######################
 # READ IDs OF ALMA ANTENNAS USED IN THE PHASING:
 
@@ -894,7 +868,7 @@ calibrated phased arrays (i.e., phased ALMA).
    nphtimes = [len(anti) for anti in antimes]
 
 
-  else:
+  else:  # is(not)Phased
 
 # Not a phased array. Dummy values for phasing info:
    allants = [1]
@@ -1025,12 +999,7 @@ calibrated phased arrays (i.e., phased ALMA).
     fitsf.close()
 
 
-
-
-
 ######
-
-
   OrigLinIdx = []
   for i,idd in enumerate(linAntIdx):
     if type(idd) is int and idd<=len(antcodes):
@@ -1338,7 +1307,7 @@ calibrated phased arrays (i.e., phased ALMA).
                dd0 = Aux
                dd1 = Aux
         else:  # A GAIN ALREADY IN MODE 'T' OR NEW XY-PHASE:
-       #  print("ONLY ONE POL", gainType)
+         #  print("ONLY ONE POL", gainType)
          dd0 = np.copy(data[0,:,:])
          dd1 = np.copy(data[0,:,:])
          if gainType == 'Xfparang Jones':
@@ -1387,8 +1356,6 @@ calibrated phased arrays (i.e., phased ALMA).
                gaindata, dtdata, allantidx,
                nphtimes, antimes, refants,
                asdmtimes, timerangesArr[int(spw)], isLinear]
-
- # ALMAstuff = []
 
   ARGS = {'IDI':IDI, 'OUTPUTIDI':OUTPUTIDI, 'DiFXinput':DiFXinput, 'DiFXcalc':DiFXcalc, 
           'doIF':doIF, 'linAntIdx':linAntIdx, 'Range':Range, 'XYadd':XYadd, 'XYdel':XYdel, 
