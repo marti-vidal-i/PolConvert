@@ -51,8 +51,8 @@
 from __future__ import absolute_import
 from __future__ import print_function
 
-__version__ = "2.0.5  "  # 7 characters
-date = "May 23, 2023"
+__version__ = "2.0.6  "  # 7 characters
+date = "Aug 1, 2023"
 
 
 ################
@@ -231,6 +231,7 @@ def polconvert(
             "solint": solint,
             "doTest": doTest,
             "npix": npix,
+            "amp_norm": amp_norm,
             "solveAmp": solveAmp,
             "solveMethod": solveMethod,
             "calstokes": calstokes,
@@ -964,7 +965,8 @@ def polconvert(
         #            soucoords[1][sui] = float(lines[ii+2].split()[-1])
         #            printMsg('FOUND SOURCE %s AT RA: %.8f rad, DEC: %.8f rad'%(SNAM,soucoords[0][sui],soucoords[1][sui]))
 
-        FCin = open(CALCS[0])
+        CALC2OPEN = {True: CALCS[0], False: DiFXcalc}[len(ALMAstuff)==0]
+        FCin = open(CALC2OPEN)
         lines = FCin.readlines()
         FCin.close()
         for line in lines:

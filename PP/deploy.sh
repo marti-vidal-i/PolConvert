@@ -202,6 +202,7 @@ done
 
     Installation complete; to use these tools
 
+    export DIFXCASAPATH=$DIFXCASAPATH
     export DIFXROOT=$DIFXPC
     export PATH=$DIFXPC/bin:\$PATH
 

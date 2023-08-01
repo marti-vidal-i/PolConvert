@@ -14,7 +14,7 @@ import shutil
 import re
 import sys
 
-pcvers='2.0.5'
+pcvers='2.0.6'
 if sys.version_info.major < 3:
     pass
 else:
