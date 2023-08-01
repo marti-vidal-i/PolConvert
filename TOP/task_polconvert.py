@@ -1808,7 +1808,7 @@ def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
         else:  # A GAIN ALREADY IN MODE 'T' OR NEW XY-PHASE:
           dd0 = data[0,:,:]
           dd1 = data[0,:,:]
-         if gainType == 'Xfparang Jones':
+          if gainType == 'Xfparang Jones':
             dd1[:] = 1.0
         antrowant = antrow==ant
         dims = np.shape(dd0[:,antrowant])
