@@ -85,6 +85,16 @@ def parseOptions():
         default=False, action='store_true',
         help='run prepolconvert.py on the same joblist--'
         'generally not a good idea unless you are certain it will work')
+    secondy.add_argument('-D', '--data', dest='data',
+        default='', metavar='DIR',
+        help='the source data directory for the -p option: '
+        '-D "dir" is equivalent to prepolconvert -s "dir" ...')
+    secondy.add_argument('-k', '--nuke', dest='nuke',
+        default=False, action='store_true',
+        help='used with the -p argument to nuke the input files '
+        'if they are present; this is only sensible if working '
+        'outside of the original correlation directory (which is '
+        'recommended')
     secondy.add_argument('-a', '--ant', dest='ant',
         default=1, metavar='INT', type=int,
         help='mandatory 1-based index of linear antenna (normally 1)')
@@ -99,7 +109,7 @@ def parseOptions():
         'Note that the underlying code currently only supports one range.')
     secondy.add_argument('-S', '--sites', dest='sites',
         default='', metavar='LIST',
-        help='comma-sep list of 2-letter station codes (Xx,Yy,...) to try'
+        help='comma-sep list of 2-letter station codes (XX,YY,...) to try'
             ' (in this order) to use as a reference antenna')
     secondy.add_argument('-s', '--solve', dest='solve',
         default=1000.0, metavar='FLOAT', type=float,
@@ -240,8 +250,6 @@ def getInputTemplate(o):
         else:   # str(val) is acceptable to print
             template += ('\n    print("debug: %12s = ", %s )' % (key,val))
     template += '''
-    print('If Polconvert was loaded a short description follows:')
-    print(polconvert.__doc__[0:200],'...')
     %sprint('Real command assembly follows:')
     nargs   = '%s'
     joblist =  %s
@@ -290,6 +298,7 @@ def getInputTemplate(o):
     # timeRange = []
     timeRange = [0,0,0,0, 14,0,0,0]   # first 14 days seen for plotting
     npix = %d
+    #
     # solveMethod may be 'gradient', 'Levenberg-Marquardt' or 'COBYLA'
     # calstokes is [I,Q,U,V] for the calibrator; I is ignored.
     #
@@ -297,6 +306,9 @@ def getInputTemplate(o):
     # we are working read-only for the Solve case with doTest=True
     # sys.environ['POLCONVERTDEBUG'] = 'True'
     print('Running polconvert....')
+    print('If Polconvert was loaded a short description follows:')
+    print(polconvert.__doc__[0:200],'...')
+    #
     print('IDI=',DiFXoutput, 'OUTPUTIDI=',DiFXoutput,'\\n',
         'DiFXinput=',DiFXinput, 'DiFXcalc=',DiFXcalc,'\\n',
         'doIF=',doIF, 'linAntIdx=',linAnt,
@@ -376,7 +388,7 @@ def createCasaInput(o, joblist, caldir, workdir):
     o.remote is set in createCasaInputParallel() which calls us.
     '''
     oinput = workdir + '/' + o.input
-    if o.verb: print('Creating CASA input file\n  ' + oinput)
+    if o.verb: print('Creating CASA input file for solving\n  ' + oinput)
     if o.verb: verb = ''
     else:      verb = '#'
     template = getInputTemplate(o)
@@ -472,6 +484,7 @@ def checkAntBase(o):
     for ant in exSet:
         if not ant in antSet:
             raise Exception('Antenna %s not found in input' % str(ant))
+    print('completed checks of antennas and baselines')
 
 def checkOptions(o):
     '''
@@ -494,7 +507,7 @@ if __name__ == '__main__':
     opts.argv = argv
     checkOptions(opts)
     if opts.prep:
-        runPrePolconvert(opts)
+        dpc.runPrePolconvert(opts)
     # this is somewhat "temporary"
     if opts.iflist == 'original':
         print('Original zoom logic requested -- iflist ignored')
@@ -516,7 +529,6 @@ if __name__ == '__main__':
         print('Proceeding with the original zoom logic')
         dpc.oldDeduceZoomIndices(opts)     # original derived from ZOOMs
     print('Zoom/Output Band deductions done')
-    # finally
     checkAntBase(opts)
     # run the jobs in parallel
     if opts.verb:
