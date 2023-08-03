@@ -495,8 +495,8 @@ def checkOptions(o):
     compatChecks(o)
     methodChecks(o)
     solintChecks(o)
-    dpc.inputRelatedChecks(o)
-    dpc.runRelatedChecks(o)
+    #dpc.inputRelatedChecks(o)
+    #dpc.runRelatedChecks(o)
 
 #
 # enter here to do the work
@@ -508,6 +508,7 @@ if __name__ == '__main__':
     checkOptions(opts)
     if opts.prep:
         dpc.runPrePolconvert(opts)
+    dpc.inputRelatedChecks(opts)
     # this is somewhat "temporary"
     if opts.iflist == 'original':
         print('Original zoom logic requested -- iflist ignored')
@@ -531,6 +532,7 @@ if __name__ == '__main__':
     print('Zoom/Output Band deductions done')
     checkAntBase(opts)
     # run the jobs in parallel
+    dpc.runRelatedChecks(opts)
     if opts.verb:
         print('\nParallel execution with %d threads\n' % opts.parallel)
     dpc.createCasaInputParallel(opts)
