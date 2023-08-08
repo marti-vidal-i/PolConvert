@@ -1,0 +1,78 @@
+# gebeor:
+# /home/gbc/Desktop/TEST/singlepoltest
+
+cd /home/gbc/PolConvert/PolConvert
+export DIFXCASAPATH=/opt/CASA/casa-release/bin
+PP/deploy.sh check
+DIFXPC=DIFXPC PP/deploy.sh build
+# setup instructions:
+#   export DIFXCASAPATH=/opt/CASA/casa-release/bin
+#   export DIFXROOT=/home/gbc/PolConvert/PolConvert/DIFXPC
+#   export PATH=/home/gbc/PolConvert/PolConvert/DIFXPC/bin:$PATH
+#   export LD_LIBRARY_PATH=/opt/CASA/casa-release/bin/../lib:$LD_LIBRARY_PATH
+
+cd /home/gbc/Desktop/TEST/singlepoltest
+
+export DIFXCASAPATH=/opt/CASA/casa-release/bin
+export DIFXROOT=/home/gbc/PolConvert/PolConvert/DIFXPC
+export PATH=/home/gbc/PolConvert/PolConvert/DIFXPC/bin:$PATH
+export LD_LIBRARY_PATH=/opt/CASA/casa-release/bin/../lib:$LD_LIBRARY_PATH
+
+target=J0510+1800
+jobs=ta037b-2-b1_3060.input
+dout=b1bsnip
+tar xf ../b1bsnip.tgz
+#
+spts='-a 1 -I ZOOM -S OV -l cobyla'
+singlepolsolve.py -v -p -k -D $dout $spts -r $jobs
+# if it fails to run -p -k -D $dout  are unnecessary
+singlepolsolve.py -v $spts -r $jobs
+
+# ta037b-2-b1_3060.polconvert-2023-08-08T12.27.14
+# ...
+# PolConvert took 1.9 seconds.
+# 2023-08-08 16:27:23     SEVERE  polconvert::::casa      Task polconvert raised an exception of class ImportError with the following message: /lib64/libgsl.so.27: undefined symbol: cblas_ctrmv
+# 2023-08-08 16:27:23     SEVERE  polconvert::::casa      Exception Reported: Error in polconvert: /lib64/libgsl.so.27: undefined symbol: cblas_ctrmv
+# C++ PolGainSolve shared library did not loaded successfully
+
+# fixed compilation issue
+# ta037b-2-b1_3060.polconvert-2023-08-08T12.52.05
+# C++ PolGainSolve shared library loaded successfully
+# 2023-08-08 16:52:09     SEVERE  polconvert::::casa      Task polconvert raised an exception of class SystemError with the following message: <built-in function PolGainSolve> returned a result with an error set
+# 2023-08-08 16:52:09     SEVERE  polconvert::::casa      Exception Reported: Error in polconvert: <built-in function PolGainSolve> returned a result with an error set
+
+# added UVTaper argument...
+# ta037b-2-b1_3060.polconvert-2023-08-08T13.23.59
+# ok, it found the data...
+# grep 3712.ch PolConvert.GainSolve.log
+# IF37 has 3712 channels
+# IF 37 with 3712 chans
+# ..
+# IF42 has 3712 channels
+# IF 42 with 3712 chans
+# ...
+# Clearing previous allocation objects
+# Failed GetChi2! Check inputs!
+
+# lowered doSolve to 0.1 from 1000
+# ta037b-2-b1_3060.polconvert-2023-08-08T13.34.13
+# same death
+
+mkdir PolConvert
+cp -p /home/gbc/PolConvert/PolConvert/polconvert_standalone.py PolConvert
+cp -p /home/gbc/PolConvert/PolConvert/PP/notes/singlePC/PCONVERTER_v2.py .
+
+export DIFXCASAPATH=/opt/CASA/casa-release/bin
+cpy=$DIFXCASAPATH/python3
+export DIFXROOT=/home/gbc/PolConvert/PolConvert/DIFXPC
+export PYTHONPATH=$DIFXROOT/share/polconvert
+
+tar xf ../b1bsnip.tgz
+$cpy PCONVERTER_v2.py solve
+# swap True/False
+$cpy PCONVERTER_v2.py apply
+n=1
+mkdir sample$n
+mv kakalamaka* *FRINGE* CONV* Cross*png *XYGains* Pol*log sample$n
+
+# eof vim: nospell

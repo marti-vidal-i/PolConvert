@@ -1,11 +1,22 @@
 from PolConvert import polconvert_standalone as PCONV
+import os
+import sys
 
+#FILE = '../b1bsnip/ta037b-2-b1_3060'
+FILE = 'ta037b-2-b1_3060'
 
-FILE = '../b1bsnip/ta037b-2-b1_3060'
-
-doSolve = True
+doSolve = False
 doApply = False
-
+if len(sys.argv) == 1:
+    print('one argument: solve or apply')
+    sys.exit(0)
+elif sys.argv[1] == 'solve':
+    doSolve = True
+elif sys.argv[1] == 'apply':
+    doApply = True
+else:
+    print('one argument: solve or apply')
+    sys.exit(0)
 
 if doSolve:
   os.system('cp -r %s.calc kakalamaka.calc'%FILE)
