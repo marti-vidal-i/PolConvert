@@ -39,7 +39,7 @@ action=${1-'help'} ; shift
 
 # things that do not end up in DiFX vendor branch
 skip="INSTALL build QA2 TODO.txt setup.py TOP/contents PP/notes"
-skip="$skip __init__.py polconvert_CASA.py polconvert_standalone.py"
+skip="$skip __init__.py polconvert_CASA.py"
 
 skipdir="EU-VGOS EVN QA2 GMVA"
 
@@ -75,6 +75,11 @@ do
   # convenient to have these along
   [ "$F" = "../configure.ac" ] && F=../configure.ac
   [ "$F" = "../Makefile.am" ] && F=Makefile.am
+
+  [ "$F" = Makefile.am ] && {
+    cmp Makefile.am TOP/Makefile.am ||
+    echo 'warning: Makefile.am TOP/Makefile.am should be the same'
+  }
 
   # decide what to do
   case $action in
