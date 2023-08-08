@@ -112,7 +112,7 @@ def parseOptions():
         help='comma-sep list of 2-letter station codes (XX,YY,...) to try'
             ' (in this order) to use as a reference antenna')
     secondy.add_argument('-s', '--solve', dest='solve',
-        default=1000.0, metavar='FLOAT', type=float,
+        default=0.1, metavar='FLOAT', type=float,
         help='doSolve argument: for the chi^2 minimizer function which is '
             'computed as sum[ dosolve*(RR/LL-1)^2 + (RL^2 + LR^2) ].  If '
             'doSolve == 0 you minimize the cross-hands; if doSolve >> 1, '
@@ -396,7 +396,8 @@ def createCasaInput(o, joblist, caldir, workdir):
     # xyadd/xydel/xyratio are one constant for all chans of the
     # one linear antenna, but type is a string to allow other options.
     print('  .' +verb+verb+ '.\n',
-        '  ',o.nargs, str(joblist), caldir, workdir, '\n',
+        '  ',o.nargs, str(joblist), caldir, '\n',
+        '  ',workdir, '\n',
         '  ',o.label, o.zfirst, o.zfinal, o.ant, o.lin, o.remote, '\n',
         '  ',o.xyadd, o.xydel, o.xyratio, o.npix,
         '  ',str(o.exAntList), str(o.exBaseLists), '\n',
