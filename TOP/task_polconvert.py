@@ -109,6 +109,9 @@ def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
   # saveArgs
   ):
 
+### polconvert_standalone.py has extra arguments...
+  UVTaper=1.e9
+
 # polconvert_CASA.py has two additional arguments (as of 2.0.6).
 # TOP/polconvert.xml would need to be updated to use these.
 
@@ -2110,7 +2113,7 @@ def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
      #MySolve = PS.PolGainSolve(doSolveD,solint,selAnts,lAnts,FlagBas1,FlagBas2)
     printMsg('\n%%% initializing PolGainSolve\n')
     # using a null for a logfile should be harmless...  NOPE! --> "basic_string::_S_construct null not valid"
-    MySolve = PS.PolGainSolve(doSolveD,solint,selAnts,lAnts,[FlagBas1,FlagBas2],'PolConvert.GainSolve.log')
+    MySolve = PS.PolGainSolve(doSolveD,UVTaper,solint,selAnts,lAnts,[FlagBas1,FlagBas2],'PolConvert.GainSolve.log')
     printMsg(PS.__doc__ + ('\nInitialization rv %d\n'%MySolve) + '%%%\n')
 #   else:
 #    printMsg("Using 4 argument method of PolGainSolve:")
