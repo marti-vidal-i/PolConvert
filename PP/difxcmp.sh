@@ -39,9 +39,9 @@ action=${1-'help'} ; shift
 
 # things that do not end up in DiFX vendor branch
 skip="INSTALL build QA2 TODO.txt setup.py TOP/contents PP/notes"
-skip="$skip __init__.py polconvert_CASA.py"
+skip="$skip __init__.py polconvert_CASA.py TOP/trunk-makefile.am"
 
-skipdir="EU-VGOS EVN QA2 GMVA"
+skipdir="EU-VGOS EVN QA2 GMVA PP/notes"
 
 [ $# -eq 0 ] && set -- 'no-such-file'
 
