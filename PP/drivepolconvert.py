@@ -1220,9 +1220,10 @@ def createCasaInputParallel(o):
                 continue
             o.workdirs[job] = workdir
             o.workcmds[job] = cmdfile
-            if o.verb: print(' ',fullpath)
+            if o.verb: print('Created CASA execution command\n  ',fullpath)
         else:
             print('*** unable to create workdir or input for job %s ***' % job)
+    if o.verb: print('')
 
 def removeTrash(o, misc):
     '''
