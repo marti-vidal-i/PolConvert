@@ -150,6 +150,7 @@ do
     grep "<description>Version" TOP/polconvert.xml | cut -c 1-60
     echo "==> TOP/task_polconvert.py <=="
     grep '__version__[ ]*=' TOP/task_polconvert.py
+    grep 'CASA INTERFACE VERSION' TOP/task_polconvert.py
     grep 'date[ ]*=' TOP/task_polconvert.py
     echo "==> TOP/configure.ac <=="
     grep 'AC_INIT' TOP/configure.ac

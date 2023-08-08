@@ -73,6 +73,7 @@ import polconvert_standalone as PCONV
 
 
 
+
 if True:
  if sys.version_info.major < 3:
   try:
@@ -97,10 +98,12 @@ def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntI
                gains=[['NONE']], interpolation=[], gainmode=[], XYavgTime=0.0, 
                dterms=['NONE'], amp_norm=0.01, XYadd={}, XYdel={}, XYratio={}, 
                usePcal={}, swapXY=[], swapRL=False, feedRotation=[], 
-               correctParangle=False, IDI_conjugated=False, plotIF=-1, 
+               correctParangle=False,
+               IDI_conjugated=False, plotIF=-1,
                plotRange=[], plotAnt=-1, excludeAnts=[], excludeBaselines=[],
                doSolve=-1, solint=[1,1], doTest=True, npix=-1, solveAmp=True,
-               solveMethod='COBYLA', calstokes=[1.,0.,0.,0.], calfield=-1, saveArgs=False):
+               solveMethod='COBYLA', calstokes=[1.,0.,0.,0.], calfield=-1,
+               saveArgs=False):
 
   """ POLCONVERT - CASA INTERFACE VERSION 2.0.6.
 
