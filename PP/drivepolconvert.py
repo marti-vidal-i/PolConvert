@@ -1065,10 +1065,10 @@ def getInputTemplate(o):
     print(workdir)
     print(os.getcwd())
     if sys.version_info.major < 3:
-        print('Python 2 execution')
+        print('Python 2 execution requested for runpolconvert')
         execfile(rpcpath)               # Py2 form
     else:
-        print('Python 3 execution')
+        print('Python 3 execution requested for runpolconvert')
         execfile(rpcpath, globals())    # Py3 form
     quit()
     '''

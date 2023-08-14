@@ -20,7 +20,6 @@ on gebeor:
     export DIFXROOT=/home/gbc/PolConvert/PolConvert/DIFXPC
     # export PATH=/home/gbc/PolConvert/PolConvert/DIFXPC/bin:$PATH
 
-
 ### this might work
 try:
     if bool(os.environ['CASASTANDALONE']):
@@ -32,5 +31,17 @@ try:
             sys.exit(0)
 except:
     print('using task_polconvert.py for task')
+###
+
+but simpler is to just hack runpolconvert.py
+
+if 'CASASTANDALONE' in os.environ:
+    print("using polconvert_CASA")
+    from polconvert_CASA import polconvert as polconvert
+else
+    from polconvertpkg.private.task_polconvert import polconvert as polconvert
+
+This works (code ok) but gives slightly different answers and fails the tests.
 
 
+# vim: nospell
