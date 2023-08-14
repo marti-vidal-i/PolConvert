@@ -80,7 +80,7 @@ file:///opt/casa/code/xmlcasa/xml/casa.xsd">
 
     <param type="any" name="gains" mustexist="false">
       <description>Gain tables to pre-calibrate the linear-pol VLBI stations (one list of gains per linear-pol station).</description>
-      <value>[['NONE']]</value>
+      <value>[["NONE"]]</value>
     </param>
 
     <param type="any" name="interpolation" mustexist="false">
@@ -102,7 +102,7 @@ file:///opt/casa/code/xmlcasa/xml/casa.xsd">
 
     <param type="any" name="dterms" mustexist="false">
       <description>D-term tables to pre-calibrate the linear-pol VLBI stations (one table per linear-pol station).</description>
-      <value>['NONE']</value>
+      <value>["NONE"]</value>
     </param>
 
     <param type="double" name="amp_norm" mustexist="false">
@@ -117,7 +117,7 @@ file:///opt/casa/code/xmlcasa/xml/casa.xsd">
     </param>
 
     <param type="any" name="XYdel" mustexist="false">
-      <description>Add manually a multiband delay between X and Y before conversion (in deg./chanel). This is a dictionary (antenna codes as keywords) with one value per linear-pol station.<description>
+      <description>Add manually a multiband delay between X and Y before conversion (in deg./chanel). This is a dictionary (antenna codes as keywords) with one value per linear-pol station.</description>
       <value>{}</value>
     </param>
 
@@ -213,7 +213,7 @@ file:///opt/casa/code/xmlcasa/xml/casa.xsd">
 
     <param type="string" name="solveMethod" mustexist="false">
       <description>Method for the minimization of the Chi squared in the GCPFF. Can be, for instance: \'COBYLA\'.</description>
-      <value>'COBYLA'</value>
+      <value>"COBYLA"</value>
     </param>
 
     <param type="any" name="calstokes" mustexist="false">
@@ -241,10 +241,41 @@ For more information about the internals of PolConvert, please read:
 
 Marti-Vidal et al. 2016, Astronomy and Astrophysics, 587, 143 
 
-The general instructions outlined below have not been updated for several
-years and may be considered out-of-date.
+The "Original PROCEDURE" outlined below have not been updated for several
+years and may be out-of-date in some respects.  The version built in DIFX
+was built with some CASA release, and you should be able to load it with
+the following scrap of code (likely works in most versions of CASA),
+when placed in $HOME/.casa/startup.py (or $HOME/.casa/init.py):
 
-PROCEDURE:
+    import sys, os
+    loadPolConvert = True
+    if loadPolConvert:
+      try:
+        sys.path.append(os.environ['DIFXROOT'] + '/share/polconvert')
+        from polconvert import polconvert
+        print('polconvert py2 loaded')
+      except:
+        try:
+            from polconvertpkg.gotasks.polconvert import polconvert
+            print('polconvert py3 loaded')
+        except:
+            print('Could not load polconvert from this path')
+            print("os.environ['DIFXROOT']" + '/share/polconvert')
+
+Once loaded in CASA, the task commmands (tget, inp, go) should work as
+expected.  The EHTC production uses a set of driver scripts that ensure
+uniform usage (without needing to be a CASA expert) for production.
+
+More generally, the (CASA-version) code is available in scripts via:
+    from polconvertpkg.private.task_polconvert import polconvert as polconvert
+
+Outside of casa, polconvert_standalone would have been installed to the
+same area and (e.g. for EVN or VGOS use) may be used directly in scripts:
+
+    from (wherever) import polconvert_standalone as PCONV
+    result = PCONV.polconvert(IDI = ... )
+
+Original PROCEDURE:
 
 If a VLBI antenna used linear-feed receivers, PolConvert must first
 estimate the X-Y cross gain for that antenna (phase, amplitude, 

@@ -13,6 +13,14 @@ today: polconvert_CASA, task_polconvert have different arguments for
 
 Step one is bumping all to 2.0.7 and converging on arguments.
 
+on gebeor:
+    cd /data/DiFX/twoeight
+    edit runtest.sh for 2.0.7
+    export DIFXCASAPATH=/opt/CASA/casa-release/bin
+    export DIFXROOT=/home/gbc/PolConvert/PolConvert/DIFXPC
+    # export PATH=/home/gbc/PolConvert/PolConvert/DIFXPC/bin:$PATH
+
+
 ### this might work
 try:
     if bool(os.environ['CASASTANDALONE']):
