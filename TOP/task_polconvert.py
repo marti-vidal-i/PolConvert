@@ -74,7 +74,6 @@ except Exception as ex:
  print('\nNo, the shared library did not load successfully\n')
  raise ex
 
-#if True:
 if sys.version_info.major < 3:
   try:
     from taskinit import *
@@ -944,9 +943,6 @@ calibrated phased arrays (i.e., phased ALMA).
   except:
     printError("Bad format for calAPPTime. Should be a list of 2 floats!")
 
-  printMsg("XYadd is %s"%str(XYadd))
-  printMsg("XYdel is %s"%str(XYdel))
-  printMsg("XYratio is %s"%str(XYratio))
 
 #########################################
 
@@ -1040,7 +1036,7 @@ calibrated phased arrays (i.e., phased ALMA).
   else:  # is(not)Phased
 
 # Not a phased array. Dummy values for phasing info:
-   allants = [0]
+   allants = [1]
    allantidx = [0]
    antimes = [np.array([0.,1.e20])]
    nphtimes = [1]
@@ -1200,7 +1196,6 @@ calibrated phased arrays (i.e., phased ALMA).
         IFchan = max([IFchan,int(nchan/chav)])
       sb = {True: 1.0 , False: -1.0}[FrInfo['SIDEBAND'][nu] == 'U']
       FrInfo['SIGN'][nu] = float(sb)
-      # freqs = (nu0 + np.linspace((sb-1.)/2.,(sb+1.)/2., ... )
       if float(nchan//chav) != nchan/chav:
         printMsg("linspace check chan: %d / %d = %f" %
             (nchan, chav, nchan/chav))
@@ -1849,8 +1844,6 @@ calibrated phased arrays (i.e., phased ALMA).
       data = (np.array(data)).transpose(1,2,0)[:,:,tsort]
       flagrow = (np.array(flagrow)).transpose(1,2,0)[:,:,tsort]
 
-
-   #   antrow = np.array([allants.index(tabants[ai]) for ai in tb.getcol('ANTENNA1')[spmask]])[tsort]
 #############
 
       antrow = []

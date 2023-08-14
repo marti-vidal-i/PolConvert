@@ -74,18 +74,17 @@ import polconvert_standalone as PCONV
 
 
 
-if True:
- if sys.version_info.major < 3:
+if sys.version_info.major < 3:
   try:
     from taskinit import *
     tb = gentools(['tb'])[0]
   except Exception as ex:
     print('unable to load casa tools in python2\n\n')
     raise ex
- else:
+else:
   try:
     # ms is not actually used
-    from casatools import ms as ms_casa
+    # from casatools import ms as ms_casa
     from casatools import table as tb_casa
     tb = tb_casa()
   except Exception as ex:
@@ -926,7 +925,7 @@ calibrated phased arrays (i.e., phased ALMA).
      for line in inputlines[fr+1:]:
        if entry in line:
          index = int((line.split(':')[0]).split()[-1])
-         FrInfo[entry][index] = type(FrInfo[entry][0])(line.split()[-1])
+         FrInfo[entry][index] = type(FrInfo[entry][0])(line.split(':')[-1].strip())
 
 # SORT OUT THE CHANNEL FREQUENCIES:
 
@@ -945,7 +944,6 @@ calibrated phased arrays (i.e., phased ALMA).
         IFchan = max([IFchan,int(nchan/chav)])
       sb = {True: 1.0 , False: -1.0}[FrInfo['SIDEBAND'][nu] == 'U']
       FrInfo['SIGN'][nu] = float(sb)
-      freqs = (nu0 + np.linspace((sb-1.)/2.,(sb+1.)/2.,nchan//chav,endpoint=False)*bw)*1.e6
       if float(nchan//chav) != nchan/chav:
         printMsg("linspace check chan: %d / %d = %f" %
             (nchan, chav, nchan/chav))
@@ -1272,8 +1270,6 @@ calibrated phased arrays (i.e., phased ALMA).
       data = (np.array(data)).transpose(1,2,0)[:,:,tsort]
       flagrow = (np.array(flagrow)).transpose(1,2,0)[:,:,tsort]
 
-### FOR DEBUG:
-#      print(gain, nchan, len(tsort), np.round(data[0,:,0],3), np.round(data[1,:,0],3))
 #############
 
       antrow = []
