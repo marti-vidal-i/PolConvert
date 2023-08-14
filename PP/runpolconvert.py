@@ -14,7 +14,7 @@ import shutil
 import re
 import sys
 
-pcvers='2.0.6'
+pcvers='2.0.7'
 if sys.version_info.major < 3:
     pass
 else:
@@ -293,6 +293,7 @@ def runPolConvert(label, spw=-1, DiFXinput='',
             XYdel={},
             XYratio=XYratio, usePcal=[], swapXY=[False],
             swapRL=False, feedRotation=[],
+            correctParangle=False,
             IDI_conjugated=True,
             plotIF=plotIF, plotRange=timeRange,
             plotAnt=plotAnt,
@@ -301,11 +302,11 @@ def runPolConvert(label, spw=-1, DiFXinput='',
             solint=[1,1],
             doTest=doTest, npix=npix,
             solveAmp=False,
-            solveMethod='gradient', calstokes=[1.,0.,0.,0.], calfield=-1
-            )
+            solveMethod='gradient', calstokes=[1.,0.,0.,0.], calfield=-1,
+            saveArgs=False)
     except Exception as ex:
         # note that CASA captures any polconvert task exceptions
-        # so this code cannot ever be executed....
+        # so this code is not ever to be executed....
         print('Polconvert Exception -- Restoring Saved DiFXoutput Dir')
         if (os.path.exists(DiFXoutput)):
             shutil.rmtree(DiFXoutput)

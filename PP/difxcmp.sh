@@ -134,11 +134,14 @@ do
   vers)
     v='2\.[0-9]*\.[0-9]*'
     echo "================================="
-    echo "--> Change[Ll]ogs: <--"
-    grep -E "(elease|ersion|v).*$v" TOP/ChangeLog Changelog
+    echo "==> Changelog: <=="
+    grep -E "(elease|ersion|v).*$v" Changelog | head -1
+    echo "==> TOP/ChangeLog: <=="
+    grep -E "(elease|ersion|v).*$v" TOP/ChangeLog | tail -1
     echo "==> polconvert_standalone.py <=="
     grep '__version__[ ]*=' polconvert_standalone.py
     grep '^date.*=' polconvert_standalone.py
+    grep 'STANDALONE VERSION' polconvert_standalone.py
     echo "==> polconvert_CASA.py <=="
     grep 'VERSION' polconvert_CASA.py
     grep '__version__[ ]*=' polconvert_CASA.py

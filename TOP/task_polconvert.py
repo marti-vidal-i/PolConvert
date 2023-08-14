@@ -50,8 +50,8 @@
 
 from __future__ import absolute_import
 from __future__ import print_function
-__version__ = "2.0.6  "  # 7 characters
-date = 'Aug 1, 2023'
+__version__ = "2.0.7  "  # 7 characters
+date = 'Aug 14, 2023'
 
 
 ################
@@ -92,47 +92,50 @@ else:
     raise ex
 ################
 
-NEWPCSO = False   # 2.7.1 and earlier...
-NEWPCSO = True    # 2.7.2 and earlier...
+# this is the CASA xml-based command sequence:
+# defaults are supplied & consistent with version 2.0.7
+def polconvert(IDI='', OUTPUTIDI='', DiFXinput='', DiFXcalc='', doIF=[], linAntIdx=[1],
+               Range=[], ALMAant='', spw=-1, calAPP='', calAPPTime=[0.,5.], APPrefant='',
+               gains=[['NONE']], interpolation=[], gainmode=[], XYavgTime=0.0,
+               dterms=['NONE'], amp_norm=0.01, XYadd={}, XYdel={}, XYratio={},
+               usePcal={}, swapXY=[False], swapRL=False, feedRotation=[],
+               correctParangle=False, IDI_conjugated=False, plotIF=-1,
+               plotRange=[], plotAnt=-1, excludeAnts=[], excludeBaselines=[],
+               doSolve=-1, solint=[1,1], doTest=True, npix=50, solveAmp=True,
+               solveMethod='COBYLA', calstokes=[1.,0.,0.,0.], calfield=-1,
+               saveArgs=False):
 
-# this is the CASA xml-based command sequence
-def polconvert(IDI, OUTPUTIDI, DiFXinput, DiFXcalc, doIF, linAntIdx,
-  Range, ALMAant, spw, calAPP, calAPPTime, APPrefant,
-  gains, interpolation, gainmode, XYavgTime,
-  dterms, amp_norm, XYadd, XYdel, XYratio,
-  usePcal, swapXY, swapRL, feedRotation,
-  # correctParangle
-  IDI_conjugated, plotIF,
-  plotRange, plotAnt, excludeAnts, excludeBaselines,
-  doSolve, solint, doTest, npix, solveAmp,
-  solveMethod, calstokes, calfield
-  # saveArgs
-  ):
+# Note that runPolConvert invokes PolConvert with standard values
+# to some of the above arguments.
 
 ### polconvert_standalone.py has extra arguments...
   UVTaper=1.e9
 
+NEWPCSO = False   # 2.7.1 and earlier...
+NEWPCSO = True    # 2.7.2 and earlier...
+
 # polconvert_CASA.py has two additional arguments (as of 2.0.6).
 # TOP/polconvert.xml would need to be updated to use these.
 
-  """ POLCONVERT - CASA INTERFACE VERSION 2.0.6.
+  """ POLCONVERT - CASA INTERFACE VERSION 2.0.7.
 
 Converts VLBI visibilities from mixed-polarization (linear-circular)
-into circular basis. Works with single VLBI stations as well as with
+into a circular basis. Works with single VLBI stations as well as with
 calibrated phased arrays (i.e., phased ALMA).
 
   IDI: Input FITS-IDI file with VLBI visibilities. It can also be a
-       direcotry containing SWIN files from DiFX.
+       directory containing SWIN files from DiFX.
 
   OUTPUTIDI: Output FITS-IDI file (or SWIN directory). If equal to
              IDI, the file(s) will be overwritten.
-
 
   DiFXinput: If SWIN files are being converted, this must be the
              *.input file used by DiFX.
 
   DiFXcalc: If SWIN files are being converted, this must be the
-            *.calc file used by DiFX.
+            *.calc file used by DiFX.  This is optional, but if it is not
+            provided, the cross-polarization gain estimates may be incorrect
+            if doSolve>0.
 
   doIF = List of IFs to convert (starts from 1). Default means all.
 
@@ -141,12 +144,12 @@ calibrated phased arrays (i.e., phased ALMA).
              It can also be a list of the antenna code names.
 
   Range: Time range to convert (integer list; AIPS format). Default
-         means all data.
+         (empty list) means all data.
 
   ALMAant: If ALMA has been used, this is the antenna table from
            the MS with the intra-ALMA visibilities.
 
-  spw: Spectral window in ALMAvis that contains the VLBI band. If
+  spw: Spectral window in ALMA visibilities that contains the VLBI band. If
        negative, the program will derive it automatically.
 
   calAPP: If ALMA has been used, this is the combined
@@ -195,12 +198,12 @@ calibrated phased arrays (i.e., phased ALMA).
             amplitude correction as is.
 
   XYadd: Add manually a phase between X and Y before conversion (in
-         deg.). A dictionary (antenna codes as keywords) with
+         deg.). This is a dictionary (antenna codes as keywords) with
          elements set to either a list of one value per IF OR a
          list of lists (one value per channel, for each IF).
 
   XYdel: Add manually a multiband delay between X and Y before
-         conversion (in deg./chanel). A dicitonary (antenna codes
+         conversion (in deg./chanel). This is a dictionary (antenna codes
          as keywords) with one value per linear-pol station.
 
   XYratio: Add manually an amplitude ratio between X and Y before
@@ -212,7 +215,7 @@ calibrated phased arrays (i.e., phased ALMA).
            the IF bandwidth). If 0.0 is given for an antenna, the
            ratio will be estimated from the phasecal amplitudes (as
            long as usePcal is True and there are pcal files
-           available; nto supported for FITS-IDI).
+           available; not supported for FITS-IDI).
 
   usePcal: Dictionary (antenna codes as keywords), whose elements
            are booleans (i.e., one boolean per linear-polarization
@@ -284,7 +287,7 @@ calibrated phased arrays (i.e., phased ALMA).
   doTest: If true, only compute (and eventually plot), the data,
           but leave OUTPUTIDI untouched.
 
-  npix: Number of pixels for the fringe plots.
+  npix: Number of pixels for the fringe plots (and fringe search).
 
   solveAmp: If the cross-polarization gains are being estimated,
             solve also for the X/Y amplitude ratios.
@@ -304,6 +307,8 @@ calibrated phased arrays (i.e., phased ALMA).
             in the GCPFF). If negative, use all data in the time
             range, regardless of the field ID.
 
+  saveArgs: If true, arguments are saved in a file PolConvert_CASA.last
+            (a pickled dictionary); note that nothing currently reads this file.
   """
 
 
