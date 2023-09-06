@@ -102,10 +102,15 @@ def smooth_chans_mwf(gains, chanavg=9):
     return gains
 
 
-def get_constant_gains(subband, constants, indices):
+def get_constant_gains(subband, constants, indices, gains_in):
     '''get values from the constant gains inputs, referenced by subband
     index'''
-    gain = constants[indices.index(subband)]
+    print (f"constants[indices.index(subband)]")
+    if math.isnan(constants[indices.index(subband)]):
+        # a value of nan, means use original data
+        gain = gains_in
+    else:
+        gain = constants[indices.index(subband)]
     return gain
 
 
@@ -162,7 +167,7 @@ def main(infile, ants, infile2=None, subbands=[], zoomfreqs=None,
             subbands, subbands_in)
     if override_gains is not None:
         override_gains_index, override_amp, override_phase = expand_subband_string(
-            override_gains, nsubbands_in)
+            override_gains, subbands_in)
     else:
         override_gains_index = []
 
@@ -217,9 +222,11 @@ def main(infile, ants, infile2=None, subbands=[], zoomfreqs=None,
                 if subband in override_gains_index:
                     print(f"Overriding gains for subband {subband}")
                     xyratio[:] = get_constant_gains(
-                            subband, override_amp, override_gains_index)
+                            subband, override_amp, override_gains_index,
+                            xyratio)
                     xyadd[:] = get_constant_gains(
-                            subband, override_phase, override_gains_index)
+                            subband, override_phase, override_gains_index,
+                            xyadd)
 
             if nchan_out is not None:
                 # resample to a new number of output channels
@@ -276,7 +283,8 @@ if __name__ == '__main__':
     help_nchan = '''number of output channels for each subband'''
     help_gains = '''Specify gains (xyratio xyadd) for any subband you wish to
     override. Given as "subband xyratio xyadd" triplets. Applies to all
-    antennas selected'''
+    antennas selected. A value of nan for xyratio or xyadd means do not
+    override original data for that subband/value'''
     help_infile2 = '''Second gains file created by PolConvert to merge with
     first. Gains from infile2 overwrite gains from infile if any subbands
     appear in both.
@@ -333,7 +341,7 @@ if __name__ == '__main__':
             help='Output file')
     parser.add_argument(
             '--gains', '-g', action='store', default=None, nargs='+',
-            type=float, dest='gains', help=help_gains )
+            type=float, dest='gains', help=help_gains)
     parser.add_argument(
             '--keep_subs', '-k', action='store_true', default=False, 
             dest='keep_subs', 
