@@ -5,15 +5,24 @@
 # The defaults for the paths are consistent with GBC supports at Haystack,
 # but you can put git, DFX or dfx into the environment to do this elsewhere.
 #
+# Now that difx has switched to git (from svn) it gets more confusing.
+# We shall use GIT to refer to a checkout of difx-git/difx (which looks
+# like a master tag, but isn't).
+#
+[ -z "$GIT" ] && GIT=/swc/difx/difx-git
 [ -z "$git" ] && git=/home/gbc/PolConvert/PolConvert
-[ -z "$tag" ] && tag=''
-[ -z "$dxb" ] && {
-    [ -z "$tag" ] && dxb=trunk  # branches/py3temp
-    [ -n "$tag" ] && dxb='' &&  # trunk missing on masters
-        tag=master_tags/$tag    # but master_tags in path
+
+# default $tag is '' for git, use trunk for SVN difx
+[ -z "$tag" ] && {
+    DFX=$GIT
+    dfx=$GIT/applications/polconvert/src
+} || {
+    [ trunk = "$tag" ] && tag='' && dxb=trunk  ||   # branches/py3temp
+    { dxb='' && tag=master_tags/$tag ; }            # but master_tags in path
+    [ -z "$DFX" ] && DFX=/swc/difx/difx-svn
+    [ -z "$dfx" ] && dfx=$DFX/$tag/applications/polconvert/$dxb/src
 }
-[ -z "$DFX" ] && DFX=/swc/difx/difx-svn
-[ -z "$dfx" ] && dfx=$DFX/$tag/applications/polconvert/$dxb/src
+
 [ -n "$git" -a -d "$git" ] || {
     echo define git source trunk with \$git=...
     echo git was $git ; exit 1; }
@@ -193,22 +202,29 @@ do
     The wildcards * PP/* TOP/* (or combinations) are useful 
     to consider collections of files.  The hierarchy locations may be
     adjusted with environment variables that default to these:
-      (git repo dir) git=$git
-      (DiFX svn dir) DFX=$DFX
-      (master tag)   tag=$tag
-      (DiFX branch)  dxb=$dxb
+      (DIFX GIT repo)   GIT=$GIT
+      (PC git repo dir) git=$git
+      (DiFX svn dir)    DFX=$DFX
+      (master tag)      tag=$tag
+      (DiFX branch)     dxb=$dxb
+    Set tag to 'trunk' for the DiFX SVN and empty for DiFX GIT.
+
+    For DiFX SVN comparison
       dfx=\$DFX/\$tag/applications/polconvert/\$dxb/src
+    else for DiFX GIT comparison
+      dfx=\$GIT/applications/polconvert/src
 
+    Note that you'll be comparing with whatever branch is checked-out in GIT.
     The $skipdir directories are currently not imported to DiFX.
-    The build directory contains specific linux builds.
-
-    The previous bzr, brz repositories are considered obsolete;
-      $ git remote -v
-      origin  https://github.com/marti-vidal-i/PolConvert.git (fetch)
-      origin  https://github.com/marti-vidal-i/PolConvert.git (push)
-    is now the master.
-
 ....EOF
+#
+#   The build directory contains specific linux builds.
+#
+#   The previous bzr, brz repositories are considered obsolete;
+#      $ git remote -v
+#      origin  https://github.com/marti-vidal-i/PolConvert.git (fetch)
+#      origin  https://github.com/marti-vidal-i/PolConvert.git (push)
+#   is now the master.
     exit 1
     ;;
   esac
