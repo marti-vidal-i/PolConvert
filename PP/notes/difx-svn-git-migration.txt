@@ -11,6 +11,21 @@ x!  #       applications/polconvert/src/_PolGainSolve.cpp
 x0  #       applications/polconvert/src/polconvert.xml
 x   #       applications/polconvert/src/task_polconvert.py
 
+# these had changes related to TA037B testing:
+applications/polconvert/src/PP/checkpolconvert.py
+applications/polconvert/src/PP/drivepolconvert.py
+applications/polconvert/src/PP/DPFU_scanner.py  (permissions)
+
+# these were on trunk/2.0.7 but didn't survive
+applications/polconvert/src/DataIO.h
+applications/polconvert/src/DataIOFITS.cpp
+applications/polconvert/src/DataIOFITS.h
+applications/polconvert/src/DataIOSWIN.cpp
+applications/polconvert/src/_PolConvert.cpp
+applications/polconvert/src/_PolGainSolve.cpp
+applications/polconvert/src/_XPCal.cpp
+applications/polconvert/src/_XPCalMF.cpp
+
 
 for f in `find . -type f` ; do cmp $f /swc/difx/difx-svn/applications/polconvert/trunk/$f 2>&- 1>&- || echo $f ; done
 ./src/Makefile.am
