@@ -1,0 +1,57 @@
+x   #       applications/polconvert/ChangeLog
+x   #       applications/polconvert/configure.ac
+x   #       applications/polconvert/src/Changelog
+x   #       applications/polconvert/src/Makefile.am
+x   #       applications/polconvert/src/PP/checkpolconvertfringe.py
+x   #       applications/polconvert/src/PP/deploy.sh
+x   #       applications/polconvert/src/PP/difxcmp.sh
+x   #       applications/polconvert/src/PP/runpolconvert.py
+x   #       applications/polconvert/src/PP/singlepolsolve.py
+x!  #       applications/polconvert/src/_PolGainSolve.cpp
+x0  #       applications/polconvert/src/polconvert.xml
+x   #       applications/polconvert/src/task_polconvert.py
+
+
+for f in `find . -type f` ; do cmp $f /swc/difx/difx-svn/applications/polconvert/trunk/$f 2>&- 1>&- || echo $f ; done
+./src/Makefile.am
+./src/DataIO.h
+./src/DataIOFITS.cpp
+./src/_PolGainSolve.cpp
+./src/_XPCalMF.cpp
+./src/polconvert.xml
+./src/_PolConvert.cpp
+./src/_XPCal.cpp
+./src/DataIOFITS.h
+./src/PP/drivepolconvert.py
+./src/PP/checkpolconvert.py
+./src/PP/singlepolsolve.py
+./src/PP/runpolconvert.py
+./src/PP/difxcmp.sh
+./src/Changelog
+./src/DataIOSWIN.cpp
+./src/task_polconvert.py
+
+
+for f in `find . -type f` ; do cmp $f /swc/difx/difx-svn/master_tags/DiFX-2.8.1/applications/polconvert/$f 2>&- 1>&- || echo $f ; done
+./src/Makefile.am
+./src/polconvert_CASA.py
+./src/_PolGainSolve.cpp
+./src/polconvert.xml
+./src/setup.py
+./src/PP/DPFU_scanner.py
+./src/PP/deploy.sh
+./src/PP/drivepolconvert.py
+./src/PP/checkpolconvert.py
+./src/PP/comparepolconvert.py
+./src/PP/singlepolsolve.py
+./src/PP/checkpolconvertfringe.py
+./src/PP/runpolconvert.py
+./src/PP/difxcmp.sh
+./src/PP/pcvers.py
+./src/Changelog
+./src/task_polconvert.py
+./src/polconvert_standalone.py
+./Copyright
+./ChangeLog
+./configure.ac
+
