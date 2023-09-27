@@ -59,7 +59,7 @@ def parseOptions():
     at present is to try them and see what works best.
     '''
     des = parseOptions.__doc__
-    epi = ''
+    epi = 'WARNING: this is a work in progress, not completed.'
     use = '%(prog)s [options] [input_file [...]]\n  Version'
     parser = argparse.ArgumentParser(epilog=epi, description=des, usage=use)
     primary = parser.add_argument_group('Primary Options')
