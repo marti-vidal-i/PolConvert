@@ -338,6 +338,8 @@ def calibrationChecks(o):
     ### if push comes to shove
     else:               # supply via environment variable
         o.qal = os.environ['QA2TABLES'].split(',')
+        o.conlabel = o.label + '.concatenated.ms'
+        o.callabel = o.label + '.calibrated.ms'
     if tbwarn:
         print('\n\n ***You have selected an obsolete set of tables')
         print('Will proceed--but you had better known what you are doing.\n')
@@ -685,6 +687,7 @@ def useTheUserIFlist(o):
     o.zlist = o.iflist.split(',')
     o.zfirst = int(o.zlist[0])
     o.zfinal = int(o.zlist[-1])
+    o.zffs.append((o.zfirst,o.zfinal))
     print("User list zff: %d,%d"%(o.zfirst,o.zfinal))
     if o.verb: print('zlist is',o.zlist)
     return True
