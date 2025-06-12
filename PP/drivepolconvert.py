@@ -244,10 +244,10 @@ def tableSchemeHelp():
         d <label>.calibrated.ms.<Df0|Df0gen>.<APP|ALMA>
         b <label>.concatenated.ms.<bandpass-zphs|bandpassAPP>
         g <label>.concatenated.ms.flux_inf.<APP|ALMA>
-        p <label>.concatenated.ms.phase_int.<APP|ALMA><.XYsmooth>
+        p <label>.concatenated.ms.phase_int.<APP|ALMA>[.XYsmooth]
         x <label>.calibrated.ms.<XY0|XY0kcrs>.<APP|ALMA>
         y <label>.calibrated.ms.Gxyamp.<APP|ALMA>
-
+    
     Here APP or ALMA refers to ALMA Phasing Project/System (APP/APS) scans
     used for VLBI or normal ALMA calibration scans and calibrated or
     concatenated refer to the details of the QA2 production script.
@@ -269,16 +269,14 @@ def tableSchemeHelp():
     the name with -Y; e.g. XY0.APP to XY0kcrs.APP
 
     For data until year 2022 the built-in versions v4 .. v11 are sensible,
-    paired with overrides of '-Y XY0kcrs.APP' and '-B bandpassAPP' if needed.
-
-    From data from 2022 onwards the ALMA QA2 process has diverged such that
+    paired with overrides of '-Y XY0kcrs.APP' and '-B bandpassAPP' as needed.
+    For data from 2022 onwards the ALMA QA2 process has diverged such that
     the above version schemes are obsolete and incompatible with APP QA2 output,
     despite the READMEs in the APP QA2 deliverable suggesting otherwise.
 
     An environment variable QA2TABLES may be set to a comma-separated list of
     table names (omitting the label, concatenated.ms and calibrated.ms name prefixes)
-    to specify any arbitrary set of tables.
-    E.g. for EHT 2022:
+    to specify any arbitrary set of tables. For example, for EHT 2022:
     $ export QA2TABLES="ANTENNA,calappphase,Df0gen.APP,bandpassAPP,flux_inf.APP.OpCorr,phase_int.APP.XYsmooth,XY0kcrs.APP,Gxyamp.APP"
     $ drivepolconvert.py -q custom -l qa2label <etc>
     '''
