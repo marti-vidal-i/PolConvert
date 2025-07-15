@@ -2072,8 +2072,6 @@ calibrated phased arrays (i.e., phased ALMA).
      print("INDEX= "+', '.join(
         ['\'L%i|R%i\''%(i+1,i+1) for i in range(len(doIF))]), file=outf)
      print("/", file=outf)
-     print(FrInfo)
-     print(str(FrInfo), file=outf)
      for colnr in range(len(doIF)):
        di = doIF[colnr] - 1
        fmid = FrInfo['FREQ (MHZ)'][di] + (FrInfo['BW (MHZ)'][di]/2 if FrInfo['SIDEBAND'][di][0]=='U' else -FrInfo['BW (MHZ)'][di]/2)
