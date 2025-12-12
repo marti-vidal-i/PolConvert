@@ -1,5 +1,6 @@
 from distutils.core import setup, Extension
 import numpy as np
+import os,glob
 
 printM  = '\n'
 printM += '#######################################################################\n'
@@ -21,7 +22,7 @@ cfitsio='/usr/include/cfitsio'
 
 
 
-
+os.system("rm -f *.so")
 
 
 
@@ -35,6 +36,17 @@ sourcefiles3 = ['_getAntInfo.cpp']
 sourcefiles4 = ['_XPCal.cpp']
 
 sourcefiles5 = ['_XPCalMF.cpp']
+
+
+AllSour = sourcefiles1+sourcefiles2+sourcefiles3+sourcefiles4+sourcefiles5
+for soi in AllSour:
+    os.system("touch %s"%soi)
+
+
+## Sanitizadores de memoria:
+#CXXFLAGS="-O0 -g -fsanitize=address,leak,undefined -fno-omit-frame-pointer"
+#LDFLAGS="-fsanitize=address,leak,undefined"
+
 
 c_ext1 = Extension("_PolConvert", sources=sourcefiles1,
                   extra_compile_args=["-Wno-deprecated","-O3","-std=c++11"],
@@ -91,5 +103,9 @@ if DO_SOLVE:
 
 
 
+All_so = glob.glob("*.so")
+for soi in All_so:
+    newName = soi.split(".")[0]
+    os.system("cp %s %s.so"%(soi,newName))
 
 
