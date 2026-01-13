@@ -21,6 +21,7 @@
 import numpy as np
 import pylab as pl
 import os, sys, glob
+import pickle as pk
 from multiprocessing import Pool
 
 
@@ -154,15 +155,15 @@ def getFringeSNR(dd):
                 SNR_XX = XXmatrix[Peak[0], Peak[1]]
                 XXmatrix[Peak[0] - 1 : Peak[0] + 1, Peak[1] - 1 : Peak[1] + 1] = 0.0
 
-                Peak = np.unravel_index(np.argmax(XXmatrix), np.shape(XYmatrix))
+                Peak = np.unravel_index(np.argmax(XYmatrix), np.shape(XYmatrix))
                 SNR_XY = XYmatrix[Peak[0], Peak[1]]
                 XYmatrix[Peak[0] - 1 : Peak[0] + 1, Peak[1] - 1 : Peak[1] + 1] = 0.0
 
-                Peak = np.unravel_index(np.argmax(XXmatrix), np.shape(YXmatrix))
+                Peak = np.unravel_index(np.argmax(YXmatrix), np.shape(YXmatrix))
                 SNR_YX = YXmatrix[Peak[0], Peak[1]]
                 YXmatrix[Peak[0] - 1 : Peak[0] + 1, Peak[1] - 1 : Peak[1] + 1] = 0.0
 
-                Peak = np.unravel_index(np.argmax(XXmatrix), np.shape(YYmatrix))
+                Peak = np.unravel_index(np.argmax(YYmatrix), np.shape(YYmatrix))
                 SNR_YY = YYmatrix[Peak[0], Peak[1]]
                 YYmatrix[Peak[0] - 1 : Peak[0] + 1, Peak[1] - 1 : Peak[1] + 1] = 0.0
 
@@ -182,14 +183,14 @@ def getFringeSNR(dd):
                 Y1M = np.max([SNR_YY, SNR_YX, Y1M])
                 Y2M = np.max([SNR_YY, SNR_XY, Y2M])
 
-                SNR_X[bb[0]][0] = np.min([SNR_X[bb[0]][0], X1m])
+                SNR_X[bb[0]][0] = np.min([SNR_X[bb[0]][0], X1M])
                 SNR_X[bb[0]][1] = np.max([SNR_X[bb[1]][1], X1M])
-                SNR_X[bb[1]][0] = np.min([SNR_X[bb[1]][0], X2m])
+                SNR_X[bb[1]][0] = np.min([SNR_X[bb[1]][0], X2M])
                 SNR_X[bb[1]][1] = np.max([SNR_X[bb[1]][1], X2M])
 
-                SNR_Y[bb[0]][0] = np.min([SNR_Y[bb[0]][0], Y1m])
+                SNR_Y[bb[0]][0] = np.min([SNR_Y[bb[0]][0], Y1M])
                 SNR_Y[bb[0]][1] = np.max([SNR_Y[bb[1]][1], Y1M])
-                SNR_Y[bb[1]][0] = np.min([SNR_Y[bb[1]][0], Y2m])
+                SNR_Y[bb[1]][0] = np.min([SNR_Y[bb[1]][0], Y2M])
                 SNR_Y[bb[1]][1] = np.max([SNR_Y[bb[1]][1], Y2M])
 
                 del P1, P2, XXp, YYp, XYp, YXp, XXmatrix, YYmatrix, XYmatrix, YXmatrix
@@ -210,12 +211,14 @@ def getFringeSNR(dd):
             Nsou = int(line.split()[-1])
             break
 
+    SCANSOUS = []
     for j in range(Nsou):
         Snam = lines[lsou + 1 + j * 5].split()[-1]
-        TORETURN += "%s:   %s\n" % (os.path.basename(dd).split(".")[0], Snam)
+        SCANSOUS.append(Snam)
+    #    TORETURN += "%s:   %s\n" % (os.path.basename(dd).split(".")[0], Snam)
 
     IsGood = True
-    SNROut = []
+    SNROut = [os.path.basename(dd).split(".")[0], SCANSOUS]
     for j in range(Nants):
         Observes = "+"
         if SNR_X[j][1] < minSNR or SNR_Y[j][1] < minSNR:
@@ -232,9 +235,8 @@ def getFringeSNR(dd):
         ]
     SNROut += [{True: "Y", False: "N"}[IsGood]]
 
-    TORETURN += fmt % tuple(SNROut)
 
-    return TORETURN
+    return SNROut
 
 
 if __name__ == "__main__":
@@ -244,20 +246,22 @@ if __name__ == "__main__":
     NIF = 32
 
     SNRBas = [[0, 1], [0, 2], [1, 2]]
-    SNRCut = 10.0
+    SNRCut = 50.0
 
 
 #######################################
-# COMMENT THIS LINE OUT WHEN DEBUGGING AS execfile(...)
+00# COMMENT THIS LINE OUT WHEN DEBUGGING AS execfile(...)
 def SOURCE_SCANNER(EXPNAME="", DIFX_DIR="", SNRCut=10.0, SCAN_IF=[], NCPU=1):
     """Reads all the scans in a SWIN directory and creates an ASCII file
     with information about the sources, participating antennas, and SNRs
     of the correlation products. If the minimum SNR is equal or higher than
-    SNRCut, the scan is marked as good."""
+    SNRCut, the scan is marked as good. Antennas not arriving to SNRCut will 
+    be marked as bad for that scan."""
     #######################################
 
-    # if True:
-    try:
+
+    if True:
+    #try:
 
         global minSNR, DOIF
 
@@ -284,7 +288,57 @@ def SOURCE_SCANNER(EXPNAME="", DIFX_DIR="", SNRCut=10.0, SCAN_IF=[], NCPU=1):
         )
 
         with Pool(NCPU) as p:
-            RESULT = p.map(getFringeSNR, calcs)
+            TORESULT = p.map(getFringeSNR, calcs)
+
+        RESULT = []
+        for result in TORESULT:
+           ScanName = result[0]
+           ScanSous = ','.join(result[1])
+           Nants = (len(result)-3)//6
+
+           fmt = "  ANT %s: X = [%.2f  %.2f] | Y = [ %.2f  %.2f]  %s  \n" * Nants
+           fmt += "  SNR PASS: %s\n\n"
+
+       #    print(result[2:],ScanName,ScanSous)
+           RESULT.append("%s: %s\n"%(ScanName,ScanSous))
+           RESULT.append(fmt % tuple(result[2:]))
+  #      print(len(TORESULT))
+  #      import pickle as pk
+  #      debugFile=open("FDP.dat","wb")
+  #      pk.dump(TORESULT,debugFile)
+  #      debugFile.close()
+        ALL_ANTENNAS = np.unique(np.concatenate([result[2:-1:6] for result in TORESULT]))
+  #      print(ALL_ANTENNAS)
+  #      print('\n'.join(RESULT))
+       # ALL_ANTENNAS = np.unique(np.concatenate([result[0] for result in TORESULT]))
+        BEST_SCAN = {}
+        FAILED_ANTENNAS = {}
+        CALIB_SCANS = []
+        for ant in ALL_ANTENNAS:
+           BEST_SCAN[ant] = [-1,'',0.0]
+           for si,scan in enumerate(TORESULT):
+             NantScan = (len(scan)-3)//6
+             ScanName = scan[0]
+             ScanCode = ScanName.split('_')[1]
+             if ScanCode not in FAILED_ANTENNAS.keys():
+               FAILED_ANTENNAS[ScanCode] = []
+             for ai in range(NantScan):
+               aiCode = scan[2+ai*6]
+               if (scan[4+ai*6]<SNRCut or scan[6+ai*6]<SNRCut) and aiCode not in FAILED_ANTENNAS[ScanCode]:
+                 FAILED_ANTENNAS[ScanCode].append(aiCode)
+               if ant == aiCode:
+                 WORSE_SNR = np.min([scan[4+ai*6],scan[6+ai*6]])
+                 if WORSE_SNR > BEST_SCAN[ant][2]:
+                   BEST_SCAN[ant] = [si,ScanCode,WORSE_SNR]
+           if BEST_SCAN[ant][0] not in CALIB_SCANS:
+             CALIB_SCANS.append(BEST_SCAN[ant][1])
+ 
+        CALIB_SCANS = sorted(list(set(CALIB_SCANS)))
+        for antenna in BEST_SCAN.keys():
+          BestCode = BEST_SCAN[antenna][1]
+          if antenna in FAILED_ANTENNAS[BestCode]:
+             print("WARNING! Antenna %s does not achieve minimum SNR for calibration!"%antenna)
+             FAILED_ANTENNAS[BestCode].remove(antenna)
 
         print("\n".join(RESULT), file=OUTPUT)
         OUTPUT.close()
@@ -292,8 +346,12 @@ def SOURCE_SCANNER(EXPNAME="", DIFX_DIR="", SNRCut=10.0, SCAN_IF=[], NCPU=1):
         if os.path.exists("SOURCE_SCANNER.FAILED"):
             os.system("rm -rf SOURCE_SCANNER.FAILED")
 
-    # else:
-    except:
+        OUTPUT=open("%s_ScanStats.dat"%EXPNAME,"wb")
+        pk.dump([BEST_SCAN,CALIB_SCANS,FAILED_ANTENNAS],OUTPUT)
+        OUTPUT.close()
+
+    else:
+    #except:
 
         e = sys.exc_info()[0]
         OFF = open("SOURCE_SCANNER.FAILED", "w")

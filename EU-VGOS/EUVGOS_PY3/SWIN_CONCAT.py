@@ -23,7 +23,7 @@ import struct as stk
 import os, sys, glob
 
 
-__version__ = "1.0b (28 Oct 2022)"
+__version__ = "1.1b (10 Jun 2025)"
 
 
 # ROOT = '/home/marti/WORKAREA/VGOS/EV9217/DATA_ORIG'  #/home/marti/WORKAREA/VGOS/CONCAT_TEST/orig_data'
@@ -32,7 +32,7 @@ __version__ = "1.0b (28 Oct 2022)"
 # if True:
 
 
-def swinConcat(SWINs=[], concatName=""):
+def swinConcat(SWINs=[], concatName="", badAnts={}):
     """Reads the input and calc files of all the SWIN files
     given in the SWINs list. Then, it generates a combined
     input (and calc) file where the indices of antennas and
@@ -68,7 +68,7 @@ def swinConcat(SWINs=[], concatName=""):
         if not (isT(calcFile) and isT(inputFile) and isT(SCAN)):
             raise Exception("Problem with scan %s" % os.path.basename(SCAN))
 
-        # Read metadata:
+        # Read metadata:00
         INPF = open(inputFile, "r")
         lines = INPF.readlines()
         INPF.close()
@@ -306,10 +306,16 @@ def swinConcat(SWINs=[], concatName=""):
 
     for sc, SCAN in enumerate(SWINs):
 
+        print("For scan %s will flag antennas %s"%(SCAN,','.join(badAnts[SCAN])))
+        Nbad = 0 ; Ngood = 0
+
         ## Dictionary to translate antenna indices:
         TELDIC = {}
+        flagAnts = []
         for ant in TELNAMES[sc].keys():
             TELDIC[TELNAMES[sc][ant][0] + 1] = sortANT.index(ant) + 1
+            if ant in badAnts[SCAN]:
+                flagAnts.append(int(TELDIC[TELNAMES[sc][ant][0]+1]))
 
         ## Dictionary to translate source indices:
         SOUDIC = {}
@@ -355,6 +361,12 @@ def swinConcat(SWINs=[], concatName=""):
             BASEL, MJD, SEC, CFI, SI, SPI = stk.unpack("iidiii", alldats)
             A1 = BASEL // 256
             A2 = BASEL % 256
+            if A1 in flagAnts or A2 in flagAnts:
+               SPI = -1
+               Nbad += 1
+            else:
+               Ngood += 1
+             #  print(A1,A2,flagAnts)
             newA1 = TELDIC[A1]
             newA2 = TELDIC[A2]
             newBASEL = newA1 * 256 + newA2
@@ -367,6 +379,7 @@ def swinConcat(SWINs=[], concatName=""):
             alldats = frfileIn.read(6 + 8 * (NCHAN + 5))
             frfileOut.write(alldats)
 
+        print("Good Visibs: %i ; flagged Visibs: %i"%(Ngood, Nbad))
         print("\n")
         frfileIn.close()
         frfileOut.close()
