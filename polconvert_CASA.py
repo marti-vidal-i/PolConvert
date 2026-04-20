@@ -247,6 +247,10 @@ calibrated phased arrays (i.e., phased ALMA).
                     two antenna codenames) to NOT use in the 
                     cross-polarization gain estimates.
 
+  fixedAntennas: List of antennas whose data will be used in the 
+                 calibration estimates, BUT whose gains will not
+                 be fitted.
+
   doSolve: If negative, do not estimate the cross-polarization 
            gains. If positive or zero, estimate the gains using
            a Global Cross-Pol Fringe Fitting (GCPFF). The gains
@@ -335,7 +339,7 @@ calibrated phased arrays (i.e., phased ALMA).
 # Auxiliary function: print message (terminal and log):
   def printMsg(msg, doterm=True, dolog=True):
     if doterm:
-      print(msg)
+      print(msg,flush=True)
     if dolog:
       lfile = open("PolConvert.log","a")
       print(msg,file=lfile)
@@ -984,16 +988,27 @@ calibrated phased arrays (i.e., phased ALMA).
 # MAX. NUMBER OF CHANNELS:
       chav = FrInfo['CHANS TO AVG'][nu]
       sb = {True: 1.0 , False: -1.0}[FrInfo['SIDEBAND'][nu] == 'U']
+      
+      ## Channel width of ALMA (in MHz):
+      dNuALMA = 7.8125 
+      BPassShift = dNuALMA*0.5  # Half a channel
+
+      if sb<0.0:
+         channels =  np.linspace(BPassShift,bw+BPassShift, nchan//chav, endpoint=False)
+      else:  
+         channels =  np.linspace(-bw-BPassShift,BPassShift, nchan//chav, endpoint=False)
+
       FrInfo['SIGN'][nu] = float(sb)
+
       if nu in doIF:
         IFchan = max([IFchan,int(nchan/chav)])
         if float(nchan//chav) != nchan/chav:
            printMsg("SPW %i. linspace check FAILED: chan: %d / %d = %f" %(nu,nchan, chav, nchan/chav))
         else:
            printMsg("SPW %i. linspace check PASSED: chan: %d / %d = %f" %(nu,nchan, chav, nchan/chav))
-      freqs = (nu0 + np.linspace((sb-1.)/2.,(sb+1.)/2.,
-        nchan//chav,    # should be exactly divisible
-        endpoint=False)*bw)*1.e6
+
+      freqs = (nu0 + channels)*1.e6
+
       metadata.append(freqs)
 
 

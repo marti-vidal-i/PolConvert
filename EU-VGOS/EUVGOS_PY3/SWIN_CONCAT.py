@@ -305,8 +305,10 @@ def swinConcat(SWINs=[], concatName="", badAnts={}):
     frfile.close()
 
     for sc, SCAN in enumerate(SWINs):
-
-        print("For scan %s will flag antennas %s"%(SCAN,','.join(badAnts[SCAN])))
+        if SCAN in badAnts.keys():
+            print("For scan %s will flag antennas %s"%(SCAN,','.join(badAnts[SCAN])))
+        else:
+            badAnts[SCAN] = []
         Nbad = 0 ; Ngood = 0
 
         ## Dictionary to translate antenna indices:
@@ -352,7 +354,7 @@ def swinConcat(SWINs=[], concatName="", badAnts={}):
 
         i = 0
         while True:
-            if i % 1024 == 0:
+            if i % 65536== 0:
                 sys.stdout.write("\r Modifying VIS %i of %i" % (i, VIS_SIZE))
                 sys.stdout.flush()
             alldats = frfileIn.read(28)
@@ -379,7 +381,7 @@ def swinConcat(SWINs=[], concatName="", badAnts={}):
             alldats = frfileIn.read(6 + 8 * (NCHAN + 5))
             frfileOut.write(alldats)
 
-        print("Good Visibs: %i ; flagged Visibs: %i"%(Ngood, Nbad))
+        print("\nGood Visibs: %i ; flagged Visibs: %i"%(Ngood, Nbad))
         print("\n")
         frfileIn.close()
         frfileOut.close()

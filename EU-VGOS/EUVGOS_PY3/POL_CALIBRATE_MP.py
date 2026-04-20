@@ -54,9 +54,12 @@ def POL_CALIBRATE(
     USE_PCAL=True,
     EXCLUDE_BASELINES=[],
     EXCLUDE_ANTENNA=[],
+    FIT_ANTENNA=[],
     DOIF=[],
     DOAMP=True,
     PLOTANT=1,
+    USE_DELAY=False,
+    USE_RATE=False,
     XPOL_DELAYS={},
     APPLY_AMP=True,
     APPLY_POLCAL=True,
@@ -67,15 +70,15 @@ def POL_CALIBRATE(
     IF_OFFSET=0,
     XYPCALMODE="bandpass",
     UVTAPER=1.e9,
-    USE_RATES = False
+    USE_GAINS = {}
 ):
     """Estimates cross-polarization gains using a scan in a SWIN directory.
     The channel resolution is set to CHANSOL. Saves the gains in a dictionary
     that can ge used by PolConvert."""
     #################################
 
-    try:
-    #if True:
+    #try:
+    if True:
 
         EXP = EXPNAME
 
@@ -119,6 +122,13 @@ def POL_CALIBRATE(
         #    os.system('cp -r %s %s/.'%('%s_%s.difx'%(os.path.join(DIFX,EXP),SI), os.path.join(DIFX,'%s_PC_CALIB'%EXP)))
         #    os.system('cp -r %s %s/.'%('%s_%s.calc'%(os.path.join(DIFX,EXP),SI), os.path.join(DIFX,'%s_PC_CALIB'%EXP)))
 
+        XYadd = {}; XYratio ={}
+        if 'XYadd' in USE_GAINS.keys():
+            XYadd = USE_GAINS['XYadd']
+        if 'XYratio' in USE_GAINS.keys():
+            XYratio = USE_GAINS['XYratio']
+
+
         WITH_PCAL = PC.polconvert(
             IDI=DIFX,
             OUTPUTIDI=DIFX,
@@ -134,11 +144,14 @@ def POL_CALIBRATE(
             plotAnt=PLOTANT,
             excludeBaselines=EXCLUDE_BASELINES,
             excludeAnts=EXCLUDE_ANTENNA,
+            fitAnts=FIT_ANTENNA,
             linAntIdx=list(range(1, Nants + 1)),
             swapXY=[False for i in range(Nants)],
             usePcal=USE_PCAL,
-            XYadd={},
-            XYratio={},
+            useDelays = USE_DELAY,
+            useRates = USE_RATE,
+            XYadd=XYadd,
+            XYratio=XYratio,
             pcalSuffix=PCAL_SUFFIX,
             # Gain-solver configuration:
             solveAmp=DOAMP,
@@ -146,7 +159,6 @@ def POL_CALIBRATE(
             doSolve=DOSOLVE,
             doTest=True,
             UVTaper=UVTAPER,
-            useRates = USE_RATES,
             solint=[CHANSOL, INTTIME],
         )
 
@@ -184,9 +196,11 @@ def POL_CALIBRATE(
         WITH_PCAL["PARAMETERS"]["DOSOLVE"] = DOSOLVE
         WITH_PCAL["PARAMETERS"]["PCAL"] = USE_PCAL
         WITH_PCAL["PARAMETERS"]["EXCLUDE"] = EXCLUDE_BASELINES
+        WITH_PCAL["PARAMETERS"]["FIT_ANTENNA"] = FIT_ANTENNA
         WITH_PCAL["PARAMETERS"]["XYPCALMODE"] = XYPCALMODE
         WITH_PCAL["PARAMETERS"]["UVTAPER"] = UVTAPER
-        WITH_PCAL["PARAMETERS"]["USE_RATES"] = USE_RATES
+        WITH_PCAL["PARAMETERS"]["USE_RATE"] = USE_RATE
+        WITH_PCAL["PARAMETERS"]["USE_DELAY"] = USE_DELAY
         WITH_PCAL["PARAMETERS"]["XPOL_DELAYS"] = XPOL_DELAYS
 
         OFF = open("POLCAL_OUTPUT_SCAN-%s_IF-%i.dat" % (DOSCAN[0], DOIF[0]), "wb")
@@ -232,8 +246,8 @@ def POL_CALIBRATE(
             if os.path.exists("POL_CALIBRATE.FAILED"):
                 os.system("rm -rf POL_CALIBRATE.FAILED")
 
-    except:
-    #else:
+    #except:
+    else:
 
         e = sys.exc_info()[0]
         OFF = open("POL_CALIBRATE.FAILED", "w")
