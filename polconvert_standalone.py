@@ -306,7 +306,7 @@ def polconvert(
     # Auxiliary function: print message (terminal and log):
     def printMsg(msg, doterm=True, dolog=True):
         if doterm:
-            print(msg)
+            print(msg,flush=True)
         if dolog:
             lfile = open(logName, "a")
             print(msg, file=lfile)
