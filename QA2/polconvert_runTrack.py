@@ -52,13 +52,13 @@ The SWIN products are in: /data/E22C20/DiFX
 The polconverted products will be in: /data/E22C20/DiFX_PC
 The QA2 deliverables are in: /data/ALMA/e22c20_QA2
 
-polconvert_runTrack.py --qa2path /data/ALMA/e22c20_QA2  --track e22c20 --origdata /data/E22C20/DiFX --destdata /data/E22C20/DiFX_PC --source 3C279 --bands 2
+polconvert_runTrack.py --qa2dir /data/ALMA/e22c20_QA2  --track e22c20 --origdata /data/E22C20/DiFX --destdata /data/E22C20/DiFX_PC --source 3C279 --bands 2
 
 2.- PolConvert a list of jobs (e.g., scans 1082, 1090, 1073 in bands 2 and 4), 
     using 2 processes.
 The data are in the same location as the example above
 
-polconvert_runTrack.py --qa2path /data/ALMA/e22c20_QA2 --track e22c20 --origdata /data/E22C20/DiFX --destdata /data/E22C20/DiFX_PC --jobs e22c20-1-b2_1073 e22c20-1-b2_1082 e22c20-1-b2_1090  e22c20-1-b4_1073 e22c20-1-b4_1082 e22c20-1-b4_1090 --nproc 2
+polconvert_runTrack.py --qa2dir /data/ALMA/e22c20_QA2 --track e22c20 --origdata /data/E22C20/DiFX --destdata /data/E22C20/DiFX_PC --jobs e22c20-1-b2_1073 e22c20-1-b2_1082 e22c20-1-b2_1090  e22c20-1-b4_1073 e22c20-1-b4_1082 e22c20-1-b4_1090 --nproc 2
 
 """
 
