@@ -52,7 +52,7 @@ Argument list:
              and SCN is scan number. Example: e22c20-1-b2_1088.difx
 
 
---plotdir :: Directory where the plots will be stored.
+--plotdir :: Directory where the plots will be stored. Mandatory.
 
 --source :: Name of (calibrator) source to plot.
             ONLY ONE SOURCE IS ALLOWED.
@@ -75,9 +75,10 @@ Argument list:
 EXAMPLE:
 
 - Plot the AA-AX baseline for all bands and scans of 3C279. 
-    The SWIN products are stored in the ../DiFX folder:
+    The SWIN products are stored in the ../DiFX folder. The plots
+    will be saved in directory 3C279_PC_PLOTS:
 
-SWIN_CAL_PLOT.py --datadir ../DiFX --source 3C279 --antennas AX
+SWIN_CAL_PLOT.py --datadir ../DiFX  --plotdir 3C279_PC_PLOTS  --source 3C279 --antennas AX
 
 
 """
@@ -427,22 +428,34 @@ for BAND in BANDS:
              if thisWgtR[ki]>0.0:                        
                RCORR = np.linspace(SBD[0]*(-SHAPE[0]/2.+1),SBD[0]*(SHAPE[0]/2.),SHAPE[0])[:,np.newaxis]
                RCORR2 = RCORR + np.linspace(RATE*(-SHAPE[1]/2.+1),RATE*(SHAPE[1]/2.),SHAPE[1])[np.newaxis,:]
-               AVRR = np.average(scan['VIS'][np.logical_and(maskRR,IFMASK[k]),:]*np.exp(-1.j*RCORR2))
+            #   AVRR = np.average(scan['VIS'][np.logical_and(maskRR,IFMASK[k]),:]*np.exp(-1.j*RCORR2))
+               VISRR = scan['VIS'][np.logical_and(maskRR, IFMASK[k]),:]
+               n = min(VISRR.shape[0], RCORR2.shape[0])
+               AVRR = np.average(VISRR[:n, :] * np.exp(-1.j * RCORR2[:n, :]))
              else:
                RCORR = 0.0; RCORR2 = 0.0; AVRR = 0.0
              if thisWgtL[ki]>0.0:
                LCORR = np.linspace(SBD[1]*(-SHAPE[0]/2.+1),SBD[1]*(SHAPE[0]/2.),SHAPE[0])[:,np.newaxis]
                LCORR2 = LCORR + np.linspace(RATE*(-SHAPE[1]/2.+1),RATE*(SHAPE[1]/2.),SHAPE[1])[np.newaxis,:]
-               AVLL = np.average(scan['VIS'][np.logical_and(maskLL,IFMASK[k]),:]*np.exp(-1.j*LCORR2))
+           #    AVLL = np.average(scan['VIS'][np.logical_and(maskLL,IFMASK[k]),:]*np.exp(-1.j*LCORR2))
+               VISLL = scan['VIS'][np.logical_and(maskLL, IFMASK[k]),:]
+               n = min(VISLL.shape[0], RCORR2.shape[0])
+               AVLL = np.average(VISLL[:n, :] * np.exp(-1.j * LCORR2[:n, :]))
              else:
                LCORR = 0.0; LCORR2 = 0.0; AVLL = 0.0
              if thisWgtL[ki]>0.0 and thisWgtR[ki]>0.0:
-               AVRL = np.average(scan['VIS'][np.logical_and(maskRL,IFMASK[k]),:]*np.exp(-1.j*LCORR2))
-               AVLR = np.average(scan['VIS'][np.logical_and(maskLR,IFMASK[k]),:]*np.exp(-1.j*RCORR2))
+             #  AVRL = np.average(scan['VIS'][np.logical_and(maskRL,IFMASK[k]),:]*np.exp(-1.j*LCORR2))
+               VISRL = scan['VIS'][np.logical_and(maskRL, IFMASK[k]),:]
+               n = min(VISRL.shape[0], RCORR2.shape[0])
+               AVRL = np.average(VISRL[:n, :] * np.exp(-1.j * LCORR2[:n, :]))
+            #   AVLR = np.average(scan['VIS'][np.logical_and(maskLR,IFMASK[k]),:]*np.exp(-1.j*RCORR2))
+               VISLR = scan['VIS'][np.logical_and(maskLR, IFMASK[k]),:]
+               n = min(VISLR.shape[0], RCORR2.shape[0])
+               AVLR = np.average(VISLR[:n, :] * np.exp(-1.j * RCORR2[:n, :]))
              else:
                AVRL = 0.0; AVLR = 0.0
              AVERAGES['vis'][AVKEY][k] = [AVRR,AVLL,AVRL,AVLR] 
-             del RCORR,RCORR2,LCORR,LCORR2
+             del RCORR,RCORR2,LCORR,LCORR2,VISRR,VISLL,VISRL,VISLR
              gc.collect()
            else:
              AVERAGES['vis'][AVKEY][k] = [0.0,0.0,0.0,0.0]

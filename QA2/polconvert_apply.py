@@ -230,7 +230,7 @@ for job in JOBS:
         gains = [['%s.bandpassAPP'%QA2,
           '%s.XY0.APP'%QA2c,
           '%s.Kcrs.APP'%QA2c,
-          '%s.flux_inf.APP'%QA2,
+          '%s.flux_inf.APP.OpCorr'%QA2,
           '%s.phase_int.APP.XYsmooth'%QA2,
           '%s.Gxyamp.APP'%QA2c]] 
         calintrp = [['linear', 'linear','linear','nearest', 'linear', 'linear']]
@@ -239,7 +239,7 @@ for job in JOBS:
 ### OR DO IT THE OLD WAY, USING XY0KCRS:
         gains = [['%s.bandpassAPP'%QA2,
           '%s.XY0kcrs.APP'%QA2c,
-          '%s.flux_inf.APP'%QA2,
+          '%s.flux_inf.APP.OpCorr'%QA2,
           '%s.phase_int.APP.XYsmooth'%QA2,
           '%s.Gxyamp.APP'%QA2c]] 
         calintrp = [['linear', 'linear','nearest', 'linear', 'linear']]
