@@ -52,7 +52,7 @@ Argument list:
              and SCN is scan number. Example: e22c20-1-b2_1088.difx
 
 
---plotdir :: Directory where the plots will be stored. Mandatory.
+--plotdir :: Directory where the plots will be stored.
 
 --source :: Name of (calibrator) source to plot.
             ONLY ONE SOURCE IS ALLOWED.
@@ -74,11 +74,11 @@ Argument list:
 
 EXAMPLE:
 
-- Plot the AA-AX baseline for all bands and scans of 3C279. 
-    The SWIN products are stored in the ../DiFX folder. The plots
-    will be saved in directory 3C279_PC_PLOTS:
+- Plot the AA-AX baseline for all bands and scans of 3C279. The plots
+  will be saved in directory 3C279_PC_PLOTS and the SWIN products are 
+  stored in the ../DiFX folder:
 
-SWIN_CAL_PLOT.py --datadir ../DiFX  --plotdir 3C279_PC_PLOTS  --source 3C279 --antennas AX
+SWIN_CAL_PLOT.py --datadir ../DiFX --plotdir 3C279_PC_PLOTS  --source 3C279 --antennas AX
 
 
 """
@@ -270,7 +270,12 @@ for BAND in BANDS:
     alldats = frfile.read(8)
     i=0
     DATA = {'ANTS':[],'JDT':[],'IF':[],'POL':[],'VIS':[],'UVW':[],"NAME":SNAME,"SCAN":scan}
-    ACORR = {}
+    BANDPASS = {} # Bandpass amplitudes will be derived from autocorrs (if available).
+    for ant in TOPLOT:
+      BANDPASS[TNAME[ant]] = {} 
+      for poli in ['R','L']:
+          BANDPASS[TNAME[ant]][poli] = {}
+
 
     ALLANTS = []
     while True:
@@ -282,9 +287,43 @@ for BAND in BANDS:
       BASEL,MJD,SEC,CFI,SI,SPI = stk.unpack("iidiii",alldats)
       A1 = BASEL//256
       A2 = BASEL%256
-      if (A1 == PLOTID and A2 in TOPLOT) or (A2 == PLOTID and A1 in TOPLOT):
-        alldats = frfile.read(2)
-        P1,P2 = stk.unpack("cc",alldats)
+      alldats = frfile.read(2)
+      P1,P2 = stk.unpack("cc",alldats)
+      STRPOL = str(P1.decode('utf-8')+P2.decode('utf-8'))
+
+# Autocorrelations:
+      if A1 == A2 and A1 in TOPLOT:
+        POLCOPY = ''
+        if STRPOL in ['RR','XR','RX','XX']:
+           POLCOPY ='R'
+        if STRPOL in ['LL','YL','LY','YY']:
+           POLCOPY = 'L'
+
+        if len(POLCOPY)>0: # Generate entry for this IF:
+          if SPI not in BANDPASS[TNAME[A1]][POLCOPY].keys():
+             BANDPASS[TNAME[A1]][POLCOPY][SPI] = 0.0
+
+          alldats = frfile.read(4)
+          PB = stk.unpack("i",alldats)
+          alldats = frfile.read(8)
+          PW = stk.unpack("d",alldats)
+          alldats = frfile.read(8*3)
+## Accumulate the bandpass for this IF as the channel average:
+          ACORR = 0.0
+          for chi in range(NCHAN):
+            alldats = frfile.read(8)
+            Re,Im = stk.unpack("ff",alldats)
+            ACORR += np.sqrt(Re**2. + Im**2.)
+          BANDPASS[TNAME[A1]][POLCOPY][SPI] = np.sqrt(ACORR/NCHAN)
+          hola = frfile.read(8)
+
+        else:
+          alldats=frfile.read(38+8*NCHAN+6)  
+
+
+
+## Cross-correlations:
+      elif (A1 == PLOTID and A2 in TOPLOT) or (A2 == PLOTID and A1 in TOPLOT):
         alldats = frfile.read(4)
         PB = stk.unpack("i",alldats)
         alldats = frfile.read(8)
@@ -298,7 +337,6 @@ for BAND in BANDS:
           visib[chi] = Re + 1.j*Im
         hola = frfile.read(8)
 
-        STRPOL = str(P1.decode('utf-8')+P2.decode('utf-8'))
         i += 1
         DATA['ANTS'].append("%s-%s"%(TNAME[A1],TNAME[A2]))
         DATA['JDT'].append(MJD+SEC)
@@ -307,7 +345,7 @@ for BAND in BANDS:
         DATA['UVW'].append([U,V,W])
         DATA['VIS'].append(visib)
       else:
-          alldats=frfile.read(38+8*NCHAN+8)  
+          alldats=frfile.read(38+8*NCHAN+6)  
 
     frfile.close()
     print("\n Done!")
@@ -320,6 +358,34 @@ for BAND in BANDS:
       DATA['VIS'] = np.array(DATA['VIS'])
       DATA['UVW'] = np.array(DATA['UVW'])
       SCANS.append(DATA)
+
+
+# Normalize the amplitude bandpass across the whole band:
+      for anti in BANDPASS.keys():
+        for pol in ['R','L']:
+          TOTSUM = 0.0
+          for SPI in BANDPASS[anti][pol].keys():
+            TOTSUM += BANDPASS[anti][pol][SPI]
+          TOTSUM /= np.max([1,len(BANDPASS[anti][pol].keys())])
+          if TOTSUM > 0.0:
+            for SPI in BANDPASS[anti][pol].keys():
+              BANDPASS[anti][pol][SPI] /= TOTSUM
+
+# Apply the amplitude bandpass:
+      for datum in range(len(DATA['ANTS'])):
+        ant2 = DATA['ANTS'][datum].split('-')[1]
+        STRPOL = DATA['POL'][datum]
+        SPI = int(DATA['IF'][datum])
+        if STRPOL in ['RR','XR','RX','XX']:
+           POLCOPY ='R'
+        if STRPOL in ['RL','XL','RY','XY']:
+           POLCOPY = 'L'
+        if STRPOL in ['LR','YR','LX','YX']:
+           POLCOPY = 'R'
+        if pol in ['LL','YL','LY','YY']:
+           POLCOPY = 'L'
+        if SPI in BANDPASS[ant2][POLCOPY].keys():
+           DATA['VIS'][datum][:] /= BANDPASS[ant2][POLCOPY][SPI]
 
 
 
@@ -428,7 +494,7 @@ for BAND in BANDS:
              if thisWgtR[ki]>0.0:                        
                RCORR = np.linspace(SBD[0]*(-SHAPE[0]/2.+1),SBD[0]*(SHAPE[0]/2.),SHAPE[0])[:,np.newaxis]
                RCORR2 = RCORR + np.linspace(RATE*(-SHAPE[1]/2.+1),RATE*(SHAPE[1]/2.),SHAPE[1])[np.newaxis,:]
-            #   AVRR = np.average(scan['VIS'][np.logical_and(maskRR,IFMASK[k]),:]*np.exp(-1.j*RCORR2))
+              # AVRR = np.average(scan['VIS'][np.logical_and(maskRR,IFMASK[k]),:]*np.exp(-1.j*RCORR2))
                VISRR = scan['VIS'][np.logical_and(maskRR, IFMASK[k]),:]
                n = min(VISRR.shape[0], RCORR2.shape[0])
                AVRR = np.average(VISRR[:n, :] * np.exp(-1.j * RCORR2[:n, :]))
@@ -437,7 +503,7 @@ for BAND in BANDS:
              if thisWgtL[ki]>0.0:
                LCORR = np.linspace(SBD[1]*(-SHAPE[0]/2.+1),SBD[1]*(SHAPE[0]/2.),SHAPE[0])[:,np.newaxis]
                LCORR2 = LCORR + np.linspace(RATE*(-SHAPE[1]/2.+1),RATE*(SHAPE[1]/2.),SHAPE[1])[np.newaxis,:]
-           #    AVLL = np.average(scan['VIS'][np.logical_and(maskLL,IFMASK[k]),:]*np.exp(-1.j*LCORR2))
+            #   AVLL = np.average(scan['VIS'][np.logical_and(maskLL,IFMASK[k]),:]*np.exp(-1.j*LCORR2))
                VISLL = scan['VIS'][np.logical_and(maskLL, IFMASK[k]),:]
                n = min(VISLL.shape[0], RCORR2.shape[0])
                AVLL = np.average(VISLL[:n, :] * np.exp(-1.j * LCORR2[:n, :]))
@@ -445,10 +511,10 @@ for BAND in BANDS:
                LCORR = 0.0; LCORR2 = 0.0; AVLL = 0.0
              if thisWgtL[ki]>0.0 and thisWgtR[ki]>0.0:
              #  AVRL = np.average(scan['VIS'][np.logical_and(maskRL,IFMASK[k]),:]*np.exp(-1.j*LCORR2))
+             #  AVLR = np.average(scan['VIS'][np.logical_and(maskLR,IFMASK[k]),:]*np.exp(-1.j*RCORR2))
                VISRL = scan['VIS'][np.logical_and(maskRL, IFMASK[k]),:]
                n = min(VISRL.shape[0], RCORR2.shape[0])
                AVRL = np.average(VISRL[:n, :] * np.exp(-1.j * LCORR2[:n, :]))
-            #   AVLR = np.average(scan['VIS'][np.logical_and(maskLR,IFMASK[k]),:]*np.exp(-1.j*RCORR2))
                VISLR = scan['VIS'][np.logical_and(maskLR, IFMASK[k]),:]
                n = min(VISLR.shape[0], RCORR2.shape[0])
                AVLR = np.average(VISLR[:n, :] * np.exp(-1.j * RCORR2[:n, :]))
@@ -501,14 +567,15 @@ for BAND in BANDS:
        RNORM = RGAIN/np.abs(RGAIN) 
        LNORM = LGAIN/np.abs(LGAIN)
        RNORM[BADS_R] = 0.0 ; LNORM[BADS_L] = 0.0
-       MBD[:NIF//2] = RNORM[NIF//2:] 
-       MBD[-NIF//2:] = RNORM[:NIF//2] 
+       NHF = NIF//2
+       MBD[:NHF] = RNORM[-NHF:] 
+       MBD[-NHF:] = RNORM[:NHF] 
        FRINGE = np.fft.fftshift(np.abs(np.fft.fft(MBD))); 
        PEAK = np.argmax(FRINGE)
        DELAY_R = (PEAK-len(FRINGE)//2)/(NIF*zPAD)*2.*np.pi
        WGT_R = float(FRINGE[PEAK])**2.
-       MBD[:NIF//2] = LNORM[NIF//2:]
-       MBD[-NIF//2:] = LNORM[:NIF//2]
+       MBD[:NHF] = LNORM[-NHF:]
+       MBD[-NHF:] = LNORM[:NHF]
        FRINGE = np.fft.fftshift(np.abs(np.fft.fft(MBD))); 
        PEAK = np.argmax(FRINGE)
        DELAY_L = (PEAK-len(FRINGE)//2)/(NIF*zPAD)*2.*np.pi
@@ -555,16 +622,16 @@ for BAND in BANDS:
       MBD = np.zeros(NIF*zPAD,dtype=np.complex128)
       RGAIN = np.array(VIS2PLOT_RR)
       LGAIN = np.array(VIS2PLOT_LL)
-
-      MBD[:NIF//2] = RGAIN[NIF//2:]
-      MBD[-NIF//2:] = RGAIN[:NIF//2]
+      NHF = NIF//2
+      MBD[:NHF] = RGAIN[-NHF:]
+      MBD[-NHF:] = RGAIN[:NHF]
  
       FRINGE = np.fft.fftshift(np.abs(np.fft.fft(MBD))); 
       DELAY = (np.argmax(FRINGE)-len(FRINGE)//2)/(NIF*zPAD)*2.*np.pi
       RGAIN[:] = np.exp(1.j*DELAY*np.linspace(-NIF/2.+1,NIF/2.,NIF))
 
-      MBD[:NIF//2] = LGAIN[NIF//2:]
-      MBD[-NIF//2:] = LGAIN[:NIF//2]
+      MBD[:NHF] = LGAIN[-NHF:]
+      MBD[-NHF:] = LGAIN[:NHF]
       FRINGE2 = np.fft.fftshift(np.abs(np.fft.fft(MBD))); 
       DELAY = (np.argmax(FRINGE2)-len(FRINGE)//2)/(NIF*zPAD)*2.*np.pi
       LGAIN[:] = np.exp(1.j*DELAY*np.linspace(-NIF/2.+1,NIF/2.,NIF))
