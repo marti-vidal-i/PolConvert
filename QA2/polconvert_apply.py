@@ -244,7 +244,7 @@ for job in JOBS:
           '%s.Gxyamp.APP'%QA2c]] 
         calintrp = [['linear', 'linear','nearest', 'linear', 'linear']]
         gtype = [['G','G','T','G','G']]
-      dterms = ['%s.Df0.APP'%QA2c]
+      dterms = ['%s.Df0gen.APP'%QA2c]
       plotAnt = 2
       kww = {'IDI':IDI, 'OUTPUTIDI':OUTPUTIDI, 'DiFXinput':DiFXinput, 'DiFXcalc':DiFXcalc,
           'doIF':doIF, 'linAntIdx':linAntIdx, 'Range':plotRange, 'ALMAant':ALMAant,
