@@ -390,11 +390,12 @@ for BAND in BANDS:
 
 
  RLPHAS = []
- ALLIFS = np.unique(SCANS[0]['IF'])
+ ALLIFS = [np.unique(SCANS[i]['IF']) for i in range(len(SCANS))]
+
 
  for i,scan in enumerate(SCANS):
    IFMASK = {}
-   for k in ALLIFS:
+   for k in ALLIFS[i]:
      IFMASK[k] = scan['IF']==k
    scan['mask'] = IFMASK
 
@@ -434,7 +435,7 @@ for BAND in BANDS:
 
        if np.sum(maskRR)>0 and np.sum(maskLL)>0:
          thisWgtR = []; thisWgtL = []
-         for k in ALLIFS:
+         for ki,k in enumerate(ALLIFS):
            RR = np.copy(scan['VIS'][np.logical_and(maskRR,IFMASK[k]),:])
            SHAPE = np.shape(RR)
            thisRate = []; thisDelay = []
@@ -505,7 +506,7 @@ for BAND in BANDS:
                LCORR2 = LCORR + np.linspace(RATE*(-SHAPE[1]/2.+1),RATE*(SHAPE[1]/2.),SHAPE[1])[np.newaxis,:]
             #   AVLL = np.average(scan['VIS'][np.logical_and(maskLL,IFMASK[k]),:]*np.exp(-1.j*LCORR2))
                VISLL = scan['VIS'][np.logical_and(maskLL, IFMASK[k]),:]
-               n = min(VISLL.shape[0], RCORR2.shape[0])
+               n = min(VISLL.shape[0], LCORR2.shape[0])
                AVLL = np.average(VISLL[:n, :] * np.exp(-1.j * LCORR2[:n, :]))
              else:
                LCORR = 0.0; LCORR2 = 0.0; AVLL = 0.0
@@ -516,15 +517,15 @@ for BAND in BANDS:
                n = min(VISRL.shape[0], RCORR2.shape[0])
                AVRL = np.average(VISRL[:n, :] * np.exp(-1.j * LCORR2[:n, :]))
                VISLR = scan['VIS'][np.logical_and(maskLR, IFMASK[k]),:]
-               n = min(VISLR.shape[0], RCORR2.shape[0])
+               n = min(VISLR.shape[0], LCORR2.shape[0])
                AVLR = np.average(VISLR[:n, :] * np.exp(-1.j * RCORR2[:n, :]))
              else:
                AVRL = 0.0; AVLR = 0.0
-             AVERAGES['vis'][AVKEY][k] = [AVRR,AVLL,AVRL,AVLR] 
-             del RCORR,RCORR2,LCORR,LCORR2,VISRR,VISLL,VISRL,VISLR
+             AVERAGES['vis'][AVKEY][ki] = [AVRR,AVLL,AVRL,AVLR] 
+             del RCORR,RCORR2,LCORR,LCORR2 #,VISRR,VISLL,VISRL,VISLR
              gc.collect()
            else:
-             AVERAGES['vis'][AVKEY][k] = [0.0,0.0,0.0,0.0]
+             AVERAGES['vis'][AVKEY][ki] = [0.0,0.0,0.0,0.0]
 
     gc.collect()
     print("Done for scan %s"%(str(scan["SCAN"])))
@@ -550,7 +551,7 @@ for BAND in BANDS:
  ALLBAS = np.unique(np.concatenate([sc['ANTS'] for sc in SCANS]))
 
  BPASS = {}
- NIF = len(ALLIFS)
+ NIF = len(ALLIFS[0])
  zPAD = 11
  for BAS in ALLBAS:
   print("Deriving bandpass from %s"%BAS)
@@ -559,8 +560,8 @@ for BAND in BANDS:
   for average in AVERAGES:
     if BAS in average['vis'].keys() and len(average['vis'][BAS].keys())>0:
        MBD = np.zeros(NIF*zPAD,dtype=np.complex64)
-       RGAIN = np.array([average['vis'][BAS][i][0] for i in ALLIFS])
-       LGAIN = np.array([average['vis'][BAS][i][1] for i in ALLIFS])
+       RGAIN = np.array([average['vis'][BAS][i][0] for i in range(NIF)]) # ALLIFS])
+       LGAIN = np.array([average['vis'][BAS][i][1] for i in range(NIF)]) #ALLIFS])
        BADS_R = np.abs(RGAIN)==0.0 ; BADS_L = np.abs(LGAIN)==0.0
        GOODS_R = np.logical_not(BADS_R); GOODS_L = np.logical_not(BADS_L)
        RGAIN[BADS_R] = 1.0 ; LGAIN[BADS_L] = 1.0
@@ -605,10 +606,10 @@ for BAND in BANDS:
   scanName = average['scanName']
   for BAS in average['vis'].keys():
       sub.cla() ; sub2.cla()
-      VIS2PLOT_RR = np.array([average['vis'][BAS][i][0] for i in ALLIFS])/BPASS[BAS][0]
-      VIS2PLOT_LL = np.array([average['vis'][BAS][i][1] for i in ALLIFS])/BPASS[BAS][1]
-      VIS2PLOT_RL = np.array([average['vis'][BAS][i][2] for i in ALLIFS])/BPASS[BAS][1]
-      VIS2PLOT_LR = np.array([average['vis'][BAS][i][3] for i in ALLIFS])/BPASS[BAS][0]
+      VIS2PLOT_RR = np.array([average['vis'][BAS][i][0] for i in range(NIF)])/BPASS[BAS][0]
+      VIS2PLOT_LL = np.array([average['vis'][BAS][i][1] for i in range(NIF)])/BPASS[BAS][1]
+      VIS2PLOT_RL = np.array([average['vis'][BAS][i][2] for i in range(NIF)])/BPASS[BAS][1]
+      VIS2PLOT_LR = np.array([average['vis'][BAS][i][3] for i in range(NIF)])/BPASS[BAS][0]
 
       sub.plot(np.abs(VIS2PLOT_RR),'ob',label=average['corrProds'][BAS]['RR'])
       sub.plot(np.abs(VIS2PLOT_LL),'or',label=average['corrProds'][BAS]['LL'])
@@ -618,7 +619,8 @@ for BAND in BANDS:
       sub.set_ylabel("Amp")
       sub.legend(ncol=2)
       R2P = 180./np.pi
-      NIF = len(ALLIFS); zPAD = 11 # Larger zero-padding for the MBD
+      #NIF = len(ALLIFS); 
+      zPAD = 11 # Larger zero-padding for the MBD
       MBD = np.zeros(NIF*zPAD,dtype=np.complex128)
       RGAIN = np.array(VIS2PLOT_RR)
       LGAIN = np.array(VIS2PLOT_LL)
