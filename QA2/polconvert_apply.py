@@ -36,18 +36,24 @@ QA2c = os.path.join(QA2_ROOT,TRACK) + '.calibrated.ms'
 ######################
 ### PART 1: METADATA
 
-
-allCalc = glob.glob(os.path.join(DIFX_DIR,"*-b%i_*.calc"%int(BAND)))
-if len(allCalc)==0:
+if BAND>0:
+  allCalc = glob.glob(os.path.join(DIFX_DIR,"*-b%i_*.calc"%int(BAND)))
+  if len(allCalc)==0:
    raise Exception("Missing calc files in DIFX_DIR!!")
+else:
+  allCalc = glob.glob(os.path.join(DIFX_DIR,"*.calc"))
+
 
 # Copy metadata:
 if not os.path.exists(DEST_DIR):
    os.system("mkdir %s"%(DEST_DIR))
 for job in JOBS:
-   for ext in ["calc","difxlog","errs","flag","im","input","machines","threads"]:
-      if os.path.exists(os.path.join(DIFX_DIR,"%s.%s"%(job,ext))):
-         os.system("cp %s %s"%(os.path.join(DIFX_DIR,"%s.%s"%(job,ext)),os.path.join(DEST_DIR,"%s.%s"%(job,ext))))
+   allExtensions =[K.split(".")[-1] for K in glob.glob(os.path.join(DIFX_DIR,"%s.*"%job))]
+   for ext in allExtensions: #["calc","difxlog","errs","flag","im","input","machines","threads"]:
+      if ext != "difx":
+       #  print(ext)
+         if os.path.exists(os.path.join(DIFX_DIR,"%s.%s"%(job,ext))):
+            os.system("cp %s %s"%(os.path.join(DIFX_DIR,"%s.%s"%(job,ext)),os.path.join(DEST_DIR,"%s.%s"%(job,ext))))
 
 # Absolute destination directory:
 ABSWORK = os.path.abspath(DEST_DIR)
@@ -150,30 +156,34 @@ ALMA_NUs = tb.getcol("CHAN_FREQ")/1.e9
 ALMA_BANDs = [[np.min(ALMA_NUs[:,k]),np.max(ALMA_NUs[:,k])] for k in range(np.shape(ALMA_NUs)[1])]
 tb.close()
 
-inpF = open(os.path.join(DIFX_DIR,"%s.input"%JOBS[0]),"r")
-VLBI_NUs = []
-for line in inpF.readlines():
+spw = {}
+for job in JOBS:
+
+  inpF = open(os.path.join(DIFX_DIR,"%s.input"%job),"r")
+  VLBI_NUs = []
+  for line in inpF.readlines():
    if "FREQ (MHZ) " in line:
 #      print(line)
       idx = int(line.split(":")[0].split()[-1])
       Nui = float(line.split()[-1])/1.e3
-      if int(idx+1) in DATA_IFS[JOBS[0]]:
+      if int(idx+1) in DATA_IFS[job]:
          VLBI_NUs.append(Nui)
-inpF.close()
-#print(JOBS)
-#print(VLBI_NUs)
+  inpF.close()
 
-spw = -1
-for k in range(len(ALMA_BANDs)):
-   for nui in VLBI_NUs:
-      if nui>= ALMA_BANDs[k][0] and nui<= ALMA_BANDs[k][1]:
-         spw = int(k)
-         break
+  spw[job] = -1
+  for k in range(len(ALMA_BANDs)):
+    for nui in VLBI_NUs:
+       if nui>= ALMA_BANDs[k][0] and nui<= ALMA_BANDs[k][1]:
+          spw[job] = int(k)
+          break
 
-if spw<0:
-   raise Exception("Problem finding ALMA spw matching VLBI band")
+  if spw[job]<0:
+     raise Exception("Problem finding ALMA spw matching VLBI band for job %s"%job)
 
-print("ALMA spw: %i"%spw)
+  else:
+     print("Job %s seems to correspond to ALMA spw %i"%(job,spw[job]))
+
+#print("ALMA spw: %i"%spw)
 
 
 
@@ -250,7 +260,7 @@ for job in JOBS:
       plotAnt = 2
       kww = {'IDI':IDI, 'OUTPUTIDI':OUTPUTIDI, 'DiFXinput':DiFXinput, 'DiFXcalc':DiFXcalc,
           'doIF':doIF, 'linAntIdx':linAntIdx, 'Range':plotRange, 'ALMAant':ALMAant,
-          'spw':spw, 'calAPP':calAPP, 'gains':gains, 'interpolation':calintrp,'XYadd':XYadd,
+          'spw':spw[job], 'calAPP':calAPP, 'gains':gains, 'interpolation':calintrp,'XYadd':XYadd,
           'gainmode':gtype, 'dterms':dterms, 'plotIF':[], 'plotRange':plotRange, 
           'plotAnt':plotAnt, 'doTest':False, 'npix':512, 'calAPPTime':calAPPTime, 
           'plotSuffix':str(job)+'_'+str(BAND)}

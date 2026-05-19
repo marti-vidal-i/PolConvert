@@ -51,6 +51,8 @@ NOTE: IF "--jobs" IS NOT PROVIDED, THE DATA ARE SELECTED FROM:
 --useGpol2 :: If present, will use Gpol2 to interpolate X/Y amplitude ratios.
               If not (default), will use Gxyamp (constant ratios assumed).
 
+--noEHT :: If present, the naming assumptions for the EHT are not used. In this case,
+           the "--bands" option will not work (only "--jobs" and "--source" will work).
 
 EXAMPLES:
 
@@ -78,7 +80,7 @@ if len(sys.argv)==1:
    os._exit(0)
 
 
-allOptions = ['--nproc','--origdata','--destdata','--qa2dir','--track','--jobs','--bands','--source']
+allOptions = ['--nproc','--origdata','--destdata','--qa2dir','--track','--jobs','--bands','--source','--separateXY0Kcrs','--useGpol2','--noEHT']
 for arg in sys.argv:
     if arg.startswith('-') and arg not in allOptions:
         raise Exception("Unknown argument %s"%arg)
@@ -171,6 +173,7 @@ if '--jobs' in sys.argv:
 addKcrs = "--separateXY0Kcrs" in sys.argv
 GPol2 = "--useGpol2" in sys.argv
 
+noEHT = "--noEHT" in sys.argv
 
 
 ##################################
@@ -182,28 +185,38 @@ GPol2 = "--useGpol2" in sys.argv
 # If there is a job list,
 # get bands from it:
 if len(JOBS)>0:
-   JTRACK = JOBS[0].split('-')[0]
-   if JTRACK != TRACK:
+  if noEHT: #The EHT naming convention is not used:
+    BANDS = [0]
+
+  else: # EHT naming convention used:
+
+    JTRACK = JOBS[0].split('-')[0]
+    if JTRACK != TRACK:
       print("\n\nWARNING! There seems to be an inconsistency between TRACK and the JOB IDs!!\n\n")
-   BANDS = []
-   for job in JOBS:
+    BANDS = []
+    for job in JOBS:
       AUXBAND = job.split('-')[-1]
       if AUXBAND.startswith('b'): 
          if AUXBAND[1] not in BANDS:
             BANDS.append(AUXBAND[1])
       else:
          raise Exception("Error parsing Band from the job ids")
+ 
 
 # Otherwise, use the arguments:
 else:
-   if len(SOURCE)==0 and len(BANDS)==0:
+   if len(SOURCE)==0 and len(BANDS)==0 and not noEHT:
       raise Exception("Neither source name, nor band(s), nor job list are defined!")
 
 # First, get all JOB IDs. Then, we'll filter them out:
    INI_JOBS = [".".join(os.path.basename(DD).split(".")[:-1]) for DD in glob.glob(os.path.join(DIFX_DIR,"*.difx"))]
 
 # Filter by band:
-   if len(BANDS)>0:
+   if noEHT:
+## All scans are selected by default for noEHT:
+     BANDS = [0]
+     BAND_JOBS = INI_JOBS
+   elif len(BANDS)>0:
       BAND_JOBS = []
       for job in INI_JOBS:
          AUXBAND = job.split("-")[-1][1]
@@ -236,12 +249,16 @@ else:
 
 # Classify jobs by band:
 JOBS_BY_BAND = {}
-for band in BANDS:
-   JOBS_BY_BAND[band] = []
+if noEHT:
+  JOBS_BY_BAND[0] = JOBS
+else:
 
-for job in JOBS:
-   AUXBAND = job.split("-")[-1][1]
-   JOBS_BY_BAND[AUXBAND].append(job)
+  for band in BANDS:
+     JOBS_BY_BAND[band] = []
+
+  for job in JOBS:
+    AUXBAND = job.split("-")[-1][1]
+    JOBS_BY_BAND[AUXBAND].append(job)
 
   
 ## RUN POLCONVERT (BAND BY BAND):
