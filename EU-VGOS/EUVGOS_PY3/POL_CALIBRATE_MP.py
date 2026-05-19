@@ -45,7 +45,6 @@ if __name__ == "__main__":
 
 
 #################################
-# COMMENT OUT THIS LINE WHEN DEBUGGING WITH execfile(...)
 def POL_CALIBRATE(
     EXPNAME="",
     DIFX_DIR="",
@@ -128,7 +127,6 @@ def POL_CALIBRATE(
         if 'XYratio' in USE_GAINS.keys():
             XYratio = USE_GAINS['XYratio']
 
-
         WITH_PCAL = PC.polconvert(
             IDI=DIFX,
             OUTPUTIDI=DIFX,
@@ -148,8 +146,8 @@ def POL_CALIBRATE(
             linAntIdx=list(range(1, Nants + 1)),
             swapXY=[False for i in range(Nants)],
             usePcal=USE_PCAL,
-            useDelays = USE_DELAY,
-            useRates = USE_RATE,
+            useDelays=USE_DELAY,
+            useRates=USE_RATE,
             XYadd=XYadd,
             XYratio=XYratio,
             pcalSuffix=PCAL_SUFFIX,

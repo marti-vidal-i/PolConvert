@@ -793,7 +793,7 @@ def polconvert(
         if (exA not in excludeAnts):
             if len(fitAnts)==0 or (exA in fitAnts):
                 fitAntsThis.append(antcodes.index(exA) + 1)
-                printMsg("Gain for antenna %s will be fitted (if asked for)." % str(exA))
+                printMsg("Gain for antenna %s will be fitted (if requested)." % str(exA))
             else:
                 printMsg("Gain for antenna %s will NOT be fitted." % str(exA))
 
@@ -885,6 +885,13 @@ def polconvert(
                 % idd
             )
             usePcal[idd] = False
+
+    # Excluded antennas must not require PCAL files.
+    # Missing PCAL data in excluded stations can abort run before solving.
+    for exA in excludeAnts:
+        if exA in usePcal and usePcal[exA]:
+            printMsg("Antenna %s is excluded from calibration; disabling Pcal usage for it." % exA)
+            usePcal[exA] = False
 
     printMsg("There are %i linear-polarization antennas in THIS dataset" % nALMATrue)
 
@@ -1156,7 +1163,6 @@ def polconvert(
 
     if isPcalUsed:
         import _XPCalMF as XP
-
         # printMsg('keys of XYadd:' + str(XYadd.keys()))
         # printMsg('keys of XYratio:' + str(XYratio.keys())+'\n')
 
@@ -2244,7 +2250,7 @@ def polconvert(
             print("\n\n")
             printMsg("Plotting selected fringe for IF #%i" % pli)
 
-            frfile = open("POLCONVERT.FRINGE/POLCONVERT.FRINGE_IF%i" % (pli), "rb")
+            frfile = open("POLCONVERT.FRINGE/POLCONVERT.FRINGE_IF%i" % pli, "rb")
 
             alldats = frfile.read(5)
             nchPlot, isParang = stk.unpack("ib", alldats)

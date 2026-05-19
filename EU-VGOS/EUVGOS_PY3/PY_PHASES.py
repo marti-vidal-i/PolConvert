@@ -37,7 +37,69 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import pickle as pk
 
-__version__ = "1.2b (Dec 5, 2022)"
+__version__ = "1.3b (Jan 13, 2026)"
+
+
+## TODO: 
+# -Fix getTEC (download IONEX)
+# -Add structure effects to Fringe Fitting
+#   -- New function to compute FT of model (read from FITS file).
+
+
+
+def getMODEL(COMPS,UVW,FREQS):
+    """ Compute model visibilities based on a set of CLEAN components
+    stored in the ASCII file "modelFile". The columns are:
+
+    --CASE 1 (DELTA): RAoffset, Decoffset and Flux density
+    --CASE 2 (GAUSSIAN): RAoff, Decoff, flux, major, axisRatio, PA
+
+
+    Units are mas, Jy and deg (for the PA). 
+
+    Comments in the file start with '#'. """
+
+
+#    infile = open(modelFile,"r")
+#    ## Read model components:
+#    COMPS = []
+#    for line in infile.readlines():
+#        if not line.startswith("#"):
+#            COMPS.append([float(k) for k in line.split()])
+#    infile.close()
+
+
+    ## Loop over model components:
+
+    ## Scaling factor for astrometry:
+    Mas2Rad = np.pi/180./3600./1000.
+
+    ## Wavelengths for all IFs:
+    Lambdas = 2.99792458e8/FREQS
+    U,V,W = UVW
+    MODEL = np.zeros(1,dtype=np.complex64)
+    ## Actual loop:
+    for comp in COMPS:
+        ## First, get the phases (from the position offset):
+        DRA = -comp[0]*Mas2Rad; DDEC = -comp[1]*Mas2Rad
+        PHASE = (2.*np.pi*(U*DRA + V*DDEC))/Lambdas
+        if len(comp)==3:
+            MODEL+= comp[2]*(np.cos(PHASE)+1.j*np.sin(PHASE))
+        elif len(comp)==6:
+            Major = comp[3]*Mas2Rad ; Ratio = comp[4] ; posAngle = comp[5]*np.pi/180.
+            SPA = np.sin(posAngle); CPA = np.cos(posAngle)
+            tA = (U*CPA + V*SPA)*Ratio
+            tB = (U*SPA + V*CPA)
+            Ellip = (tA**2. + tB**2.)/(Lambdas)**2.*(Major**2./4.0)*(4.*np.pi**2.)
+            AMPLI = np.exp(-0.3606737602*Ellip) 
+            MODEL+=comp[2]*AMPLI*(np.cos(PHASE)+1.j*np.sin(PHASE))
+
+    return MODEL[0]
+
+
+
+
+
 
 
 def getTEC(SCAN, subplots=[], SET="jplg", LFACT=1.0):
@@ -112,25 +174,72 @@ def getTEC(SCAN, subplots=[], SET="jplg", LFACT=1.0):
     d1 = dt.date(YY, MM, DD)
     DOY = int((d1 - d0).days + 1)
 
-    if not os.path.exists("TEC_ARCHIVE_%i_%i" % (YY, DOY)):
-        os.system("rm TEC_ARCHIVE_%i_%i.gz" % (YY, DOY))
-        destFile = "%s%3i0.%si.Z" % (SET, DOY, str(YY)[-2:])
+    gz_name  = "TEC_ARCHIVE_%i_%i.gz" % (YY, DOY)
+    raw_name = "TEC_ARCHIVE_%i_%i" % (YY, DOY)
 
+    print("\n LOADING TEC_ARCHIVE_%i_%i \n" % (YY, DOY))
+    if os.path.exists(gz_name):
+        print("%s FOUND, WILL UNZIP" % gz_name)
+        os.system("gunzip -f TEC_ARCHIVE_%i_%i.gz" % (YY, DOY))
+    if not os.path.exists(raw_name):
+        print("TEC_ARCHIVE NOT FOUND, WILL DOWNLOAD IT")
+        # Build candidate product codes to try (requested SET first)
+        # Add/remove based on what your server typically has
+        candidates = [SET]
+        ## TODO CHECK WHICH IS THE FIRST ONE THAT SHOULD BE SEARCHED 
+        for alt in ["jplg", "uprg", "upcg", "uhrg", "uqrg", "carg", "casg", "codg", "c1pg", "c2pg", "esag", "igsg"]:
+            if alt not in candidates:
+                candidates.append(alt)
         ftps = FTP_TLS(host="gdc.cddis.eosdis.nasa.gov")
         ftps.login(user="anonymous", passwd="imarvi2@uv.es")
         ftps.prot_p()
-        directory = "gps/products/ionex/%4i/%3i" % (YY, DOY)
+        directory = "gnss/products/ionex/%4i/%03i" % (YY, DOY)
         ftps.cwd(directory)
-        ftps.retrbinary(
-            "RETR " + destFile, open("TEC_ARCHIVE_%i_%i.gz" % (YY, DOY), "wb").write
-        )
 
-        os.system("gunzip TEC_ARCHIVE_%i_%i.gz" % (YY, DOY))
+        downloaded_remote = None
+        last_err = None
+        for code in candidates:
+            remote_name = "%s%03i0.%02ii.Z" % (code, DOY, YY % 100)
+            if code != SET:
+                print("WARNING: %s not found yet; trying %s ..." % (SET, code))
+            else:
+                print("Trying requested IONEX set: %s" % code)
+            try:
+                with open(remote_name, "wb") as fh:
+                    ftps.retrbinary("RETR " + remote_name, fh.write)
+                downloaded_remote = remote_name
+                print("Downloaded: %s" % downloaded_remote)
+                break
+            except Exception as e:
+                last_err = e
+                try:
+                    if os.path.exists(remote_name):
+                        os.remove(remote_name)
+                except OSError:
+                    pass
+        try:
+            ftps.quit()
+        except Exception:
+            pass
+
+        if downloaded_remote is None:
+            raise Exception("Could not download any IONEX file for %i DOY %i. Last error: %s" % (YY, DOY, str(last_err)))
+
+        rc = os.system("gunzip -c %s > %s" % (downloaded_remote, raw_name))
+        if rc != 0 or (not os.path.exists(raw_name)) or os.path.getsize(raw_name) == 0:
+            print("WARNING: gunzip failed for %s; trying uncompress ..." % downloaded_remote)
+            rc2 = os.system("uncompress -c %s > %s" % (downloaded_remote, raw_name))
+            if rc2 != 0 or (not os.path.exists(raw_name)) or os.path.getsize(raw_name) == 0:
+                raise Exception("Decompression failed for %s (tried gunzip and uncompress)" % downloaded_remote)
+
+    # Final sanity check before parsing
+    if not os.path.exists(raw_name) or os.path.getsize(raw_name) == 0:
+        raise Exception("TEC raw file not present or empty: %s" % raw_name)
 
     # Parse IONEX file to get the maps:
     EXPO = -1.0
     SCALING = 1.0
-    IFF = open("TEC_ARCHIVE_%i_%i" % (YY, DOY), "r")
+    IFF = open(raw_name, "r")
     lines = IFF.readlines()
     TIMES = []
     for li, line in enumerate(lines):
@@ -584,9 +693,9 @@ def getPCALS(
                             if not line.startswith("#"):
                                 temp = line.split()
                                 toAdd = [
-                                    float(temp[0]) * 1.0e6,
-                                    float(temp[1]) * np.pi / 180.0,
-                                    float(temp[2]),
+                                        float(temp[0].replace(',', '.')) * 1.0e6 if ',' in temp[0] else float(temp[0]) * 1.0e6,
+                                        float(temp[1].replace(',', '.')) * np.pi / 180.0 if ',' in temp[1] else float(temp[1]) * np.pi / 180.0,
+                                        float(temp[2].replace(',', '.')) if ',' in temp[2] else float(temp[2]),
                                 ]
                                 if ANAMES[ID] in FLAG_PCALS.keys():
                                     isBad = False
@@ -759,7 +868,7 @@ def getPCALS(
     return [PCALS, CHANFREQ, ANAMES, BWs, NUs, REFID, SORTEDIF]
 
 
-def getDATA(SCAN="", IF_OFFSET=2048):
+def getDATA(SCAN="", IF_OFFSET=2048, writeModel=False, modelFile="", CHANFREQ=None):
 
     ## READ VISIBILTIES:
     filename = glob.glob(os.path.join(SCAN, "DIFX_*"))
@@ -788,6 +897,7 @@ def getDATA(SCAN="", IF_OFFSET=2048):
     alldats = frfile.read(8)
     i = 0
     DATA = {"ANTS": [], "JDT": [], "IF": [], "POL": [], "VIS": [], "UVW": []}
+    MODEL = {"ANTS": [], "JDT": [], "IF": [], "POL": [], "VIS": [], "UVW": []} 
     ALLANTS = []
     while True:
         if i % 1024 == 0:
@@ -821,18 +931,33 @@ def getDATA(SCAN="", IF_OFFSET=2048):
             (PC1 in ["X", "R"] and PC2 in ["X", "R"])
             or (PC1 in ["Y", "L"] and PC2 in ["Y", "L"])
         ):
-            frfile.read(36)
+            frfile.read(12)
             #   alldats = frfile.read(4)
             #   PB = stk.unpack("i",alldats)
             #   alldats = frfile.read(8)
             #   PW = stk.unpack("d",alldats)
-            #   alldats = frfile.read(8*3)
-            #   U,V,W = stk.unpack("ddd",alldats)
+            alldats = frfile.read(8*3)
+            U,V,W = stk.unpack("ddd",alldats)
             visib = np.zeros(NCHAN, dtype=np.complex64)
             for chi in range(NCHAN):
                 alldats = frfile.read(8)
                 Re, Im = stk.unpack("ff", alldats)
                 visib[chi] = Re + 1.0j * Im
+            # Optional: compute a model visibility spectrum for this record
+            # (same number of channels as the data), based on CLEAN components.
+            if writeModel:
+                if CHANFREQ is None:
+                    raise ValueError("CHANFREQ must be provided to getDATA when writeModel=True")
+                
+                COMPS = []
+                with open(modelFile, "r") as infile:
+                    for line in infile:
+                        if not line.startswith("#") and line.strip():
+                            COMPS.append([float(k) for k in line.split()])
+
+                modelvisib = np.zeros(NCHAN, dtype=np.complex64)
+                for chi in range(NCHAN):
+                    modelvisib[chi] = getMODEL(COMPS, [U, V, W], CHANFREQ[SPI][chi])
             hola = frfile.read(8)
             i += 1
             DTIME = 86400.0 * (MJD - MJD0) + SEC
@@ -849,9 +974,19 @@ def getDATA(SCAN="", IF_OFFSET=2048):
             #        if PC1 == 'Y':
             #          PC1 = 'L'; PC2 = 'L'
             #        DATA['POL'].append(PC1+PC2)
-            #        DATA['UVW'].append([U,V,W])
+            DATA['UVW'].append([U,V,W])
             DATA["VIS"].append(visib)
 
+            if writeModel:
+                MODEL["ANTS"].append([A1, A2])
+                MODEL["JDT"].append(DTIME)
+                MODEL["IF"].append(SPI)
+                if PC1 in ["R", "X"]:
+                    MODEL["POL"].append(0)
+                else:
+                    MODEL["POL"].append(1)
+                MODEL['UVW'].append([U,V,W])
+                MODEL["VIS"].append(modelvisib)
         else:
             frfile.read(36 + 8 * (NCHAN + 1))
 
@@ -861,6 +996,10 @@ def getDATA(SCAN="", IF_OFFSET=2048):
     # Convert to arrays:
     for key in DATA.keys():
         DATA[key] = np.array(DATA[key])
+
+    if writeModel:
+        for key in DATA.keys():
+            MODEL[key] = np.array(MODEL[key])
 
     ### FOR TESTING:
     #  import pickle as pk
@@ -923,7 +1062,7 @@ def getDATA(SCAN="", IF_OFFSET=2048):
     #  pk.dump([DATA_I,selTimes],outfile)
     #  outfile.close()
 
-    return [DATA, NCHAN]
+    return [DATA, NCHAN, MODEL]
 
 
 def GET_FOURFIT_PHASES(
@@ -934,10 +1073,12 @@ def GET_FOURFIT_PHASES(
     FLAGBAS=[["OE", "OW"]],
     PCALDELAYS={},
     REFANT="WS",
-    MAX_PCAL_RMS = 1.e3,
+    MAX_PCAL_RMS=1.e3,
     IF_OFFSET=2048,
     SAMP_DELAYS={},
     CALIB_BPASS=True,
+    writeModel=False,
+    modelFile="",
 ):
 
     # try:
@@ -960,7 +1101,12 @@ def GET_FOURFIT_PHASES(
         saveResiduals=True)
 
     ## Get DATA;
-    DATA, NCHAN = getDATA(SCAN, IF_OFFSET=IF_OFFSET)
+    DATA, NCHAN, MODEL = getDATA(
+        SCAN,
+        IF_OFFSET=IF_OFFSET,
+        writeModel=writeModel,
+        modelFile=modelFile,
+    )
 
     # DETERMINE SET OF GOOD ANTENNAS, BASELINES AND IFs:
 
@@ -1751,8 +1897,16 @@ def GET_FOURFIT_PHASES(
 ####################
 
 
-def writeSWIN(SCAN="", OUTDIR="", GFF=False, bandPass={}, FOR_TEC=[], PHASECALS=0, AD_HOC = {}, IF_OFFSET=2048):
+def writeSWIN(SCAN="", OUTDIR="", GFF=False, GFF_DIR="", bandPass={}, FOR_TEC=[], PHASECALS=0, AD_HOC = {}, IF_OFFSET=2048, writeModel=False, modelFile=""):
 
+    COMPS = []
+    if writeModel:
+       infile = open(modelFile,"r")
+    ## Read model components:
+       for line in infile.readlines():
+          if not line.startswith("#"):
+             COMPS.append([float(k) for k in line.split()])
+       infile.close()
 
     CHORIZO = -40.28 * 1.0e16 / 2.99458792e8
     
@@ -1833,21 +1987,29 @@ def writeSWIN(SCAN="", OUTDIR="", GFF=False, bandPass={}, FOR_TEC=[], PHASECALS=
     SCAV = 0.0
     AUXNAME = os.path.basename(SCAN)[:-5]
     if GFF:
-       inpGff = open("%s_Global_Fringe_Fitting.dat"%AUXNAME,"rb")
+       if len(GFF_DIR) > 0:
+           gff_file = os.path.join(GFF_DIR, "%s_Global_Fringe_Fitting.dat" % AUXNAME)
+           gff_totals = os.path.join(GFF_DIR, "%s_Global_Fringe_Fitting_TOTALS.dat" % AUXNAME)
+       else:
+           gff_file = "%s_Global_Fringe_Fitting.dat" % AUXNAME
+           gff_totals = "%s_Global_Fringe_Fitting_TOTALS.dat" % AUXNAME
+
+       inpGff = open(gff_file, "rb")
        GFF_GAINS = pk.load(inpGff)
        inpGff.close()
+
        for ai in TECOR.keys():
            print(ai)
-        #   print(TECOR[ai])
-        #   print(GFF_GAINS["dTEC"])
            if ai != "SOURCE":
-             # GFF_GAINS["dTEC"][ai] -= TECOR[ai][1]/CHORIZO
-              TECOR[ai][1] -= GFF_GAINS["dTEC"][ai]*CHORIZO
-              MBD[ai] = GFF_GAINS["MBD"][ai]
-              PHAS[ai] = GFF_GAINS["Phase"][ai]*np.pi/180.
-              RATE[ai] = GFF_GAINS["Rate"][ai]
-              SCAV = GFF_GAINS["intScan"]
-       inpGff.close()
+               TECOR[ai][1] -= GFF_GAINS["dTEC"][ai] * CHORIZO
+               MBD[ai] = GFF_GAINS["MBD"][ai]
+               PHAS[ai] = GFF_GAINS["Phase"][ai] * np.pi / 180.
+               RATE[ai] = GFF_GAINS["Rate"][ai]
+               SCAV = GFF_GAINS["intScan"]
+
+       outpGff = open(gff_totals, "wb")
+       pk.dump(GFF_GAINS, outpGff)
+       outpGff.close()
 
        outpGff = open("%s_Global_Fringe_Fitting_TOTALS.dat"%AUXNAME,"wb")
        pk.dump(GFF_GAINS,outpGff)
@@ -1892,7 +2054,14 @@ def writeSWIN(SCAN="", OUTDIR="", GFF=False, bandPass={}, FOR_TEC=[], PHASECALS=
         # if A2 not in ALLANTS:
         #   ALLANTS.append(A2)
 
-        alldats = frfile1.read(38)
+       # alldats = frfile1.read(38)
+       # frfile2.write(alldats)
+
+        alldats = frfile1.read(14)
+        frfile2.write(alldats)
+
+        alldats = frfile1.read(24)
+        U,V,W = stk.unpack("ddd",alldats)
         frfile2.write(alldats)
 
         if A1 == A2:
@@ -1900,10 +2069,11 @@ def writeSWIN(SCAN="", OUTDIR="", GFF=False, bandPass={}, FOR_TEC=[], PHASECALS=
             frfile2.write(alldats)
         else:
             i += 1
-            if ANAMES[A1] not in bandPass.keys():
+            if not writeModel:
+              if ANAMES[A1] not in bandPass.keys():
                 print('ZEROing bandpass for %s'%ANAMES[A1])
                 bandPass[ANAMES[A1]] = [np.zeros(NCHAN) for m in range(IF_OFFSET)]
-            if ANAMES[A2] not in bandPass.keys():
+              if ANAMES[A2] not in bandPass.keys():
                 print('ZEROing bandpass for %s'%ANAMES[A2])
                 bandPass[ANAMES[A2]] = [np.zeros(NCHAN) for m in range(IF_OFFSET)]
 
@@ -1915,8 +2085,11 @@ def writeSWIN(SCAN="", OUTDIR="", GFF=False, bandPass={}, FOR_TEC=[], PHASECALS=
                 alldats = frfile1.read(8)
                 Re, Im = stk.unpack("ff", alldats)
                 visib = Re + 1.0j * Im
+                if writeModel:
+                    visib = getMODEL(COMPS,[U,V,W],CHANFREQ[SPI][chi])
+                else:
                 ### CALIBRATE!
-                if PHASECALS == 0:
+                  if PHASECALS == 0:
                     visib *= np.exp(
                         1.0j
                         * (
@@ -1932,7 +2105,7 @@ def writeSWIN(SCAN="", OUTDIR="", GFF=False, bandPass={}, FOR_TEC=[], PHASECALS=
                             / CHANFREQ[SPI][chi]
                         )
                     )
-                else:
+                  else:
                     visib *= np.exp(
                         1.0j
                         * (
@@ -2001,6 +2174,7 @@ def removeTEC(
     REFSCAN=[],
     FLAG_PCALS={},
     FLAGBAS=[["OE", "OW"]],
+    GFF_DIR="",
     REFANT="WS",
     EXPNAME="",
     APPLY_GFF=False,
@@ -2140,6 +2314,7 @@ def removeTEC(
                     AD_HOC=additivePhases,
                     PHASECALS=PCALS,
                     GFF=APPLY_GFF,
+                    GFF_DIR=GFF_DIR,
                     IF_OFFSET=IF_OFFSET,
                 )
             else:
@@ -2149,6 +2324,7 @@ def removeTEC(
                     FOR_TEC=[TECOR, ANAMES, CHANFREQ],
                     bandPass=bandPass,
                     GFF=APPLY_GFF,
+                    GFF_DIR=GFF_DIR,
                     IF_OFFSET=IF_OFFSET,
                 )
 
@@ -2171,6 +2347,7 @@ def removeTEC(
 
 def DO_GFF(
     DIR="",
+    OUTDIR="WBGFF_results",
     SCAN="001",
     CF_FILE="cf_PyPhases",
     HOPS_NAMES = {},
@@ -2185,9 +2362,13 @@ def DO_GFF(
     PADDING_FACTOR=32,
     SAMP_DELAYS={},
     IF_OFFSET=2048,
-    MAX_PCAL_RMS=1.e3
+    MAX_PCAL_RMS=1.e3,
+    writeModel=False,         
+    modelFile=""
 ):
 
+    if not os.path.exists(OUTDIR):
+        os.makedirs(OUTDIR, exist_ok=True)
 
     ## Get Mkr4 Name:
     AUXFILE = open(os.path.join(DIR, "%s_%s.input" % (EXPNAME, SCAN)),"r")
@@ -2364,7 +2545,13 @@ def DO_GFF(
    #     additivePhase[refNames[ai]] = GlobalPhases[ai]
 
     ## Get DATA;
-    DATA, NCHAN = getDATA(SCAN, IF_OFFSET = IF_OFFSET)
+    DATA, NCHAN, MODEL = getDATA(
+       SCAN,
+       IF_OFFSET=IF_OFFSET,
+       writeModel=writeModel,
+       modelFile=modelFile,
+       CHANFREQ=CHANFREQ
+    )
 
     # DETERMINE SET OF GOOD ANTENNAS, BASELINES AND IFs:
 
@@ -2415,9 +2602,9 @@ def DO_GFF(
     BLRates = {}
     BLObs = {}
     IFRATES = np.zeros(len(CHANFREQ))
-    isFRATES = np.zeros(len(CHANFREQ), dtype=np.bool)
-    mask = np.zeros(len(DATA["JDT"]), dtype=np.bool)
-    mask2 = np.zeros(len(DATA["JDT"]), dtype=np.bool)
+    isFRATES = np.zeros(len(CHANFREQ), dtype=bool)
+    mask = np.zeros(len(DATA["JDT"]), dtype=bool)
+    mask2 = np.zeros(len(DATA["JDT"]), dtype=bool)
 
     SCANTIMES = {}
 
@@ -2442,10 +2629,24 @@ def DO_GFF(
                 IStokes = (
                     DATA["VIS"][mask2 * maskRR, :] + DATA["VIS"][mask2 * maskLL, :]
                 )
+                if writeModel:
+                    MStokes = (
+                        MODEL["VIS"][mask2 * maskRR, :] + MODEL["VIS"][mask2 * maskLL, :]
+                    )
+                    good_model = np.abs(MStokes) > 1.0e-12
+                    if np.any(good_model):
+                        IStokes_corr = np.copy(IStokes)
+                        IStokes_corr[good_model] /= MStokes[good_model]
+                        IStokes_corr[np.logical_not(good_model)] = 0.0j
+                    else:
+                        IStokes_corr = np.copy(IStokes)
+                else:
+                    IStokes_corr = IStokes
+
                 toFringe = np.fft.fftshift(
                     np.fft.fft2(
                         (
-                            IStokes
+                            IStokes_corr
                             * np.exp(
                                 1.0j
                                 * (
@@ -2940,7 +3141,8 @@ def DO_GFF(
 
 
 
-    TECOFF = open(os.path.basename(SCAN)[:-5] + "_Global_Fringe_Fitting.dat", "wb")
+    outbase = os.path.join(OUTDIR, os.path.basename(SCAN)[:-5])
+    TECOFF = open(outbase + "_Global_Fringe_Fitting.dat", "wb")
     ToWrite = {"dTEC":GlobalTEC,
                "MBD": GlobalDelay,
                "MBDCov": COVMAT,
@@ -3080,7 +3282,7 @@ def DO_GFF(
     pl.sca(sub0)
     pl.legend(loc=2)
     # fig.sup_title(r'%s %s: %.3e $\mu$as'%(bistr,os.path.basename(SCAN[:-5]),BLDelay*1.e6))
-    pl.savefig("%s_WB-GFF.png" % os.path.basename(SCAN[:-5]))
+    pl.savefig(outbase + "_WB-GFF.png")
 
     if os.path.exists("DO_GFF.FAILED"):
         os.system("rm -rf DO_GFF.FAILED")
