@@ -2,7 +2,7 @@
 
 
 ## Script for batch polconversion using QA2-provided auxiliary scripts.
-## I. Marti-Vidal & C. Goddi version 1.0 - April 2, 2026.
+## I. Marti-Vidal & C. Goddi version 1.1 - May 20, 2026.
 
 
 import sys,os
@@ -11,7 +11,7 @@ import tempfile
 import glob
 
 helptxt = """
-PolConvert runTrack (version 1.0b). I. Marti-Vidal & C. Goddi (2026)
+PolConvert runTrack (version 1.1b). I. Marti-Vidal & C. Goddi (2026)
 
 The environment variable $CASABASE has to be set to the CASA path. 
 Otherwise, the script will fail.
@@ -43,6 +43,13 @@ NOTE: IF "--jobs" IS NOT PROVIDED, THE DATA ARE SELECTED FROM:
 --bands :: List of band numbers. Can be separated by spaces or commas.
 
 --source :: Name of the source to convert.
+
+--separateXY0Kcrs :: If present, it will use XY0.APP and Kcrs tables separately.
+                     If not present (default), it will use the XY0Kcrs from 
+                     the QA2 tarball.
+
+--useGpol2 :: If present, will use Gpol2 to interpolate X/Y amplitude ratios.
+              If not (default), will use Gxyamp (constant ratios assumed).
 
 
 EXAMPLES:
@@ -160,6 +167,12 @@ if '--jobs' in sys.argv:
      if not os.path.exists(os.path.join(DIFX_DIR,job+'.difx')):
        raise Exception("Job %s not found at %s"%(job,DIFX_DIR))
 
+# Finetune QA2:
+addKcrs = "--separateXY0Kcrs" in sys.argv
+GPol2 = "--useGpol2" in sys.argv
+
+
+
 ##################################
 
 
@@ -237,7 +250,7 @@ if True:
    SUFFIX = "_PolConvert_%s"%(B)
    CID,CNAME = tempfile.mkstemp() #open("PolConvert_configuration.dat","wb")
    CONFIG = open(CNAME,"wb")
-   pk.dump([NPROC,TRACK,CASA_CALL,DIFX_DIR,DEST_DIR,B,JOBS_BY_BAND[B],QA2_DIR],CONFIG)
+   pk.dump([NPROC,TRACK,CASA_CALL,DIFX_DIR,DEST_DIR,B,JOBS_BY_BAND[B],QA2_DIR,addKcrs,GPol2],CONFIG)
    CONFIG.close()
    os.system("%s --nologger -c %s_polconvert_apply.py %s"%(CASA_CALL,os.path.join(QA2_DIR,TRACK),CNAME))
    os.remove(CNAME)

@@ -10,7 +10,7 @@ import struct as stk
 #### READ CONFIGURATION:
 
 CONFIG = open(sys.argv[-1],"rb")
-NPROC,TRACK,CASA_CALL,DIFX_DIR,DEST_DIR,BAND,JOBS,QA2_ROOT = pk.load(CONFIG)
+NPROC,TRACK,CASA_CALL,DIFX_DIR,DEST_DIR,BAND,JOBS,QA2_ROOT,addKcrs,useGpol2 = pk.load(CONFIG)
 CONFIG.close()
 
 
@@ -18,10 +18,7 @@ CONFIG.close()
 ## Add XY phases (in deg.) to these bands:
 addXYPhase = {} #{2:130.}
 
-## Use Kcrs + XY0 (True) or use XY0kcrs (False):
-addKcrs = False
-
-
+AmpTable = {True:"Gpol2",False:"Gxyamp"}[useGpol2]
 
 
 ########################
@@ -101,43 +98,48 @@ for job in JOBS:
 
 ###################
 ## Get the IFs with data:
-Shortest = np.argmin(DURs)
-auxSWIN = glob.glob(os.path.join(os.path.join(DIFX_DIR,"%s.difx"%JOBS[Shortest]),"DIFX_*.b*"))
-if len(auxSWIN)==0:
-   raise Exception("Missing SWIN data!")
-frfile = open(auxSWIN[0],'rb')
 WORD = b'\x00\xff\x00\xff\x01\x00\x00\x00'
-
 print("Checking SWIN contents")
+DATA_IFS = {}
+for job in JOBS:
+
+  DATA_IFS[job] = []
+  auxSWIN = glob.glob(os.path.join(os.path.join(DIFX_DIR,"%s.difx"%job),"DIFX_*.b*"))
+  if len(auxSWIN)==0:
+    raise Exception("Missing SWIN data!")
+  else:
+    print("Checking %s"%auxSWIN[0])
+  frfile = open(auxSWIN[0],'rb')
+
 ## Figure out number of channels:
-temp = frfile.read(8+4+4+8+4+4+4+2+4+8+8*3)
-for i in range(4096):
-  test = frfile.read(8)
-  if test==WORD:
-    break
-NCHAN = int(i)
-print("There seem to be %i channels in the IFs.\n"%i)
-frfile.close()
-
+  temp = frfile.read(8+4+4+8+4+4+4+2+4+8+8*3)
+  for i in range(8192):
+    test = frfile.read(8)
+    if test==WORD:
+      break
+  NCHAN = int(i)
+  print("There seem to be %i channels in the IFs.\n"%i)
+  frfile.close()
+  SKIP = 2+4+8*(5+NCHAN)
 ## Read data:
-frfile = open(auxSWIN[0],"rb")
-alldats = frfile.read(8)
-DATA_IFS = []
-i = 0
-while True: # TODO: Remove i condition
-   i += 1
-   if i%1024==0:
-      sys.stdout.write('\r Checking VIS %i'%i)
-      sys.stdout.flush()
-   alldats = frfile.read(4+4+8+4+4+4)
-   if not alldats: break
-   BASEL,MJD,SEC,CFI,SI,SPI = stk.unpack("iidiii",alldats)
-   alldats = frfile.read(2+4+8*(5+NCHAN))
-   if int(SPI+1) not in DATA_IFS:
-      DATA_IFS.append(int(SPI+1))
-frfile.close()
+  frfile = open(auxSWIN[0],"rb")
+  alldats = frfile.read(8)
+  #i = 0
+  while True: #i<1000000: # TODO: Remove i condition
+  #  i += 1
+  #  if i%1024==0:
+  #    sys.stdout.write('\r Checking VIS %i'%i)
+  #    sys.stdout.flush()
+    alldats = frfile.seek(24,1)
+    alldats = frfile.read(4)
+    if not alldats: break
+    SPI = stk.unpack("i",alldats)[0]
+    alldats = frfile.seek(SKIP,1)
+    if int(SPI+1) not in DATA_IFS[job]:
+      DATA_IFS[job].append(int(SPI+1))
+  frfile.close()
 
-print("\nIFs with data: ",DATA_IFS)
+  print("\nIFs with data: ",DATA_IFS[job])
 
 
 
@@ -155,7 +157,7 @@ for line in inpF.readlines():
 #      print(line)
       idx = int(line.split(":")[0].split()[-1])
       Nui = float(line.split()[-1])/1.e3
-      if int(idx+1) in DATA_IFS:
+      if int(idx+1) in DATA_IFS[JOBS[0]]:
          VLBI_NUs.append(Nui)
 inpF.close()
 #print(JOBS)
@@ -214,7 +216,7 @@ for job in JOBS:
       OUTPUTIDI = os.path.join(DEST_DIR,"%s.difx"%job)
       DiFXinput = os.path.join(DIFX_DIR,"%s.input"%job)
       DiFXcalc = os.path.join(DIFX_DIR,"%s.calc"%job)
-      doIF = sorted(DATA_IFS)
+      doIF = sorted(DATA_IFS[job])
       linAntIdx = [1]
       ALMAant = '%s.ANTENNA'%QA2
       calAPP = '%s.calappphase'%QA2
@@ -232,7 +234,7 @@ for job in JOBS:
           '%s.Kcrs.APP'%QA2c,
           '%s.flux_inf.APP.OpCorr'%QA2,
           '%s.phase_int.APP.XYsmooth'%QA2,
-          '%s.Gxyamp.APP'%QA2c]] 
+          '%s.%s.APP'%(QA2c,AmpTable)]] 
         calintrp = [['linear', 'linear','linear','nearest', 'linear', 'linear']]
         gtype = [['G','G','G','T','G','G']]
       else:
@@ -241,7 +243,7 @@ for job in JOBS:
           '%s.XY0kcrs.APP'%QA2c,
           '%s.flux_inf.APP.OpCorr'%QA2,
           '%s.phase_int.APP.XYsmooth'%QA2,
-          '%s.Gxyamp.APP'%QA2c]] 
+          '%s.%s.APP'%(QA2c,AmpTable)]] 
         calintrp = [['linear', 'linear','nearest', 'linear', 'linear']]
         gtype = [['G','G','T','G','G']]
       dterms = ['%s.Df0gen.APP'%QA2c]
