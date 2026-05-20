@@ -149,7 +149,7 @@ if '--bands' in sys.argv:
 
 
 if '--refant' in sys.argv:
-   PLANT = int(sys.argv[sys.argv.index('--refant')+1])
+   PLANT = sys.argv[sys.argv.index('--refant')+1]
 else:
    PLANT = 'AA'
 
@@ -384,7 +384,7 @@ for BAND in BANDS:
            POLCOPY = 'R'
         if pol in ['LL','YL','LY','YY']:
            POLCOPY = 'L'
-        if SPI in BANDPASS[ant2][POLCOPY].keys():
+        if ant2 in BANDPASS.keys() and SPI in BANDPASS[ant2][POLCOPY].keys():
            DATA['VIS'][datum][:] /= BANDPASS[ant2][POLCOPY][SPI]
 
 
