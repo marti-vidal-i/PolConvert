@@ -186,7 +186,7 @@ noEHT = "--noEHT" in sys.argv
 # get bands from it:
 if len(JOBS)>0:
   if noEHT: #The EHT naming convention is not used:
-    BANDS = [0]
+    BANDS = ['0']
 
   else: # EHT naming convention used:
 
@@ -214,7 +214,7 @@ else:
 # Filter by band:
    if noEHT:
 ## All scans are selected by default for noEHT:
-     BANDS = [0]
+     BANDS = ['0']
      BAND_JOBS = INI_JOBS
    elif len(BANDS)>0:
       BAND_JOBS = []
@@ -250,7 +250,7 @@ else:
 # Classify jobs by band:
 JOBS_BY_BAND = {}
 if noEHT:
-  JOBS_BY_BAND[0] = JOBS
+  JOBS_BY_BAND['0'] = JOBS
 else:
 
   for band in BANDS:

@@ -36,7 +36,7 @@ QA2c = os.path.join(QA2_ROOT,TRACK) + '.calibrated.ms'
 ######################
 ### PART 1: METADATA
 
-if BAND>0:
+if BAND!='0':
   allCalc = glob.glob(os.path.join(DIFX_DIR,"*-b%i_*.calc"%int(BAND)))
   if len(allCalc)==0:
    raise Exception("Missing calc files in DIFX_DIR!!")
