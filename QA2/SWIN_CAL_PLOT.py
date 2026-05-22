@@ -279,7 +279,7 @@ for BAND in BANDS:
 
     ALLANTS = []
     while True:
-      if i%1024==0:
+      if i>0 and i%1024==0:
         sys.stdout.write('\r Reading VIS %i'%i)
         sys.stdout.flush()
       alldats = frfile.read(4+4+8+4+4+4)
@@ -318,7 +318,7 @@ for BAND in BANDS:
           hola = frfile.read(8)
 
         else:
-          alldats=frfile.read(38+8*NCHAN+6)  
+          alldats=frfile.seek(38+8*NCHAN+6,1)  
 
 
 
@@ -345,7 +345,7 @@ for BAND in BANDS:
         DATA['UVW'].append([U,V,W])
         DATA['VIS'].append(visib)
       else:
-          alldats=frfile.read(38+8*NCHAN+6)  
+          alldats=frfile.seek(38+8*NCHAN+6,1)  
 
     frfile.close()
     print("\n Done!")
@@ -362,14 +362,21 @@ for BAND in BANDS:
 
 # Normalize the amplitude bandpass across the whole band:
       for anti in BANDPASS.keys():
+        TOTSUM = {'R':0.0,'L':0.0}
+#        MEDIANS = {'R':0.0,'L':0.0}
         for pol in ['R','L']:
-          TOTSUM = 0.0
+          AUX = []
           for SPI in BANDPASS[anti][pol].keys():
-            TOTSUM += BANDPASS[anti][pol][SPI]
-          TOTSUM /= np.max([1,len(BANDPASS[anti][pol].keys())])
-          if TOTSUM > 0.0:
+            AUX.append(BANDPASS[anti][pol][SPI])
+            TOTSUM[pol] += AUX[-1]
+#          MEDIANS[pol] = np.median(AUX)
+          TOTSUM[pol] /= np.max([1,len(BANDPASS[anti][pol].keys())])
+          if TOTSUM[pol] > 0.0:
             for SPI in BANDPASS[anti][pol].keys():
-              BANDPASS[anti][pol][SPI] /= TOTSUM
+              BANDPASS[anti][pol][SPI] /= TOTSUM[pol]
+# Equalize amplitudes between polarizers:
+#        if TOTSUM['R']>0.0 and TOTSUM['L']>0.0:
+#          BANDPASS[anti]['R'][SPI] *= MEDIANS['L']/MEDIANS['R']
 
 # Apply the amplitude bandpass:
       for datum in range(len(DATA['ANTS'])):
@@ -611,9 +618,15 @@ for BAND in BANDS:
       VIS2PLOT_RL = np.array([average['vis'][BAS][i][2] for i in range(NIF)])/BPASS[BAS][1]
       VIS2PLOT_LR = np.array([average['vis'][BAS][i][3] for i in range(NIF)])/BPASS[BAS][0]
 
+
+# Equalize amplitudes between polarizers:
+      RSCALE = np.median(np.abs(VIS2PLOT_RR))
+      LSCALE = np.median(np.abs(VIS2PLOT_LL))
+      AMP_RATIO = RSCALE/LSCALE
+
       sub.plot(np.abs(VIS2PLOT_RR),'ob',label=average['corrProds'][BAS]['RR'])
-      sub.plot(np.abs(VIS2PLOT_LL),'or',label=average['corrProds'][BAS]['LL'])
-      sub.plot(np.abs(VIS2PLOT_RL),'xg',label=average['corrProds'][BAS]['RL'])
+      sub.plot(np.abs(VIS2PLOT_LL)*AMP_RATIO,'or',label=average['corrProds'][BAS]['LL'])
+      sub.plot(np.abs(VIS2PLOT_RL)*AMP_RATIO,'xg',label=average['corrProds'][BAS]['RL'])
       sub.plot(np.abs(VIS2PLOT_LR),'xk',label=average['corrProds'][BAS]['LR'])
       sub.set_xlabel("IF")
       sub.set_ylabel("Amp")
