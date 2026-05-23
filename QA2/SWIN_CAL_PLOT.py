@@ -70,7 +70,10 @@ Argument list:
               (in principle, AX and/or LM should suffice
               for a quick assessment of the polconversion).
               Default is all antennas available.
- 
+
+--noEHT :: If present, do not assume EHT naming convention for the scans.
+           USE WITH CAUTION! If there are more than one bands in the DiFX
+           directory, all of them will be treated as if they were the same. 
 
 EXAMPLE:
 
@@ -91,7 +94,7 @@ if len(sys.argv)==1:
    print(helptxt)
    os._exit(0)
 
-allOptions = ['--nproc','--datadir','--plotdir','--source','--bands','--refant','--antennas']
+allOptions = ['--nproc','--datadir','--plotdir','--source','--bands','--refant','--antennas','--noEHT']
 for arg in sys.argv:
     if arg.startswith('-') and arg not in allOptions:
         raise Exception("Unknown argument %s"%arg)
@@ -133,7 +136,7 @@ else:
 
 
 BANDS = []
-if '--bands' in sys.argv:
+if '--bands' in sys.argv and not ('--noEHT' in sys.argv):
    i0 = sys.argv.index('--bands')
    i1 = -1
    for k in range(i0+1,len(sys.argv)):
@@ -187,21 +190,29 @@ if '--antennas' in sys.argv:
 tic = time.time()
 
 # All bands will be processed if no band specified:
-if len(BANDS)==0:
-  temp = [os.path.basename(fi).split("_")[0].split("-")[-1][1:] for fi in glob.glob(os.path.join(DIR,"*.calc"))]
-  BANDS = np.unique(list(map(int,temp)))
+if len(BANDS)==0: 
+  if '--noEHT' in sys.argv:
+    BANDS = [0]
+  else:
+    temp = [os.path.basename(fi).split("_")[0].split("-")[-1][1:] for fi in glob.glob(os.path.join(DIR,"*.calc"))]
+    BANDS = np.unique(list(map(int,temp)))
 
-print("\n Will calibrate & plot bands ",BANDS)
+if not '--noEHT' in sys.argv:
+  print("\n Will calibrate & plot bands ",BANDS)
 
 
 #raw_input("CACA")
 
 for BAND in BANDS:
 
- print("\n Processing band %i"%BAND)
-
+ if not '--noEHT' in sys.argv:
+   print("\n Processing band %i"%BAND)
 ## Look for the scans:
- allScans = glob.glob(os.path.join(DIR,"*b%s_*.calc"%BAND))
+   allScans = glob.glob(os.path.join(DIR,"*b%s_*.calc"%BAND))
+ else:
+   allScans = glob.glob(os.path.join(DIR,"*.calc"))
+
+
  SCAN = [] ; SCANNAMES = []
  for scan in allScans:
    infi = open(scan,"r")

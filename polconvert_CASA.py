@@ -1000,12 +1000,12 @@ calibrated phased arrays (i.e., phased ALMA).
 
       FrInfo['SIGN'][nu] = float(sb)
 
-      if nu in doIF:
+      if nu+1 in doIF:
         IFchan = max([IFchan,int(nchan/chav)])
         if float(nchan//chav) != nchan/chav:
-           printMsg("SPW %i. linspace check FAILED: chan: %d / %d = %f" %(nu,nchan, chav, nchan/chav))
+           printMsg("IF %i (DiFX %i). linspace check FAILED: chan: %d / %d = %f" %(nu+1,nu,nchan, chav, nchan/chav))
         else:
-           printMsg("SPW %i. linspace check PASSED: chan: %d / %d = %f" %(nu,nchan, chav, nchan/chav))
+           printMsg("IF %i (DiFX %i). linspace check PASSED: chan: %d / %d = %f" %(nu+1,nu,nchan, chav, nchan/chav))
 
       freqs = (nu0 + channels)*1.e6
 
