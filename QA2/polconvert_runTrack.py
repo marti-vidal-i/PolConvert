@@ -54,6 +54,8 @@ NOTE: IF "--jobs" IS NOT PROVIDED, THE DATA ARE SELECTED FROM:
 --noEHT :: If present, the naming assumptions for the EHT are not used. In this case,
            the "--bands" option will not work (only "--jobs" and "--source" will work).
 
+--DPFU  :: Default 0.01. Sets the DPFU value (example: --DPFU 0.03 ).
+
 EXAMPLES:
 
 1.- PolConvert all scans of 3C279 in band 2, from track e22c20.
@@ -80,7 +82,7 @@ if len(sys.argv)==1:
    os._exit(0)
 
 
-allOptions = ['--nproc','--origdata','--destdata','--qa2dir','--track','--jobs','--bands','--source','--separateXY0Kcrs','--useGpol2','--noEHT']
+allOptions = ['--nproc','--origdata','--destdata','--qa2dir','--track','--jobs','--bands','--source','--separateXY0Kcrs','--useGpol2','--noEHT','--DPFU']
 for arg in sys.argv:
     if arg.startswith('-') and arg not in allOptions:
         raise Exception("Unknown argument %s"%arg)
@@ -176,6 +178,11 @@ GPol2 = "--useGpol2" in sys.argv
 noEHT = "--noEHT" in sys.argv
 
 
+DPFU = 0.01
+if '--DPFU' in sys.argv:
+  DPFU = float(sys.argv[sys.argv.index('--DPFU')+1])
+
+
 ##################################
 
 
@@ -267,7 +274,7 @@ if True:
    SUFFIX = "_PolConvert_%s"%(B)
    CID,CNAME = tempfile.mkstemp() #open("PolConvert_configuration.dat","wb")
    CONFIG = open(CNAME,"wb")
-   pk.dump([NPROC,TRACK,CASA_CALL,DIFX_DIR,DEST_DIR,B,JOBS_BY_BAND[B],QA2_DIR,addKcrs,GPol2],CONFIG)
+   pk.dump([NPROC,TRACK,CASA_CALL,DIFX_DIR,DEST_DIR,B,JOBS_BY_BAND[B],QA2_DIR,addKcrs,GPol2,DPFU],CONFIG)
    CONFIG.close()
    os.system("%s --nologger -c %s_polconvert_apply.py %s"%(CASA_CALL,os.path.join(QA2_DIR,TRACK),CNAME))
    os.remove(CNAME)

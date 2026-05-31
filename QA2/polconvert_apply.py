@@ -10,7 +10,7 @@ import struct as stk
 #### READ CONFIGURATION:
 
 CONFIG = open(sys.argv[-1],"rb")
-NPROC,TRACK,CASA_CALL,DIFX_DIR,DEST_DIR,BAND,JOBS,QA2_ROOT,addKcrs,useGpol2 = pk.load(CONFIG)
+NPROC,TRACK,CASA_CALL,DIFX_DIR,DEST_DIR,BAND,JOBS,QA2_ROOT,addKcrs,useGpol2,DPFU = pk.load(CONFIG)
 CONFIG.close()
 
 
@@ -263,7 +263,7 @@ for job in JOBS:
           'spw':spw[job], 'calAPP':calAPP, 'gains':gains, 'interpolation':calintrp,'XYadd':XYadd,
           'gainmode':gtype, 'dterms':dterms, 'plotIF':[], 'plotRange':plotRange, 
           'plotAnt':plotAnt, 'doTest':False, 'npix':512, 'calAPPTime':calAPPTime, 
-          'plotSuffix':str(job)+'_'+str(BAND)}
+          'plotSuffix':str(job)+'_'+str(BAND),'amp_norm':DPFU}
 
       outF = open(os.path.join(TEMP_DIR,"KWW_%s.dat"%job),"wb")
       pk.dump(kww,outF)
