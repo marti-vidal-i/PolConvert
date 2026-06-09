@@ -50,8 +50,8 @@
 
 from __future__ import absolute_import
 from __future__ import print_function
-__version__ = " 2.1b  "  # 7 characters
-date = 'Dec 11, 2025'
+__version__ = " 2.5   "  # 7 characters
+date = 'June 9, 2026'
 
 
 ################

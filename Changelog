@@ -1,3 +1,9 @@
+v2.5
+- Added new scripts to automate running PolConvert at the correlators.
+- Added visibility-plotting (+ quick calibration) script based on SWIN files.
+- Fixed small bug related to frequency interpolation from ALMA to VLBI.
+- Code cleanup.
+
 v2.1b
 - Adapted to newer API, so we can run this on more recent CASA versions.
 - Added support to Kcross tables (maybe useful for future QA2 strategies).
