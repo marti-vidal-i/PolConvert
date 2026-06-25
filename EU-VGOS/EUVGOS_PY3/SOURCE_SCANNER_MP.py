@@ -170,6 +170,110 @@ def parse_im_azel(im_path):
                 continue
     return out
 
+def parse_output_nchan_by_if_from_lines(lines):
+    """
+    Return output spectral channels per DiFX frequency index.
+
+    DiFX .input often stores the raw spectral channels as:
+        NUM CHANNELS i: N
+    and the channels written to SWIN as:
+        N / CHANS TO AVG i
+
+    Older/simple jobs may have no CHANS TO AVG lines; then avg=1 and
+    this reduces to the old behavior.
+    """
+    num_channels = {}
+    chans_to_avg = {}
+
+    pat_nchan = re.compile(r"^NUM CHANNELS\s+(\d+):\s+(\d+)\s*$")
+    pat_avg = re.compile(r"^CHANS TO AVG\s+(\d+):\s+(\d+)\s*$")
+
+    for li in lines:
+        s = li.strip()
+
+        m = pat_nchan.match(s)
+        if m:
+            num_channels[int(m.group(1))] = int(m.group(2))
+            continue
+
+        m = pat_avg.match(s)
+        if m:
+            chans_to_avg[int(m.group(1))] = int(m.group(2))
+            continue
+
+    if len(num_channels) == 0:
+        raise RuntimeError("No NUM CHANNELS i entries found in .input")
+
+    nchan_by_if = {}
+    for ifidx, nraw in num_channels.items():
+        avg = int(chans_to_avg.get(ifidx, 1))
+
+        if avg <= 0:
+            raise RuntimeError("Bad CHANS TO AVG for IF %d: %d" % (ifidx, avg))
+
+        if int(nraw) % avg != 0:
+            raise RuntimeError(
+                "NUM CHANNELS not divisible by CHANS TO AVG for IF %d: %d / %d"
+                % (ifidx, int(nraw), avg)
+            )
+
+        nchan_by_if[int(ifidx)] = int(nraw) // avg
+
+    return nchan_by_if, num_channels, chans_to_avg
+
+
+def infer_difx_if_base(doif, if_values_in_rows, if_offset=0, requested="auto"):
+    """
+    Infer whether SWIN row IF/fridx values are 1-based or 0-based relative
+    to the user-facing logical IF list.
+
+    Returns 1 or 0.
+
+    With logical DOIF=1..32 and IF_OFFSET=32:
+      base=1 tests 1..32 and 33..64
+      base=0 tests 0..31 and 32..63
+
+    The score counts how many requested main/shifted physical IFs are
+    actually present in the binary rows.
+    """
+    if str(requested).lower() not in ("auto", "none"):
+        return int(requested)
+
+    rows = set(int(x) for x in if_values_in_rows)
+    doif_list = [int(x) for x in doif]
+    if_offset = int(if_offset)
+
+    def score(base):
+        n = 0
+        for IFp in doif_list:
+            phys = IFp if base == 1 else IFp - 1
+            if phys in rows:
+                n += 1
+            if if_offset != 0 and (phys + if_offset) in rows:
+                n += 1
+        return n
+
+    score1 = score(1)
+    score0 = score(0)
+
+    # Tie-breaker preserves old SOURCE_SCANNER behavior.
+    return 0 if score0 > score1 else 1
+
+
+def physical_if_to_logical_if_with_base(ifc, doif, if_offset=0, difx_if_base=1):
+    """
+    Map binary SWIN IF/fridx back to logical 1-based IF.
+
+    For base=0, binary IF 0 -> logical IF 1, and binary IF 32 with
+    IF_OFFSET=32 -> logical IF 1.
+    """
+    ifc = int(ifc)
+
+    if int(difx_if_base) == 0:
+        return physical_if_to_logical_if(ifc + 1, doif, if_offset)
+
+    return physical_if_to_logical_if(ifc, doif, if_offset)
+
 
 def if_to_band_range(if_id, nif_per_band=8, nif_total=None):
     """
@@ -256,7 +360,7 @@ def getFringeSNR(dd, cfg):
     MIN_UV_SPAN = cfg.get("MIN_UV_SPAN", None)
     MAX_WEIGHT_ZERO_FRAC = cfg.get("MAX_WEIGHT_ZERO_FRAC", None)
     MIN_WEIGHT_MEDIAN = cfg.get("MIN_WEIGHT_MEDIAN", None)
-    NIF_PER_BAND = int(cfg.get("NIF_PER_BAND", 8))
+    DIFX_IF_BASE_REQUESTED = cfg.get("DIFX_IF_BASE", "auto")
 
     warnings = []
     scan_name = os.path.basename(dd).split(".")[0]
@@ -287,26 +391,48 @@ def getFringeSNR(dd, cfg):
     NIF_scan = 0
     Nchan = 0
     ANT_NAMES = []
+    nchan_by_if = {}
+    num_channels_raw = {}
+    chans_to_avg = {}
 
     try:
+        # Use the actual output channel count written to SWIN.
+        nchan_by_if, num_channels_raw, chans_to_avg = parse_output_nchan_by_if_from_lines(lines)
+
+        unique_output_nchan = sorted(set(int(v) for v in nchan_by_if.values()))
+        if len(unique_output_nchan) != 1:
+            return _fatal(
+                "Variable output channel count per IF is not supported by the fast SWIN reader: %s"
+                % ",".join(str(x) for x in unique_output_nchan)
+            )
+
+        Nchan = int(unique_output_nchan[0])
+
         for li in lines:
             if li.startswith("TELESCOPE ENTRIES:"):
                 Nants = max([Nants, int(li.split()[-1])])
                 ANT_NAMES = ["%02i" % i for i in range(1, Nants + 1)]
+
             if li.startswith("TELESCOPE NAME "):
                 tempLine = li.split()
                 tid = int(tempLine[2].replace(":", ""))
                 NAM = tempLine[-1].replace("\n", "")
                 ANT_NAMES[tid] = NAM
+
             if li.startswith("FREQ ENTRIES:"):
                 NIF_scan = int(li.split()[-1])
-            if li.startswith("NUM CHANNELS 0:"):
-                Nchan = int(li.split()[-1])
+
     except Exception as e:
         return _fatal("Failed parsing .input file", e)
 
     if Nants <= 1 or Nchan <= 0:
         return _fatal("Bad metadata from input: Nants=%d, Nchan=%d" % (Nants, Nchan))
+
+    if len(chans_to_avg) > 0 and any(int(v) != 1 for v in chans_to_avg.values()):
+        warnings.append(
+            "%s: using output Nchan=%d from NUM CHANNELS / CHANS TO AVG for SWIN stride"
+            % (scan_name, Nchan)
+        )
 
     # try to load station coordinates (ECEF) for parallactic angle
     coords_by_name = {}
@@ -377,6 +503,33 @@ def getFringeSNR(dd, cfg):
 
     frfile.close()
 
+    # IF identifiers present in the binary SWIN rows.
+    # Use the actual rows to infer whether the binary IF/fridx numbering is 0-based or 1-based.
+    if_values_in_rows = set(int(x) for x in np.unique(fringe2["IF"])) if len(fringe2) > 0 else set()
+    DIFX_IF_BASE = infer_difx_if_base(
+        DOIF,
+        if_values_in_rows,
+        IF_OFF,
+        DIFX_IF_BASE_REQUESTED,
+    )
+    shifted_ifs_present = []
+    for IFp in DOIF:
+        IFp = int(IFp)
+        IF_main = IFp if DIFX_IF_BASE == 1 else IFp - 1
+        IF_shift = IF_main + IF_OFF
+        if IF_OFF != 0 and IF_shift in if_values_in_rows:
+            shifted_ifs_present.append(IF_shift)
+    shifted_ifs_present = sorted(set(shifted_ifs_present))
+    warnings.append(
+        "%s: SWIN reader uses output Nchan=%d; inferred DIFX_IF_BASE=%d; binary IF range=%s"
+        % (scan_name, Nchan, DIFX_IF_BASE, ("%d..%d" % (min(if_values_in_rows), max(if_values_in_rows))) if if_values_in_rows else "EMPTY")
+    )
+    if shifted_ifs_present:
+        warnings.append(
+            "%s: binary DIFX rows contain shifted IFs (IF_OFFSET=%d): %s"
+            % (scan_name, IF_OFF, ",".join(str(x) for x in shifted_ifs_present))
+        )
+
     SNR_X = [[1.0e18, 0.0] for i in range(Nants)]
     SNR_Y = [[1.0e18, 0.0] for i in range(Nants)]
 
@@ -430,19 +583,21 @@ def getFringeSNR(dd, cfg):
         Y2M = 0.0
 
         for IFp in DOIF:
-            IF_candidates = [int(IFp)]
-
-            # Only test shifted IF if it is within the scan's IF range
+            IFp = int(IFp)
+            # Logical IFs are user-facing 1-based.
+            # Binary SWIN IF/fridx can be either 1-based or 0-based.
+            IF_main = IFp if DIFX_IF_BASE == 1 else IFp - 1
+            IF_candidates = [int(IF_main)]
+            # Only test shifted IF if that physical IF actually exists in the binary rows.
             if IF_OFF != 0:
-                IF_shift = int(IFp + IF_OFF)
-                if 1 <= IF_shift <= max(1, NIF_scan):
+                IF_shift = int(IF_main + IF_OFF)
+                if IF_shift in if_values_in_rows:
                     IF_candidates.append(IF_shift)
-            # Remove duplicates in case IF_OFF=0 or something odd
+            # Remove duplicates in case IF_OFF=0 or something odd.
             IF_candidates = list(dict.fromkeys(IF_candidates))
-
             any_candidate_has_rows = False
             for IFc in IF_candidates:
-                IFl = physical_if_to_logical_if(IFc, DOIF, IF_OFF)
+                IFl = physical_if_to_logical_if_with_base(IFc, DOIF, IF_OFF, DIFX_IF_BASE)
                 MASK = np.logical_and(fringe2["BAS"] == BSel, fringe2["IF"] == IFc)
                 if np.sum(MASK) == 0:
                     continue
@@ -818,6 +973,7 @@ def getFringeSNR(dd, cfg):
         "weights_median_ok": wmed_ok,
     }
     extra_metrics = {
+        "ants_in_input": list(ANT_NAMES),
         "elevation": {"per_ant": el_stats, "summary": elev_summary},
         "parallactic_angle": {"per_ant": pa_stats},
         "pol_completeness": {"summary": pol_metrics, "per_ant": pol_per_ant},
@@ -879,6 +1035,7 @@ def SOURCE_SCANNER(
     MIN_TOTAL_PA_COVERAGE_DEG=20.0,
     PA_SCANS_REQUIRED=0,
     NIF_PER_BAND=8,
+    DIFX_IF_BASE="auto",
     NCPU=1,
 ):
     """
@@ -941,6 +1098,9 @@ def SOURCE_SCANNER(
     NIF_PER_BAND : int
         Number of IFs per frequency band.
         Used to expand detected bad IFs to the whole band in BAD_IF.
+    DIFX_IF_BASE : "auto", 0, or 1
+        Mapping between logical IFs and binary SWIN IF/fridx values.
+        "auto" chooses the base that best matches the SWIN IFs.
     NCPU : int
         Number of worker processes used to scan multiple *.calc scans in parallel.
     """
@@ -977,6 +1137,7 @@ def SOURCE_SCANNER(
         DOIF=DOIF,
         NIF=NIF,
         NIF_PER_BAND=int(NIF_PER_BAND),
+        DIFX_IF_BASE=DIFX_IF_BASE,
     )
 
     EXP = EXPNAME
@@ -1039,12 +1200,27 @@ def SOURCE_SCANNER(
         ScanSous = ",".join(scan[1])
         Nants_scan = (len(scan) - 3) // 6
 
-        fmt = "    ANT %s: X = [%.2f  %.2f] | Y = [ %.2f  %.2f]  %s  \n" * Nants_scan
-        fmt += "    SNR PASS: %s\n"
+        def _fmt_snr_pair(lo, hi):
+            lo = float(lo)
+            hi = float(hi)
+            # Sentinel from getFringeSNR:
+            # [1.0e18, 0.0] means this pol was never updated.
+            if hi == 0.0 and lo > 1.0e17:
+                return "[NO_DATA]"
+            return "[%.2f  %.2f]" % (lo, hi)
 
         RESULT_LINES.append("%s: %s\n" % (ScanName, ScanSous))
         RESULT_LINES.append("  SNR metrics:")
-        RESULT_LINES.append(fmt % tuple(scan[2:]))
+        for ai in range(Nants_scan):
+            ant = scan[2 + ai*6]
+            x_txt = _fmt_snr_pair(scan[3 + ai*6], scan[4 + ai*6])
+            y_txt = _fmt_snr_pair(scan[5 + ai*6], scan[6 + ai*6])
+            obs = scan[7 + ai*6]
+            RESULT_LINES.append(
+                "    ANT %s: X = %-18s | Y = %-18s  %s  "
+                % (ant, x_txt, y_txt, obs)
+            )
+        RESULT_LINES.append("    SNR PASS: %s\n" % scan[-1])
 
         m = r.get("metrics") or {}
         flags = m.get("flags", {}) if isinstance(m, dict) else {}
@@ -1474,10 +1650,16 @@ def SOURCE_SCANNER(
         code = s.get("code")
         if not code:
             continue
-        for ant in s.get("ants", set()):
-            ant_scan_codes[ant].add(code)
-        spi = s.get("metrics", {}).get("station_pol_issues", {})
+        metrics = s.get("metrics", {})
+        spi = metrics.get("station_pol_issues", {})
         bad_raw = spi.get("bad_if_raw", {})
+        denom_ants = set(metrics.get("ants_in_input", []))
+        if len(denom_ants) == 0:
+            denom_ants = set(s.get("ants", set()))
+        # Ensure anything counted as bad is also counted as participating
+        denom_ants |= set(bad_raw.keys())
+        for ant in denom_ants:
+            ant_scan_codes[ant].add(code)
         for ant, ifs in bad_raw.items():
             for IFc in ifs:
                 bad_if_scan_hits[ant][int(IFc)].add(code)
