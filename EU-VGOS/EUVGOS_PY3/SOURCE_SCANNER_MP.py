@@ -222,7 +222,7 @@ def parse_output_nchan_by_if_from_lines(lines):
     return nchan_by_if, num_channels, chans_to_avg
 
 
-def infer_difx_if_base(doif, if_values_in_rows, if_offset=0, requested="auto"):
+def infer_difx_if_base(doif, if_values_in_rows, if_offset=0, requested="auto", max_if_offset_multiple=1):
     """
     Infer whether SWIN row IF/fridx values are 1-based or 0-based relative
     to the user-facing logical IF list.
@@ -249,8 +249,10 @@ def infer_difx_if_base(doif, if_values_in_rows, if_offset=0, requested="auto"):
             phys = IFp if base == 1 else IFp - 1
             if phys in rows:
                 n += 1
-            if if_offset != 0 and (phys + if_offset) in rows:
-                n += 1
+            if if_offset != 0:
+                for mult in range(1, int(max_if_offset_multiple) + 1):
+                    if (phys + mult * if_offset) in rows:
+                        n += 1
         return n
 
     score1 = score(1)
@@ -260,7 +262,7 @@ def infer_difx_if_base(doif, if_values_in_rows, if_offset=0, requested="auto"):
     return 0 if score0 > score1 else 1
 
 
-def physical_if_to_logical_if_with_base(ifc, doif, if_offset=0, difx_if_base=1):
+def physical_if_to_logical_if_with_base(ifc, doif, if_offset=0, difx_if_base=1, max_if_offset_multiple=1):
     """
     Map binary SWIN IF/fridx back to logical 1-based IF.
 
@@ -270,9 +272,15 @@ def physical_if_to_logical_if_with_base(ifc, doif, if_offset=0, difx_if_base=1):
     ifc = int(ifc)
 
     if int(difx_if_base) == 0:
-        return physical_if_to_logical_if(ifc + 1, doif, if_offset)
+        return physical_if_to_logical_if(
+            ifc + 1, doif, if_offset,
+            max_if_offset_multiple=max_if_offset_multiple,
+        )
 
-    return physical_if_to_logical_if(ifc, doif, if_offset)
+    return physical_if_to_logical_if(
+        ifc, doif, if_offset,
+        max_if_offset_multiple=max_if_offset_multiple,
+    )
 
 
 def if_to_band_range(if_id, nif_per_band=8, nif_total=None):
@@ -289,21 +297,28 @@ def if_to_band_range(if_id, nif_per_band=8, nif_total=None):
         b1 = min(b1, int(nif_total))
     return list(range(b0, b1 + 1))
 
-def physical_if_to_logical_if(ifc, doif, if_offset=0):
+def physical_if_to_logical_if(ifc, doif, if_offset=0, max_if_offset_multiple=1):
     """
-    Map physical DiFX IF number back to the logical IF number used by DOIF.
-    Example with IF_OFFSET=32: physical IF 37 -> logical IF 5.
+    Map physical DiFX IF num. back to the logical IF num. used by DOIF
+
+    Example with IF_OFFSET=32 and max_if_offset_multiple=2:
+      physical IF  5  -> logical IF 5
+      physical IF 37  -> logical IF 5
+      physical IF 69  -> logical IF 5
     """
     ifc = int(ifc)
     doif_set = set(int(x) for x in doif)
     if_offset = int(if_offset)
+    max_if_offset_multiple = int(max_if_offset_multiple)
 
     if ifc in doif_set:
         return ifc
 
-    shifted_back = ifc - if_offset
-    if if_offset != 0 and shifted_back in doif_set:
-        return shifted_back
+    if if_offset > 0:
+        for mult in range(1, max_if_offset_multiple + 1):
+            shifted_back = ifc - mult * if_offset
+            if shifted_back in doif_set:
+                return shifted_back
 
     return ifc
 
@@ -353,6 +368,7 @@ def getFringeSNR(dd, cfg):
     minSNR = float(cfg["SNRCut"])
     DOIF = cfg["DOIF"]
     IF_OFF = int(cfg["IF_OFFSET"])
+    MAX_IF_OFFSET_MULTIPLE = 5
     MIN_ELEV_DEG = cfg.get("MIN_ELEV_DEG", None)
     REQUIRE_CROSSHANDS = cfg.get("REQUIRE_CROSSHANDS", None)
     MIN_UNIQUE_BASELINES = cfg.get("MIN_UNIQUE_BASELINES", None)
@@ -507,18 +523,19 @@ def getFringeSNR(dd, cfg):
     # Use the actual rows to infer whether the binary IF/fridx numbering is 0-based or 1-based.
     if_values_in_rows = set(int(x) for x in np.unique(fringe2["IF"])) if len(fringe2) > 0 else set()
     DIFX_IF_BASE = infer_difx_if_base(
-        DOIF,
-        if_values_in_rows,
-        IF_OFF,
+        DOIF, if_values_in_rows, IF_OFF,
         DIFX_IF_BASE_REQUESTED,
+        max_if_offset_multiple=MAX_IF_OFFSET_MULTIPLE,
     )
     shifted_ifs_present = []
     for IFp in DOIF:
         IFp = int(IFp)
         IF_main = IFp if DIFX_IF_BASE == 1 else IFp - 1
-        IF_shift = IF_main + IF_OFF
-        if IF_OFF != 0 and IF_shift in if_values_in_rows:
-            shifted_ifs_present.append(IF_shift)
+        if IF_OFF != 0:
+            for mult in range(1, MAX_IF_OFFSET_MULTIPLE + 1):
+                IF_shift = IF_main + mult * IF_OFF
+                if IF_shift in if_values_in_rows:
+                    shifted_ifs_present.append(IF_shift)
     shifted_ifs_present = sorted(set(shifted_ifs_present))
     warnings.append(
         "%s: SWIN reader uses output Nchan=%d; inferred DIFX_IF_BASE=%d; binary IF range=%s"
@@ -588,16 +605,17 @@ def getFringeSNR(dd, cfg):
             # Binary SWIN IF/fridx can be either 1-based or 0-based.
             IF_main = IFp if DIFX_IF_BASE == 1 else IFp - 1
             IF_candidates = [int(IF_main)]
-            # Only test shifted IF if that physical IF actually exists in the binary rows.
+            # Only test shifted IFs if the physical IFs actually exist in the binary rows.
             if IF_OFF != 0:
-                IF_shift = int(IF_main + IF_OFF)
-                if IF_shift in if_values_in_rows:
-                    IF_candidates.append(IF_shift)
+                for mult in range(1, MAX_IF_OFFSET_MULTIPLE + 1):
+                    IF_shift = int(IF_main + mult * IF_OFF)
+                    if IF_shift in if_values_in_rows:
+                        IF_candidates.append(IF_shift)
             # Remove duplicates in case IF_OFF=0 or something odd.
             IF_candidates = list(dict.fromkeys(IF_candidates))
             any_candidate_has_rows = False
             for IFc in IF_candidates:
-                IFl = physical_if_to_logical_if_with_base(IFc, DOIF, IF_OFF, DIFX_IF_BASE)
+                IFl = physical_if_to_logical_if_with_base(IFc, DOIF, IF_OFF, DIFX_IF_BASE, max_if_offset_multiple=MAX_IF_OFFSET_MULTIPLE)
                 MASK = np.logical_and(fringe2["BAS"] == BSel, fringe2["IF"] == IFc)
                 if np.sum(MASK) == 0:
                     continue
