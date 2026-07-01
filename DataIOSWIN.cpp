@@ -372,6 +372,8 @@ void DataIOSWIN::readHeader(bool doTest, int saveSource) {
 
   bool isInIF = false;
   int isIFidx = 0;
+// Accept shifted IF blocks (0-31, 32-63, 64-95...) with mapping bounded
+  const int MaxIFOffsetMultiple = 5;
 
 // AUXILIARY BINARY FILES TO STORE CIRCULAR VISIBILITIES:
   FILE **circFile = new FILE*[nDoIF];
@@ -478,10 +480,26 @@ void DataIOSWIN::readHeader(bool doTest, int saveSource) {
 
     beg = newdifx[auxI].tellg();
 
-
     isInIF = false;
-    for(auxJ=0;auxJ<nDoIF;auxJ++){
-      if (fridx==DoIF[auxJ] || fridx==DoIF[auxJ]+IFOffset){isInIF=true; isIFidx = auxJ; fridx = DoIF[auxJ]; break;};
+    for(auxJ=0; auxJ<nDoIF; auxJ++){
+      if (fridx == DoIF[auxJ]) {
+        isInIF = true;
+        isIFidx = auxJ;
+        fridx = DoIF[auxJ];
+        break;
+      };
+      if (IFOffset > 0 && fridx > DoIF[auxJ]) {
+        int ifDelta = fridx - DoIF[auxJ];
+        if (ifDelta % IFOffset == 0) {
+          int ifOffsetMultiple = ifDelta / IFOffset;
+          if (ifOffsetMultiple >= 1 && ifOffsetMultiple <= MaxIFOffsetMultiple) {
+            isInIF = true;
+            isIFidx = auxJ;
+            fridx = DoIF[auxJ];
+            break;
+          };
+        };
+      };
     };
 
 
