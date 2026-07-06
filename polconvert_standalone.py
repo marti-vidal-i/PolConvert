@@ -51,8 +51,8 @@
 from __future__ import absolute_import
 from __future__ import print_function
 
-__version__ = " 2.5   "  # 7 characters
-date = "June 9, 2026"
+__version__ = " 2.6   "  # 7 characters
+date = "July 6, 20256"
 
 
 ################
@@ -1429,6 +1429,187 @@ def polconvert(
         ]:
             if not os.path.exists(dirnam):
                 os.system("mkdir %s" % dirnam)
+
+    def _drop_incomplete_swin_groups(output_files, frinfo):
+        """
+        SWIN sanitiser for DiFX files with incomplete polarization groups.
+
+        Removes whole (baseline,mjd,seconds,IF) groups that do not contain
+        exactly four polarization products before entering PolConvert.
+        This avoids PolConvert hanging on partial polarization groups.
+        """
+
+        HDR_FMT_LOCAL = "<iidiii2s"
+        HDR_SIZE_LOCAL = stk.calcsize(HDR_FMT_LOCAL)
+        AFTER_POL_BYTES_LOCAL = 4 + 8 + 3*8
+        VALID_POLS_LOCAL = set("XYRL")
+
+        def _nchan_by_if_from_frinfo():
+            out = {}
+            for i in range(len(frinfo["NUM CHANNELS"])):
+                n = int(frinfo["NUM CHANNELS"][i])
+                a = int(frinfo["CHANS TO AVG"][i])
+                if a <= 0 or n % a != 0:
+                    printError(
+                        "Bad NUM CHANNELS / CHANS TO AVG for IF %d: %d/%d"
+                        % (i, n, a)
+                    )
+                out[i] = n // a
+            return out
+
+        nchan_by_if = _nchan_by_if_from_frinfo()
+
+        def _plausible(buf):
+            if len(buf) != HDR_SIZE_LOCAL:
+                return False
+            try:
+                basel, mjd, secs, cfidx, sidx, fridx, pol2 = stk.unpack(HDR_FMT_LOCAL, buf)
+                pol = pol2.decode("ascii")
+            except Exception:
+                return False
+            if len(pol) != 2:
+                return False
+            if pol[0] not in VALID_POLS_LOCAL or pol[1] not in VALID_POLS_LOCAL:
+                return False
+            if fridx not in nchan_by_if:
+                return False
+            if not (50000 <= mjd <= 70000):
+                return False
+            if not (0.0 <= secs < 86400.0):
+                return False
+            if basel <= 0:
+                return False
+            return True
+
+        def _autodetect_layout(f, first_header_pos, first_fridx):
+            candidates = [
+                (0, 8), (1, 0), (1, 8),
+                (0, 0), (2, 0), (2, 8),
+                (0, 4), (1, 4), (0, 12), (1, 12),
+                (0, 16), (1, 16),
+            ]
+            nchan = nchan_by_if[first_fridx]
+            for extra_complex, trailer_bytes in candidates:
+                next_pos = (
+                    first_header_pos
+                    + HDR_SIZE_LOCAL
+                    + AFTER_POL_BYTES_LOCAL
+                    + (nchan + extra_complex) * 8
+                    + trailer_bytes
+                )
+                f.seek(next_pos)
+                if _plausible(f.read(HDR_SIZE_LOCAL)):
+                    return extra_complex, trailer_bytes
+
+            printError("Could not autodetect SWIN record layout")
+
+        def _scan_groups(path):
+            groups = {}
+            recmeta = []
+
+            with open(path, "rb") as f:
+                prefix = f.read(8)
+                first_header_pos = f.tell()
+                first = f.read(HDR_SIZE_LOCAL)
+                if len(first) != HDR_SIZE_LOCAL:
+                    printError("Could not read first SWIN header in %s" % path)
+
+                basel0, mjd0, secs0, cfidx0, sidx0, fridx0, pol20 = stk.unpack(HDR_FMT_LOCAL, first)
+                if fridx0 not in nchan_by_if:
+                    printError("First SWIN record has bad IF index %s in %s" % (fridx0, path))
+
+                extra_complex, trailer_bytes = _autodetect_layout(f, first_header_pos, fridx0)
+
+                f.seek(first_header_pos)
+                nrec = 0
+
+                while True:
+                    pos = f.tell()
+                    buf = f.read(HDR_SIZE_LOCAL)
+                    if len(buf) == 0:
+                        break
+                    if len(buf) != HDR_SIZE_LOCAL:
+                        printError("Truncated SWIN header in %s at record %d" % (path, nrec))
+
+                    basel, mjd, secs, cfidx, sidx, fridx, pol2 = stk.unpack(HDR_FMT_LOCAL, buf)
+                    pol = pol2.decode("ascii", errors="replace")
+
+                    if fridx not in nchan_by_if:
+                        printError(
+                            "Bad IF index %s in %s at record %d offset %d"
+                            % (fridx, path, nrec, pos)
+                        )
+
+                    nchan = nchan_by_if[fridx]
+                    rest_len = AFTER_POL_BYTES_LOCAL + (nchan + extra_complex) * 8 + trailer_bytes
+                    secs_us = int(round(secs * 1000000.0))
+                    key = (basel, mjd, secs_us, fridx)
+
+                    groups.setdefault(key, set()).add(pol)
+                    recmeta.append((pos, HDR_SIZE_LOCAL + rest_len, key))
+
+                    f.seek(rest_len, os.SEEK_CUR)
+                    nrec += 1
+
+            bad_groups = set([key for key, pols in groups.items() if len(pols) != 4])
+            return bad_groups, groups, recmeta
+
+        for path in output_files:
+            if not os.path.isfile(path):
+                printMsg("[POLCONVERT_INCOMPLETE_GROUP_FIX] skipping non-file %s" % path)
+                continue
+
+            bad_groups, groups, recmeta = _scan_groups(path)
+
+            printMsg(
+                "[POLCONVERT_INCOMPLETE_GROUP_FIX] %s groups=%d incomplete=%d"
+                % (path, len(groups), len(bad_groups))
+            )
+
+            if len(bad_groups) == 0:
+                continue
+
+            backup_dir = os.path.join(
+                os.path.dirname(os.path.dirname(path)),
+                "DROP_INCOMPLETE_BACKUPS",
+                os.path.basename(os.path.dirname(path))
+            )
+
+            if not os.path.exists(backup_dir):
+                os.makedirs(backup_dir)
+
+            backup = os.path.join(
+                backup_dir,
+                os.path.basename(path) + ".BEFORE_DROP_INCOMPLETE"
+            )
+
+            tmp = path + ".DROP_INCOMPLETE.tmp"
+
+            shutil.copy2(path, backup)
+
+            dropped_records = 0
+            kept_records = 0
+
+            with open(backup, "rb") as fin, open(tmp, "wb") as fout:
+                fout.write(fin.read(8))
+
+                for pos, rec_len, key in recmeta:
+                    fin.seek(pos)
+                    data = fin.read(rec_len)
+                    if key in bad_groups:
+                        dropped_records += 1
+                    else:
+                        fout.write(data)
+                        kept_records += 1
+
+            os.rename(tmp, path)
+
+            printMsg(
+                "[POLCONVERT_INCOMPLETE_GROUP_FIX] rewrote %s kept_records=%d dropped_records=%d backup=%s"
+                % (path, kept_records, dropped_records, backup)
+            )
+
+    _drop_incomplete_swin_groups(OUTPUT if isSWIN else [], FrInfo)
 
     printMsg("\n###\n### Going to PolConvert\n###")
 
@@ -2934,7 +3115,18 @@ def polconvert(
                 pl.xlabel("IF NUMBER")
                 dChan = max(plotIF) - min(plotIF) + 1
                 pl.xlim((min(plotIF) - dChan * 0.2, max(plotIF) + 0.4 * dChan))
-                pl.ylim((0.0, 1.1 * np.max(CONVAMP[:, [1, 3, 5, 7]])))
+                ampvals = CONVAMP[:, [1, 3, 5, 7]]
+                ampvals = ampvals[np.isfinite(ampvals)]
+
+                if ampvals.size > 0 and np.nanmax(ampvals) > 0.0:
+                    pl.ylim((0.0, 1.1 * np.nanmax(ampvals)))
+                else:
+                    printMsg(
+                        "WARNING: no finite converted fringe amplitudes for "
+                        "ANT %i vs plotAnt %i; using default plot limits"
+                        % (thisAnt, plotAnt)
+                    )
+                    pl.ylim((0.0, 1.0))
                 fig.suptitle(jobLabel(DiFXinput) + " ANT: %i v %i" % (thisAnt, plotAnt))
                 fig.savefig(
                     "FRINGE.PLOTS/ALL_IFs_ANT_%i_%i%s.png"
