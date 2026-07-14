@@ -52,7 +52,7 @@ from __future__ import absolute_import
 from __future__ import print_function
 
 __version__ = " 2.6   "  # 7 characters
-date = "July 6, 20256"
+date = "July 14, 2026"
 
 
 ################
@@ -159,7 +159,9 @@ def polconvert(
     UVTaper=1.e9,
     useRates = False,
     useDelays = False,
-    mounts = {}
+    mounts = {},
+    sanitizeIncompleteGroups = True,
+    sanitizeOnly = False
 ):
 
     """POLCONVERT - STANDALONE VERSION 2.0.7
@@ -246,7 +248,9 @@ def polconvert(
             "UVTaper": UVTaper,
             "useRates":useRates,
             "useDelays":useDelays,
-            "mounts":mounts
+            "mounts":mounts,
+            "sanitizeIncompleteGroups": sanitizeIncompleteGroups,
+            "sanitizeOnly": sanitizeOnly
         }
 
         OFF = open("PolConvert_standalone.last_%s"%plotSuffix, "wb")
@@ -1183,12 +1187,23 @@ def polconvert(
                     )
 
                     if len(PCFile) == 0:
-                        ## If antenna has missing PCAL, there is no error anymore (dummy pcals are used instead):
-                        pcalScan = "_".join(
-                            os.path.basename(phcalscan[0]).split("_")[1:3]
-                        )
+                    # Missing PCAL is handled with dummy values.
+                    # Do not assume phcalscan contains at least one file
+                        if len(phcalscan) > 0:
+                            pcal_base = os.path.basename(phcalscan[0])
+                            pcal_parts = pcal_base.split("_")
+                        else:
+                        # Derive the scan timestamp from the corresponding
+                        # DIFX visibility filename instead.
+                            difx_base = os.path.basename(OUTPUT[dfile])
+                            difx_base = difx_base.split(".")[0]
+                            pcal_parts = difx_base.split("_")
+                        if len(pcal_parts) >= 3:
+                            pcalScan = "_".join(pcal_parts[1:3])
+                        else:
+                            pcalScan = os.path.basename(OUTPUT[dfile])
                         printMsg(
-                            "\n\n SANITY-TEST FAILURE! NO PHASECAL FOR %s IN SCAN %s\n"
+                            "\n\n SANITY-TEST FAILURE! NO PHASECAL FOR %s IN SCAN %s; USING DUMMY PCAL\n"
                             % (doant, pcalScan)
                         )
                         isPcalFile = False
@@ -1580,7 +1595,7 @@ def polconvert(
 
             backup = os.path.join(
                 backup_dir,
-                os.path.basename(path) + ".BEFORE_DROP_INCOMPLETE"
+                "BEFORE_DROP_INCOMPLETE." + os.path.basename(path)
             )
 
             tmp = path + ".DROP_INCOMPLETE.tmp"
@@ -1602,14 +1617,24 @@ def polconvert(
                         fout.write(data)
                         kept_records += 1
 
-            os.rename(tmp, path)
+            os.replace(tmp, path)
 
             printMsg(
                 "[POLCONVERT_INCOMPLETE_GROUP_FIX] rewrote %s kept_records=%d dropped_records=%d backup=%s"
                 % (path, kept_records, dropped_records, backup)
             )
+    
+    if isSWIN and sanitizeIncompleteGroups:
+        _drop_incomplete_swin_groups(OUTPUT, FrInfo)
 
-    _drop_incomplete_swin_groups(OUTPUT if isSWIN else [], FrInfo)
+    if sanitizeOnly:
+        printMsg(
+            "\n###\n"
+            "### SWIN sanitization completed.\n"
+            "### sanitizeOnly=True; compiled PolConvert will not run.\n"
+            "###"
+        )
+        return 0
 
     printMsg("\n###\n### Going to PolConvert\n###")
 
