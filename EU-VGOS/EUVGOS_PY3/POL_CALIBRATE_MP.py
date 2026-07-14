@@ -158,6 +158,8 @@ def POL_CALIBRATE(
             doTest=True,
             UVTaper=UVTAPER,
             solint=[CHANSOL, INTTIME],
+            # CALDIR was already sanitized once by STEP1_SANITIZE.
+            sanitizeIncompleteGroups=False,
         )
 
         # raw_input('HOLD')
