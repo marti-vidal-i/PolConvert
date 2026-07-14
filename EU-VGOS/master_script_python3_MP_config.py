@@ -1,6 +1,6 @@
 #########################
 ### MASTER SCRIPT FOR EU-VGOS POLCONVERSION.
-### VERSION 15/05/2026.
+### VERSION 15/07/2026.
 ### E. ALBENTOSA-RUIZ & I. MARTI-VIDAL & J. GONZALEZ
 #########################
 
@@ -33,7 +33,7 @@ import pathlib
 import importlib.util
 
 
-# Allow: python master_script.py config_myexp.py
+# Allow: python master_script_python3_MP_config.py config_myexp.py
 # Default config if none is provided:
 DEFAULT_CONFIG = "config.py"
 CONFIG_FILE = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_CONFIG
@@ -56,7 +56,10 @@ logger = logging.getLogger("MASTER")
 logger.setLevel(logging.INFO)
 logger.handlers[:] = []
 
-_fmt = logging.Formatter("%(asctime)s | %(levelname)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+_fmt = logging.Formatter(
+    "%(asctime)s | %(levelname)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
 
 _fh = logging.FileHandler(MASTER_LOG, mode="a")
 _fh.setFormatter(_fmt)
@@ -95,8 +98,8 @@ def unique_log_copy_name(base_name):
         if not os.path.exists(candidate):
             return candidate
         i += 1
-
 ########### +++++++++++++++++++++++++++++++++++++++++++++  ###########
+
 
 PIPELINE_AUTO_FILE = "%s_PipelineAuto.dat" % EXPNAME
 
@@ -121,8 +124,6 @@ SAMP_DELAYS = ensure_samp_delays_from_corr(
     user_samp_delays=SAMP_DELAYS,
 )
 
-if 'XPOL_DELAYS' not in globals() or XPOL_DELAYS is None:
-    XPOL_DELAYS = {}
 # XPOL workflow rule
 if AUTO_XPOL_DELAY and (1 in mysteps):
     XPOL_DELAYS = {}
@@ -143,15 +144,16 @@ log_kv("Initial experiment configuration", {
     "IF_OFFSET": IF_OFFSET,
     "AUTO_XPOL_DELAY": AUTO_XPOL_DELAY,
     "TWO_ITER_STEP1": TWO_ITER_STEP1,
-    "REFANT": REFANT,
-    "REFANT_SELECTION_MODE": globals().get("REFANT_SELECTION_MODE", "highest_snr"),
 })
-logger.info("Loaded metadata: ANT_COORDS=%d, HOPSNAMES=%d, SAMP_DELAYS=%d", len(ANT_COORDS), len(HOPSNAMES), len(SAMP_DELAYS))
+logger.info("Loaded metadata: ANT_COORDS=%d, HOPSNAMES=%d, SAMP_DELAYS=%d",
+            len(ANT_COORDS), len(HOPSNAMES), len(SAMP_DELAYS))
 ########### +++++++++++++++++++++++++++++++++++++++++++++  ###########
+
 
 # Keywords used in all steps will be saved here:
 if not os.path.exists('STEP_KEYWORDS'):
   os.system('mkdir STEP_KEYWORDS')
+
 
 
 # All auxiliary scripts will start with these lines:
@@ -540,6 +542,7 @@ if 0 in mysteps:
         ant for ant in ALL_ANTENNAS_STEP0
         if ant not in EXCLUDE_ANTENNA
     ]
+
     connected = {}
     missing = []
     added = []
@@ -549,6 +552,7 @@ if 0 in mysteps:
 
       if ant == refant:
         continue
+
       if _baseline_is_excluded(refant, ant):
         missing.append({
             "ant": ant,
@@ -564,6 +568,7 @@ if 0 in mysteps:
           and _inspection_scan_ok(s)
           and _scan_has_ant_pair(s, refant, ant)
       ]
+
       if len(already_candidates) > 0:
         best_s = max(
             already_candidates,
@@ -584,6 +589,7 @@ if 0 in mysteps:
           if _inspection_scan_ok(s)
           and _scan_has_ant_pair(s, refant, ant)
       ]
+
       if len(candidates) == 0:
         missing.append({
             "ant": ant,
@@ -595,6 +601,7 @@ if 0 in mysteps:
           candidates,
           key=lambda s: _connection_scan_score(s, refant, ant)
       )
+
       calib_set.add(best_s.get("code"))
       connected[ant] = {
           "scan": best_s.get("code"),
@@ -603,6 +610,7 @@ if 0 in mysteps:
           "snr_pass": _snr_pass_scan(best_s),
           "ant_snr": best_s.get("ant_snr", {}).get(ant, None),
       }
+
       added.append({
           "ant": ant,
           "scan": best_s.get("code"),
@@ -628,12 +636,14 @@ if 0 in mysteps:
       and not _ant_has_bad_if(ant)
       and ant not in SHORT_BASELINE_ANTS
   ]
+
   # Prefer tone-rich REFANTs. If no tone-rich clean candidate exists,
   # fall back to all clean candidates.
   usable_refants_tone_rich = [
       ant for ant in usable_refants_all
       if ant in tone_rich_ants
   ]
+
   if len(usable_refants_tone_rich) > 0:
     refant_candidates = sorted(
         usable_refants_tone_rich,
@@ -653,32 +663,35 @@ if 0 in mysteps:
     logger.warning("No clean tone-rich REFANT candidate found; using clean high-SNR candidates.")
     logger.info("REFANT candidates: %s", refant_candidates)
 
-  # If user supplied REFANT and it is clean, use ONLY that antenna.
-  # If it is invalid, discard it and continue with automatic selection.
-  USER_REFANT = REFANT
-  if USER_REFANT is not None and USER_REFANT != "":
-    if (USER_REFANT in ALL_ANTENNAS_STEP0 and USER_REFANT not in EXCLUDE_ANTENNA and not _ant_has_bad_if(USER_REFANT) ):
-      refant_candidates = [USER_REFANT]
-      print("User REFANT=%s accepted as the only REFANT candidate." % USER_REFANT)
-      logger.info("User REFANT=%s accepted as the only REFANT candidate.", USER_REFANT)
-    else:
-      print("WARNING: user REFANT=%s is invalid, excluded, non-participating, or has BAD_IF. Discarding it and using automatic REFANT selection." % USER_REFANT)
-      logger.warning("User REFANT=%s is invalid, excluded, non-participating, or has BAD_IF. Discarding it and using automatic REFANT selection.", USER_REFANT)
-      USER_REFANT = None
-      REFANT = None
-
   if len(refant_candidates) == 0:
     raise RuntimeError(
-        "No valid REFANT candidates available. "
-        "No user REFANT was accepted, and all automatic candidates are excluded, have BAD_IF, or are involved in short/intra-site baselines."
+        "No clean REFANT candidates available. "
+        "All antennas are excluded, have BAD_IF, or are involved in short/intra-site baselines."
     )
 
+  # If user supplied REFANT and it is clean, use ONLY that antenna.
+  # Do not include other candidates.
+  if 'REFANT' in globals() and REFANT is not None and REFANT != "":
+    if (
+        REFANT in ALL_ANTENNAS_STEP0
+        and REFANT not in EXCLUDE_ANTENNA
+        and not _ant_has_bad_if(REFANT)
+    ):
+      refant_candidates = [REFANT]
+      print("User REFANT=%s accepted as the only REFANT candidate." % REFANT)
+      logger.info("User REFANT=%s accepted as the only REFANT candidate.", REFANT)
+    else:
+      refant_candidates = []
+      print("WARNING: user REFANT=%s is not clean enough for automatic REFANT selection." % REFANT)
+      logger.warning("User REFANT=%s is not clean enough for automatic REFANT selection.", REFANT,)
+
+
   initial_polcal_scans = list(POLCAL_SCAN)
-  REFANT_SELECTION_MODE = globals().get("REFANT_SELECTION_MODE", "highest_snr")
 
   if len(SCAN_INFO) == 0:
     print("WARNING: SCAN_INFO unavailable. REFANT baseline coverage cannot be optimized; selecting best clean REFANT by score.")
     logger.warning("SCAN_INFO unavailable. REFANT baseline coverage cannot be optimized; selecting best clean REFANT by score.")
+
     REFANT = refant_candidates[0]
     final_solution = {
       "refant": REFANT,
@@ -694,42 +707,63 @@ if 0 in mysteps:
   else:
     solutions = []
 
-    if REFANT_SELECTION_MODE == "highest_snr" and (USER_REFANT is None or USER_REFANT == ""):
-      best_snr_refant = max(refant_candidates, key=_ant_snr_score)
-      refant_candidates = [best_snr_refant]
-      print("REFANT selection mode highest_snr: using highest-SNR clean antenna %s as only REFANT candidate." % best_snr_refant)
-      logger.info("REFANT selection mode highest_snr: using highest-SNR clean antenna %s as only REFANT candidate.", best_snr_refant)
-
     for cand_refant in refant_candidates:
-      sol = _evaluate_refant_candidate(cand_refant, initial_polcal_scans)
+      sol = _evaluate_refant_candidate(
+          cand_refant,
+          initial_polcal_scans,
+      )
       solutions.append(sol)
-      print("REFANT candidate %s: connects %d stations; missing %d; score %.3f" % (cand_refant, sol["n_connected"], sol["n_missing"], sol["score"]))
-      logger.info("REFANT candidate %s: connects %d stations; missing %d; score %.3f", cand_refant, sol["n_connected"], sol["n_missing"], sol["score"])
 
-    if REFANT_SELECTION_MODE == "highest_snr":
-      final_solution = solutions[0]
-    else:
-      # Select the REFANT that maximizes direct-baseline coverage.
-      # Tie-breaker: intrinsic REFANT score, mostly tone-rich + SNR.
-      final_solution = max(solutions, key=lambda sol: (sol["n_connected"], sol["score"]))
+      print(
+          "REFANT candidate %s: connects %d stations; missing %d; score %.3f"
+          % (
+              cand_refant,
+              sol["n_connected"],
+              sol["n_missing"],
+              sol["score"],
+          )
+      )
+      logger.info(
+          "REFANT candidate %s: connects %d stations; missing %d; score %.3f",
+          cand_refant,
+          sol["n_connected"],
+          sol["n_missing"],
+          sol["score"],
+      )
+
+    # Select the REFANT that maximizes direct-baseline coverage.
+    # Tie-breaker: intrinsic REFANT score, mostly tone-rich + SNR.
+    final_solution = max(
+        solutions,
+        key=lambda sol: (
+            sol["n_connected"],
+            sol["score"],
+        )
+    )
+
     REFANT = final_solution["refant"]
 
   POLCAL_SCAN = final_solution["polcal_scan"]
   ADDITIVE_PHASE_SCANS = list(POLCAL_SCAN)
 
-  if USER_REFANT is not None and USER_REFANT != "":
-    print("REFANT selected from user configuration: %s" % REFANT)
-    logger.info("REFANT selected from user configuration: %s", REFANT)
-  elif REFANT_SELECTION_MODE == "highest_snr":
-    print("REFANT selected by highest clean station SNR: %s" % REFANT)
-    logger.info("REFANT selected by highest clean station SNR: %s", REFANT)
-  else:
-    print("REFANT selected by maximum SNR-passing direct-baseline coverage: %s" % REFANT)
-    logger.info("REFANT selected by maximum SNR-passing direct-baseline coverage: %s", REFANT)
-
-  print("REFANT=%s connects %d stations; missing %d." % (REFANT, final_solution["n_connected"], final_solution["n_missing"]) )
+  print("REFANT selected by maximum SNR-passing direct-baseline coverage: %s" % REFANT)
+  print(
+      "REFANT=%s connects %d stations; missing %d."
+      % (
+          REFANT,
+          final_solution["n_connected"],
+          final_solution["n_missing"],
+      )
+  )
   print("POLCAL_SCAN after preserving original scans and adding REFANT-connection scans: %s" % str(POLCAL_SCAN))
-  logger.info("REFANT=%s connects %d stations; missing %d.", REFANT, final_solution["n_connected"], final_solution["n_missing"] )
+
+  logger.info("REFANT selected by maximum SNR-passing direct-baseline coverage: %s", REFANT)
+  logger.info(
+      "REFANT=%s connects %d stations; missing %d.",
+      REFANT,
+      final_solution["n_connected"],
+      final_solution["n_missing"],
+  )
   logger.info("POLCAL_SCAN after preserving original scans and adding REFANT-connection scans: %s", POLCAL_SCAN)
 
   if final_solution["connected"]:
@@ -738,7 +772,9 @@ if 0 in mysteps:
 
     for ant in sorted(final_solution["connected"]):
       item = final_solution["connected"][ant]
-      print("  %s -- %s: scan %s  ant_snr=%s  FINAL_PASS=%s  already_selected=%s" % (
+      print(
+          "  %s -- %s: scan %s  ant_snr=%s  FINAL_PASS=%s  already_selected=%s"
+          % (
               REFANT,
               ant,
               item["scan"],
@@ -747,7 +783,8 @@ if 0 in mysteps:
               str(item["already_selected"]),
           )
       )
-      logger.info("  %s -- %s: scan %s  ant_snr=%s  FINAL_PASS=%s  already_selected=%s",
+      logger.info(
+          "  %s -- %s: scan %s  ant_snr=%s  FINAL_PASS=%s  already_selected=%s",
           REFANT,
           ant,
           item["scan"],
@@ -904,6 +941,8 @@ if 0 in mysteps:
     pass
 
 need_pipeline_auto = (len(mysteps) > 0) and (max(mysteps) > 0) ### NOTE: SET TO False IF TESTING MANUAL CONFIGURATION SKIPPING STEP 0!!!
+tone_rich_ants = set()
+tone_poor_ants = set()
 if os.path.exists(PIPELINE_AUTO_FILE):
   with open(PIPELINE_AUTO_FILE, "rb") as f:
     auto = pk.load(f)
@@ -919,6 +958,9 @@ if os.path.exists(PIPELINE_AUTO_FILE):
   ADDITIVE_PHASE_SCANS = auto.get("ADDITIVE_PHASE_SCANS", ADDITIVE_PHASE_SCANS)
   XPOL_DELAYS = auto.get("XPOL_DELAYS", XPOL_DELAYS)
 
+  tone_rich_ants = set(auto.get("tone_rich_ants", []))
+  tone_poor_ants = set(auto.get("tone_poor_ants", []))
+
   logger.info("Loaded pipeline auto file: %s", PIPELINE_AUTO_FILE)
   logger.info("Auto settings loaded: POLCAL_SCAN=%s REFANT=%s EXCLUDE_ANTENNA=%s BAD_IF=%s", POLCAL_SCAN, REFANT, EXCLUDE_ANTENNA, BAD_IF)
 
@@ -928,8 +970,6 @@ elif need_pipeline_auto:
     "BAD_IF, USE_PCAL, REFANT, GFF_REFANTS, ANT_WEIGHTS, EXCLUDE_ANTENNA and EXCLUDE_BASELINE."
     % PIPELINE_AUTO_FILE
   )
-
-
 
 
 
@@ -972,10 +1012,76 @@ if 1 in mysteps:
     print(Start % SCRIPT_NAME, file=OFF)
     print('SwConcat.swinConcat(**kww)', file=OFF)
 
-  os.system(PYTHON_CALL % SCRIPT_NAME)
-
+  concat_rcode = os.system(PYTHON_CALL % SCRIPT_NAME)
+  if concat_rcode != 0:
+      logger.error("STEP1_CONCAT failed with rcode=%s", concat_rcode)
+      raise RuntimeError("STEP1_CONCAT failed. STEP1_SANITIZE will not be started.")
   logger.info("Substep 1A completed: concatenated %d POLCAL scan(s) into %s", len(POLCAL_SCAN), CALDIR)
 
+  # ---------------------------------------
+  # Substep 1A.1:
+  # Sanitize the shared concatenated SWIN dataset exactly once,
+  # before any parallel per-IF POL_CALIBRATE workers are started.
+  logger.info(
+      "Substep 1A.1: checking concatenated SWIN files "
+      "for incomplete polarization groups"
+  )
+
+  SCRIPT_NAME = "STEP1_SANITIZE"
+
+  sanitize_keyw = {
+      "IDI": CALDIR,
+      "OUTPUTIDI": CALDIR,
+      # A representative input/calc pair is enough because SWIN_CONCAT
+      # harmonizes the metadata across the calibration scans.
+      "DiFXinput": os.path.join(
+          CALDIR,
+          "%s_%s.input" % (EXPNAME, POLCAL_SCAN[0]),
+      ),
+      "DiFXcalc": os.path.join(
+          CALDIR,
+          "%s_%s.calc" % (EXPNAME, POLCAL_SCAN[0]),
+      ),
+      # The sanitizer scans every IF found in FrInfo. doIF here is only
+      # needed to satisfy the normal polconvert setup.
+      "doIF": [int(list(DOIF)[0])],
+      # No calibration or PCAL processing is required for this pass.
+      "linAntIdx": [],
+      "usePcal": {},
+      "plotIF": [],
+      "plotAnt": "",
+      "doSolve": -1,
+      "doTest": True,
+      "sanitizeIncompleteGroups": True,
+      "sanitizeOnly": True,
+  }
+
+  with open("keywords_%s.dat" % SCRIPT_NAME, "wb") as keys:
+      pk.dump(sanitize_keyw, keys, protocol=0)
+
+  with open("%s.py" % SCRIPT_NAME, "w") as OFF:
+      print(Start % SCRIPT_NAME, file=OFF)
+      print("status = PC.polconvert(**kww)", file=OFF)
+      print("raise SystemExit(0 if status == 0 else 1)", file=OFF)
+
+  sanitize_rcode = os.system(PYTHON_CALL % SCRIPT_NAME)
+
+  if sanitize_rcode != 0:
+      logger.error(
+          "Substep 1A.1 failed: SWIN sanitizer returned rcode=%s",
+          sanitize_rcode,
+      )
+      raise RuntimeError(
+          "STEP1_SANITIZE failed. "
+          "Parallel POL_CALIBRATE workers will not be started."
+      )
+
+  logger.info(
+      "Substep 1A.1 completed: concatenated SWIN files "
+      "are ready for parallel per-IF processing"
+  )
+
+  # ---------------------------------------
   for SI in POLCAL_SCAN:
     pcals = glob.glob(os.path.join(CALDIR, '%s_%s.difx/PCAL*' % (EXPNAME, SI)))
     for pcal in pcals:
@@ -1220,6 +1326,7 @@ if 1 in mysteps:
       sub = fig.add_subplot(Ncol, NROW, i + 1)
 
       ALLIF = sorted(glob.glob('FRINGE.PEAKS/FRINGE.PEAKS_IF*_%s*.dat' % ANTS[i]))
+
       toplot = []
       MAX = 0.0
       MAXIF = 1.0
@@ -1434,14 +1541,17 @@ if 1 in mysteps:
     fringe_bad_ifs = {}
     fringe_good_ifs = {}
 
-    ANTS = [ai for ai in sorted(CALGAINS_RUN1['XYadd'].keys())
-            if ai != REFANT and ai not in EXCLUDE_ANTENNA]
+    ANTS = [
+      ai for ai in sorted(CALGAINS_RUN1['XYadd'].keys())
+      if ai != REFANT and ai not in EXCLUDE_ANTENNA
+    ]
 
     print("[STEP 1] Antennas used for fringe classification, excluding REFANT=%s: %s" % (REFANT, ",".join(ANTS)))
 
     for ant in ANTS:
       if ant in EXCLUDE_ANTENNA:
         continue
+
       bad_here = []
       good_here = []
 
@@ -1495,12 +1605,14 @@ if 1 in mysteps:
       nbad = len(fringe_bad_ifs[ant])
       ngood = len(fringe_good_ifs[ant])
       ntot = nbad + ngood
+
       if ntot <= 0:
         continue
 
       bad_frac = float(nbad) / float(ntot)
 
-      print("[STEP 1] Fringe quality %-4s: good IFs=%s bad IFs=%s bad_frac=%.2f" % (ant, str(fringe_good_ifs[ant]), str(fringe_bad_ifs[ant]), bad_frac))
+      print("[STEP 1] Fringe quality %-4s: good IFs=%s bad IFs=%s bad_frac=%.2f" %
+            (ant, str(fringe_good_ifs[ant]), str(fringe_bad_ifs[ant]), bad_frac))
 
       if bad_frac > MAX_BAD_IF_FRAC:
         poorly_constrained_ants.append(ant)
@@ -1509,24 +1621,29 @@ if 1 in mysteps:
 
     use_pcal_set1 = dict(USE_PCAL)
     for ant in poorly_constrained_ants:
-      use_pcal_set1[ant] = False
+      if ant in tone_rich_ants:
+        print("[STEP 1] Keeping USE_PCAL[%s]=%s because antenna is tone-rich." % (ant, str(use_pcal_set1.get(ant, True))))
+        logger.info("[STEP 1] Keeping USE_PCAL[%s]=%s; antenna is tone-rich.", ant, str(use_pcal_set1.get(ant, True)))
+      else:
+        use_pcal_set1[ant] = False
+        print("[STEP 1] Disabling USE_PCAL[%s] because antenna is problematic and tone-poor/unknown." % ant)
+        logger.info("[STEP 1] Disabling USE_PCAL[%s] because antenna is problematic and tone-poor/unknown.", ant)
 
-    fit_ants = sorted([ant for ant in poorly_constrained_ants
-                       if ant not in EXCLUDE_ANTENNA])
+    fit_ants = sorted([
+      ant for ant in poorly_constrained_ants
+      if ant not in EXCLUDE_ANTENNA
+    ])
 
     use_pcal_set2 = dict(USE_PCAL)
     for ant in fit_ants:
-      use_pcal_set2[ant] = bool(REENABLE_BAD_PCAL_USE)
+        use_pcal_set2[ant] = bool(USE_PCAL.get(ant, True)) if ant in tone_rich_ants else bool(REENABLE_BAD_PCAL_USE)
 
-    final_use_pcal = dict(use_pcal_set2)
-    USE_PCAL = final_use_pcal
-
-    print("[STEP 1] Poorly constrained antennas from fringe peaks: %s" %
-          (",".join(poorly_constrained_ants) or "NONE"))
-    print("[STEP 1] Set 1 excludes: %s" %
-          (",".join(exclude_antenna_set1) or "NONE"))
-    print("[STEP 1] Set 2 fits/recover: %s" %
-          (",".join(fit_ants) or "NONE"))
+    #print("[STEP 1] Poorly constrained antennas from fringe peaks: %s" %
+    #      (",".join(poorly_constrained_ants) or "NONE"))
+    #print("[STEP 1] Set 1 excludes: %s" %
+    #      (",".join(exclude_antenna_set1) or "NONE"))
+    #print("[STEP 1] Set 2 fits/recover: %s" %
+    #      (",".join(fit_ants) or "NONE"))
     log_and_print("[STEP 1] Poorly constrained antennas from fringe peaks: %s" %
                   (",".join(poorly_constrained_ants) or "NONE"))
     log_and_print("[STEP 1] Set 1 excludes: %s" %
@@ -1536,17 +1653,20 @@ if 1 in mysteps:
 
     active_ants = list(ANTS)
     if len(fit_ants) == 0:
-      print("[STEP 1] No poorly constrained antennas found; using RUN1 gains as final.")
       log_and_print("[STEP 1] No poorly constrained antennas found; using RUN1 gains as final.")
       GAINS_FINAL = 'POLCAL_GAINS_%s.dat' % EXPNAME
       os.system('cp -p "%s" "%s"' % (GAINS_RUN1, GAINS_FINAL))
+      final_use_pcal = dict(USE_PCAL)
       TWO_ITER_STEP1 = False
     elif len(fit_ants) >= len(active_ants):
-      print("[STEP 1] All antennas seem to be poorly constrained; using RUN1 gains as final.")
       log_and_print("[STEP 1] All active antennas seem to be poorly constrained; using RUN1 gains as final.")
       GAINS_FINAL = 'POLCAL_GAINS_%s.dat' % EXPNAME
       os.system('cp -p "%s" "%s"' % (GAINS_RUN1, GAINS_FINAL))
+      final_use_pcal = dict(USE_PCAL)
       TWO_ITER_STEP1 = False
+    else:
+      final_use_pcal = dict(use_pcal_set2)
+      USE_PCAL = final_use_pcal
       
   # ---------------------------------------
   # 3.5) SwConcat again!
@@ -1728,7 +1848,7 @@ if 1 in mysteps:
     with open(GAINS_FINAL, "wb") as f:
       pk.dump(gains_set1, f, protocol=0)
 
-    print("[STEP 1] Final merged gains written to %s" % GAINS_FINAL)
+    #print("[STEP 1] Final merged gains written to %s" % GAINS_FINAL)
     logger.info("Final merged Step 1 gains written to %s", GAINS_FINAL)
 
   # ---------------------------------------
@@ -1806,9 +1926,6 @@ if 1 in mysteps:
 
   logger.info("Updated pipeline auto file after Step 1: %s", PIPELINE_AUTO_FILE)
   logger.info("STEP 1 completed successfully. Final gains file: %s", GAINS_FINAL)
-
-
-
 
 
 
@@ -1902,7 +2019,9 @@ if 2 in mysteps:
     OFF.close()
     SCRIPT_NAMES.append(SCRIPT_NAME)
 
+
   def DO_PARALLEL(filename):
+
     print('GOING TO RUN %s'%filename)
     os.system(PYTHON_CALL%filename) 
 
@@ -1917,6 +2036,7 @@ if 2 in mysteps:
 
  # for filename in SCRIPT_NAMES:
  #   os.system('rm -rf %s.py'%filename)
+
  # os.system('rm -rf keywords_STEP2_*.dat')
 
   newlogs = glob.glob('*.log')
@@ -1930,7 +2050,6 @@ if 2 in mysteps:
      raise Exception('STEP 2 FAILED!') 
 
   logger.info("STEP 2 completed successfully")
-
 
 
 
@@ -2114,6 +2233,7 @@ if 4 in mysteps:
 
 
 
+
 ## Perform Global Fringe Fitting:
 if 5 in mysteps:
   if len(list(filter(lambda x: 'DO_GFF' not in x, glob.glob('*.FAILED'))))>0:
@@ -2160,6 +2280,7 @@ if 5 in mysteps:
     OFF.close()
     SCRIPT_NAMES.append(SCRIPT_NAME)
 
+
   def DO_PARALLEL(filename):
     print('GOING TO RUN %s'%filename)
     os.system(PYTHON_CALL%filename) 
@@ -2187,6 +2308,8 @@ if 5 in mysteps:
      raise Exception('STEP 5 FAILED!') 
 
   logger.info("STEP 5 completed successfully")
+
+
 
 
 
@@ -2237,6 +2360,7 @@ if 6 in mysteps:
     OFF.close()
     SCRIPT_NAMES.append(SCRIPT_NAME)
 
+
   def DO_PARALLEL(filename):
     print('GOING TO RUN %s'%filename)
     os.system(PYTHON_CALL%filename) 
@@ -2264,7 +2388,6 @@ if 6 in mysteps:
      raise Exception('STEP 6 FAILED!') 
 
   logger.info("STEP 6 completed successfully. Output directory: %s", FINAL_DIR)
-
 
 logger.info("Pipeline finished for requested mysteps=%s", mysteps)
 
