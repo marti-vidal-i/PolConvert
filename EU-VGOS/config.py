@@ -172,7 +172,7 @@ SUFFIX = ''
 MIN_SCAN_SNR = 15.
 
 # Minimum elevation allowed, degrees:
-MIN_ELEV_DEG = 20.
+MIN_ELEV_DEG = 10.
 
 # Minimum uv-span for a scan, meters:
 MIN_UV_SPAN = 1e6
