@@ -172,10 +172,10 @@ SUFFIX = ''
 MIN_SCAN_SNR = 15.
 
 # Minimum elevation allowed, degrees:
-MIN_ELEV_DEG = 10.
+MIN_ELEV_DEG = 13.5
 
 # Minimum uv-span for a scan, meters:
-MIN_UV_SPAN = 1e6
+MIN_UV_SPAN = 5e5
 
 # Minimum number of antennas for a scan:
 MIN_ANTS_PRESENT = 5
@@ -187,7 +187,7 @@ MIN_UNIQUE_BASELINES = MIN_ANTS_PRESENT * (MIN_ANTS_PRESENT - 1) // 2
 MIN_TOTAL_PA_COVERAGE_DEG = 30.
 
 # Target number of PA-usable calibration scans per antenna:
-PA_SCANS_REQUIRED = 2
+PA_SCANS_REQUIRED = 3
 
 
 # =============================================================
