@@ -193,6 +193,7 @@ def POLCONVERTER(
                     "  plotIF = [], Range=[],XYratio=XYG['XYratio'], usePcal = {%s},\n"
                     % (",".join(USE_PCAL_STR))
                 )
+            command += "  sanitizeIncompleteGroups=True,\n"
             command += "  correctParangle=True,doSolve=-1,doTest=False)\n"
             #    command +="OFF=open(\'%s\',\'wb\')\n"%OUT       #; DONE = True"
             #    command +="pk.dump(MY_PCONV,OFF,protocol=0) ; OFF.close()\n"
