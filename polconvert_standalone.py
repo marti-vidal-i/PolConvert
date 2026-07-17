@@ -52,7 +52,7 @@ from __future__ import absolute_import
 from __future__ import print_function
 
 __version__ = " 2.6   "  # 7 characters
-date = "July 14, 2026"
+date = "July 17, 2026"
 
 
 ################
@@ -160,7 +160,7 @@ def polconvert(
     useRates = False,
     useDelays = False,
     mounts = {},
-    sanitizeIncompleteGroups = True,
+    sanitizeIncompleteGroups = False,
     sanitizeOnly = False
 ):
 
@@ -205,6 +205,12 @@ def polconvert(
                 Example: if antenna Yebes-40m (code YB) has Nasmyth left, and all the other antennas
                 have alt-az mounts, then: mounts = {'YB':'NL'}
 
+       sanitizeIncompleteGroups: For SWIN data, check the files before conversion, and
+                remove baseline/time/IF groups that do not contain all four polarization products.
+                A backup of the original file is created before rewriting it.
+
+       sanitizeOnly: If True, stop after the SWIN sanitization step and do not run the compiled PolConvert conversion.
+                This option should normally be used together with sanitizeIncompleteGroups=True.
     """
 
     if saveArgs:
