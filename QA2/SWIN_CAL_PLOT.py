@@ -685,7 +685,8 @@ for BAND in BANDS:
                  LL_SMOO[i] = np.average(VIS2PLOT_LL[i-chSigma:i+chSigma])
                  RL_SMOO[i] = np.average(VIS2PLOT_RL[i-chSigma:i+chSigma])
                  LR_SMOO[i] = np.average(VIS2PLOT_LR[i-chSigma:i+chSigma])
-
+             ch0 = np.max([ch0,chSigma])
+             ch1 = np.min([ch1,Nchan-chSigma])
              RSCALE = np.max(np.abs(VIS2PLOT_RR))
              LSCALE = np.max(np.abs(VIS2PLOT_LL))
              AMP_RATIO = RSCALE/LSCALE
