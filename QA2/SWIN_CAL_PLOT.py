@@ -75,6 +75,17 @@ Argument list:
            USE WITH CAUTION! If there are more than one bands in the DiFX
            directory, all of them will be treated as if they were the same. 
 
+--specline :: If present, the data are assumed to contain spectral line.
+              in that case, no fringe-fitting is done and the time-averaged
+              spectrum is plotted.
+
+--doIF :: Just select/plot these IF numbers.
+
+--channels :: This keyword must be followed by three integers (i1, i2, i3). 
+              When provided, it will only plot between frequency channels i1-i2, 
+              using a spectral boxcar smoothing of width 2*i3.
+
+
 EXAMPLE:
 
 - Plot the AA-AX baseline for all bands and scans of 3C279. The plots
@@ -86,6 +97,9 @@ SWIN_CAL_PLOT.py --datadir ../DiFX --plotdir 3C279_PC_PLOTS  --source 3C279 --an
 
 """
 
+R2P = 180./np.pi
+ZPAD = 11 # Must be an ODD number
+
 
 print(sys.argv)
 print('\n\n')
@@ -94,7 +108,7 @@ if len(sys.argv)==1:
    print(helptxt)
    os._exit(0)
 
-allOptions = ['--nproc','--datadir','--plotdir','--source','--bands','--refant','--antennas','--noEHT']
+allOptions = ['--nproc','--datadir','--plotdir','--source','--bands','--refant','--antennas','--noEHT','--specline','--doIF','--channels']
 for arg in sys.argv:
     if arg.startswith('-') and arg not in allOptions:
         raise Exception("Unknown argument %s"%arg)
@@ -173,11 +187,36 @@ if '--antennas' in sys.argv:
       OTHERANT += list(ant.split(","))
 
 
+## spectral line mode?
+specline = '--specline' in sys.argv
+
+## Select IFs:
+doIF = []
+if '--doIF' in sys.argv:
+   i0 = sys.argv.index('--doIF')
+   i1 = -1
+   for k in range(i0+1,len(sys.argv)):
+      if sys.argv[k].startswith('-'):
+         i1 = k
+         break
+   if i1<0:
+      IFSTR = sys.argv[i0+1:]
+   else:
+      IFSTR = sys.argv[i0+1:i1]
+   for ant in IFSTR:
+      doIF += list(map(int,ant.split(",")))
+
+   # doIF.append(int(sys.argv[sys.argv.index('--doIF')+1]))
 
 
-
-
-
+if '--channels' in sys.argv:
+  ch0 = int(sys.argv[sys.argv.index('--channels')+1])
+  ch1 = int(sys.argv[sys.argv.index('--channels')+2])
+  chSigma = int(sys.argv[sys.argv.index('--channels')+3])
+else:
+  ch0 = 0
+  ch1 = -1
+  chSigma = 0
 
 
 
@@ -302,8 +341,10 @@ for BAND in BANDS:
       P1,P2 = stk.unpack("cc",alldats)
       STRPOL = str(P1.decode('utf-8')+P2.decode('utf-8'))
 
+## Only read the requested IFs:
+      if len(doIF)==0 or SPI in doIF:
 # Autocorrelations:
-      if A1 == A2 and A1 in TOPLOT:
+       if A1 == A2 and A1 in TOPLOT:
         POLCOPY = ''
         if STRPOL in ['RR','XR','RX','XX']:
            POLCOPY ='R'
@@ -334,7 +375,7 @@ for BAND in BANDS:
 
 
 ## Cross-correlations:
-      elif (A1 == PLOTID and A2 in TOPLOT) or (A2 == PLOTID and A1 in TOPLOT):
+       elif (A1 == PLOTID and A2 in TOPLOT) or (A2 == PLOTID and A1 in TOPLOT):
         alldats = frfile.read(4)
         PB = stk.unpack("i",alldats)
         alldats = frfile.read(8)
@@ -355,8 +396,11 @@ for BAND in BANDS:
         DATA['POL'].append(STRPOL)
         DATA['UVW'].append([U,V,W])
         DATA['VIS'].append(visib)
+       else:
+          alldats=frfile.seek(38+8*NCHAN+6,1)  
       else:
           alldats=frfile.seek(38+8*NCHAN+6,1)  
+
 
     frfile.close()
     print("\n Done!")
@@ -369,7 +413,6 @@ for BAND in BANDS:
       DATA['VIS'] = np.array(DATA['VIS'])
       DATA['UVW'] = np.array(DATA['UVW'])
       SCANS.append(DATA)
-
 
 # Normalize the amplitude bandpass across the whole band:
       for anti in BANDPASS.keys():
@@ -410,14 +453,16 @@ for BAND in BANDS:
  RLPHAS = []
  ALLIFS = [np.unique(SCANS[i]['IF']) for i in range(len(SCANS))]
 
+## Which IFs to plot (in specline mode):
+ if specline and len(doIF)==0:
+     doIF = [i for i in ALLIFS[0]]
+
 
  for i,scan in enumerate(SCANS):
    IFMASK = {}
    for k in ALLIFS[i]:
      IFMASK[k] = scan['IF']==k
    scan['mask'] = IFMASK
-
-
 
 ## Calibrate single-band delays and rates. 
 ## Will apply their median across the band:
@@ -457,9 +502,8 @@ for BAND in BANDS:
            RR = np.copy(scan['VIS'][np.logical_and(maskRR,IFMASK[k]),:])
            SHAPE = np.shape(RR)
            thisRate = []; thisDelay = []
-           if SHAPE[0]>0: ## Will fringe-fit with zero-padding factor 5
+           if SHAPE[0]>0: ## Will fringe-fit with zero-padding factor
              SHAPES[k] = SHAPE
-             ZPAD = 11 # Must be an ODD number
              SHAPE2 = (int(SHAPE[0]*ZPAD), int(SHAPE[1]*ZPAD))
              RRSHAPE = np.zeros(SHAPE2,dtype=np.complex64)
              RRSHAPE[int((ZPAD-1)/2)*SHAPE[0]:int((ZPAD+1)/2)*SHAPE[0],int((ZPAD-1)/2)*SHAPE[1]:int((ZPAD+1)/2)*SHAPE[1]] = RR
@@ -472,7 +516,7 @@ for BAND in BANDS:
              thisWgtR.append(0.0)
            LL = np.copy(scan['VIS'][np.logical_and(maskLL,IFMASK[k]),:])
            SHAPE = np.shape(LL)
-           if SHAPE[0]>0: ## Will fringe-fit with zero-padding factor 5
+           if SHAPE[0]>0: ## Will fringe-fit with zero-padding factor
              SHAPES[k] = SHAPE
              SHAPE2 = (int(SHAPE[0]*ZPAD), int(SHAPE[1]*ZPAD))
              LLSHAPE = np.zeros(SHAPE2,dtype=np.complex64)
@@ -553,30 +597,155 @@ for BAND in BANDS:
 
 
 
- print("\nCalibrating delays & rates.")
- pool = Pool(processes = NPROC)
- AVERAGES = pool.map(CALIB_PARALLEL, SCANS)
- pool.close()
- pool.join()
 
- print("\nFinished!")
+ if specline:
+     ## Just plot the spectra:
+
+  fig = pl.figure(figsize=(12,4)); sub = fig.add_subplot(121); sub2 = fig.add_subplot(122)
+     
+  for scan in SCANS:  
+    IFMASK = scan['mask']
+    ALLBAS = np.unique(scan['ANTS'])
+    ALLIFS = np.unique(scan['IF'])
+    SBAS = np.unique(scan["ANTS"])
+    scanName = scan["SCAN"]
+    for AVKEY in SBAS:
+       POLS = np.unique(scan['POL'])
+       dataPol = {}
+       sub.cla(); sub2.cla()
+       print("Plotting spectrum for %s (%s)"%(scanName,AVKEY))
+       for pol in POLS:
+             if pol in ['RR','XR','RX','XX']:
+                 dataPol['RR'] = str(pol)
+             if pol in ['RL','XL','RY','XY']:
+                 dataPol['RL'] = str(pol)
+             if pol in ['LR','YR','LX','YX']:
+                 dataPol['LR'] = str(pol)
+             if pol in ['LL','YL','LY','YY']:
+                 dataPol['LL'] = str(pol)
+       mask0 = scan["ANTS"]==AVKEY
+       maskRR = np.logical_and(mask0,scan['POL']==dataPol['RR'])
+       maskRL = np.logical_and(mask0,scan['POL']==dataPol['RL'])       
+       maskLL = np.logical_and(mask0,scan['POL']==dataPol['LL'])
+       maskLR = np.logical_and(mask0,scan['POL']==dataPol['LR'])
+### Line for testing:   
+###       maskRR = maskLL ; maskRL = maskLR 
+###       dataPol['RR'] = dataPol['LL'] ; dataPol['RL'] = dataPol['LR']
+######
+       RATES = []; SBDs = []; WGT = []; SHAPES = {}
+
+       if np.sum(maskRR)>0 and np.sum(maskLL)>0:
+         thisWgtR = []; thisWgtL = []
+         for ki,k in enumerate(doIF):
+           sub.cla(); sub2.cla()         
+           RR = np.copy(scan['VIS'][np.logical_and(maskRR,IFMASK[k]),:])
+           SHAPE = np.shape(RR)
+           if SHAPE[0]>0: 
+             LL = np.copy(scan['VIS'][np.logical_and(maskLL,IFMASK[k]),:])
+             LR = np.copy(scan['VIS'][np.logical_and(maskLR,IFMASK[k]),:])
+             RL = np.copy(scan['VIS'][np.logical_and(maskRL,IFMASK[k]),:])
+             Nchan = SHAPE[1]
+
+             # Figure out the peak channel of the time average:
+             PEAK = np.argmax(np.abs(np.average(RR,axis=0)) + np.abs(np.average(LL,axis=0)))
+             
+             # Estimate the rate by using the peak channel only (use RR and LL):
+             TIME_RR = RR[:,PEAK] ; TIME_LL = LL[:,PEAK]
+             NTIME_R = len(TIME_RR); NTIME_L = len(TIME_LL)
+             NTIME_RL = len(RL[:,PEAK]); NTIME_LR = len(LR[:,PEAK])
+
+             TIME_RR2 = np.zeros(int(NTIME_R*ZPAD),dtype=np.complex64)
+             TIME_LL2 = np.zeros(int(NTIME_L*ZPAD),dtype=np.complex64)
+
+             TIME_RR2[int((ZPAD-1)/2)*NTIME_R:int((ZPAD+1)/2)*NTIME_R] = RR[:,PEAK]
+             TIME_LL2[int((ZPAD-1)/2)*NTIME_L:int((ZPAD+1)/2)*NTIME_L] = LL[:,PEAK]
+
+             MAX = np.argmax(np.fft.fftshift(np.abs(np.fft.fft(np.fft.ifftshift(TIME_RR2)))))
+             RATR = 2.*np.pi*1.j*(MAX-(NTIME_R*ZPAD)//2)/(NTIME_R*ZPAD/2.)
+             MAX = np.argmax(np.fft.fftshift(np.abs(np.fft.fft(np.fft.ifftshift(TIME_LL2)))))
+             RATL = 2.*np.pi*1.j*(MAX-(NTIME_R*ZPAD)//2)/(NTIME_R*ZPAD/2.)
+             RATE = -(RATR+RATL)/2.  # Rate is the average between R and L
+             ## Line for testing:
+             RATE = 0.0
+             # Apply the rate, compute the average spectrum and plot:
+             VIS2PLOT_RR = np.average(RR*np.exp(RATE*np.linspace((-NTIME_R/2.+1),(NTIME_R/2.),NTIME_R))[:,np.newaxis],axis=0)
+             VIS2PLOT_LL = np.average(LL*np.exp(RATE*np.linspace((-NTIME_R/2.+1),(NTIME_R/2.),NTIME_L))[:,np.newaxis],axis=0)
+             VIS2PLOT_RL = np.average(RL*np.exp(RATE*np.linspace((-NTIME_RL/2.+1),(NTIME_RL/2.),NTIME_RL))[:,np.newaxis],axis=0)
+             VIS2PLOT_LR = np.average(LR*np.exp(RATE*np.linspace((-NTIME_LR/2.+1),(NTIME_LR/2.),NTIME_LR))[:,np.newaxis],axis=0)
+
+
+             # Apply spectral smoothings:
+             RR_SMOO = np.copy(VIS2PLOT_RR)
+             LL_SMOO = np.copy(VIS2PLOT_LL)
+             RL_SMOO = np.copy(VIS2PLOT_RL)
+             LR_SMOO = np.copy(VIS2PLOT_LR)
+             if chSigma > 0:
+               for i in range(chSigma, Nchan-chSigma):
+                 RR_SMOO[i] = np.average(VIS2PLOT_RR[i-chSigma:i+chSigma])
+                 LL_SMOO[i] = np.average(VIS2PLOT_LL[i-chSigma:i+chSigma])
+                 RL_SMOO[i] = np.average(VIS2PLOT_RL[i-chSigma:i+chSigma])
+                 LR_SMOO[i] = np.average(VIS2PLOT_LR[i-chSigma:i+chSigma])
+
+             RSCALE = np.max(np.abs(VIS2PLOT_RR))
+             LSCALE = np.max(np.abs(VIS2PLOT_LL))
+             AMP_RATIO = RSCALE/LSCALE
+             sub.plot(np.arange(Nchan)[ch0:ch1], np.abs(RR_SMOO)[ch0:ch1],'ob',label=dataPol['RR'])
+             sub.plot(np.arange(Nchan)[ch0:ch1],np.abs(LL_SMOO)[ch0:ch1]*AMP_RATIO,'or',label=dataPol['LL'])
+             sub.plot(np.arange(Nchan)[ch0:ch1],np.abs(RR_SMOO)[ch0:ch1],'-b')
+             sub.plot(np.arange(Nchan)[ch0:ch1],np.abs(LL_SMOO)[ch0:ch1]*AMP_RATIO,'-r')
+             sub.plot(np.arange(Nchan)[ch0:ch1],np.abs(RL_SMOO)[ch0:ch1]*AMP_RATIO,'xg',label=dataPol['RL'])
+             sub.plot(np.arange(Nchan)[ch0:ch1],np.abs(LR_SMOO)[ch0:ch1],'xk',label=dataPol['LR'])
+             sub.plot(np.arange(Nchan)[ch0:ch1],np.abs(RL_SMOO)[ch0:ch1]*AMP_RATIO,'-g')
+             sub.plot(np.arange(Nchan)[ch0:ch1],np.abs(LR_SMOO)[ch0:ch1],'-k')
+             sub.set_xlabel("Channel")
+             sub.set_ylabel("Amp")
+             sub.legend(ncol=2)
+             
+             R_PHAS = np.average(VIS2PLOT_RR) ; R_PHAS /= np.abs(R_PHAS)
+             L_PHAS = np.average(VIS2PLOT_LL) ; L_PHAS /= np.abs(L_PHAS)
+
+
+      # Plot
+             sub2.plot(np.arange(Nchan)[ch0:ch1],R2P*np.angle(RR_SMOO/R_PHAS)[ch0:ch1],'ob')
+             sub2.plot(np.arange(Nchan)[ch0:ch1],R2P*np.angle(LL_SMOO/L_PHAS)[ch0:ch1],'or')
+             sub2.plot(np.arange(Nchan)[ch0:ch1],R2P*np.angle(RL_SMOO/L_PHAS)[ch0:ch1],'xg')
+             sub2.plot(np.arange(Nchan)[ch0:ch1],R2P*np.angle(LR_SMOO/R_PHAS)[ch0:ch1],'xk')
+
+             sub2.set_xlabel("Channel")
+             sub2.set_ylabel("Phase (deg)")
+             sub2.set_ylim((-180.,180.))
+             fig.suptitle(AVKEY)
+             pl.savefig(os.path.join(PLOTDIR,"%s_%s_%s_b%s_IF%i_CALIB.png"%(AVKEY,scan['NAME'],scanName,BAND,k)))
+
+
+
+ else:    
+## Do the Fringe Fitting if continuum mode:
+     
+   print("\nCalibrating delays & rates.")
+   pool = Pool(processes = NPROC)
+   AVERAGES = pool.map(CALIB_PARALLEL, SCANS)
+   pool.close()
+   pool.join()
+
+   print("\nFinished!")
 
 
 
 
 ## Derive the bandpass (only phase) by averaging all scans
 ## and solving first for the multi-band delays:
- ALLBAS = np.unique(np.concatenate([sc['ANTS'] for sc in SCANS]))
+   ALLBAS = np.unique(np.concatenate([sc['ANTS'] for sc in SCANS]))
 
- BPASS = {}
- NIF = len(ALLIFS[0])
- zPAD = 11
- for BAS in ALLBAS:
-  print("Deriving bandpass from %s"%BAS)
-  BPASS[BAS] = [] 
-  TEMP = [[],[],[],[]]
-  for average in AVERAGES:
-    if BAS in average['vis'].keys() and len(average['vis'][BAS].keys())>0:
+   BPASS = {}
+   NIF = len(ALLIFS[0])
+   zPAD = 11
+   for BAS in ALLBAS:
+    print("Deriving bandpass from %s"%BAS)
+    BPASS[BAS] = [] 
+    TEMP = [[],[],[],[]]
+    for average in AVERAGES:
+      if BAS in average['vis'].keys() and len(average['vis'][BAS].keys())>0:
        MBD = np.zeros(NIF*zPAD,dtype=np.complex64)
        RGAIN = np.array([average['vis'][BAS][i][0] for i in range(NIF)]) # ALLIFS])
        LGAIN = np.array([average['vis'][BAS][i][1] for i in range(NIF)]) #ALLIFS])
@@ -608,21 +777,21 @@ for BAND in BANDS:
        TEMP[1].append(BP_SCAN_L/L_PHAS)
        TEMP[2].append(WGT_R)
        TEMP[3].append(WGT_L)
-  BPASS[BAS].append(np.average(TEMP[0],axis=0,weights=TEMP[2]))
-  BPASS[BAS].append(np.average(TEMP[1],axis=0,weights=TEMP[3]))
-  BPASS[BAS][0] /= np.abs(BPASS[BAS][0])
-  BPASS[BAS][1] /= np.abs(BPASS[BAS][1])
+    BPASS[BAS].append(np.average(TEMP[0],axis=0,weights=TEMP[2]))
+    BPASS[BAS].append(np.average(TEMP[1],axis=0,weights=TEMP[3]))
+    BPASS[BAS][0] /= np.abs(BPASS[BAS][0])
+    BPASS[BAS][1] /= np.abs(BPASS[BAS][1])
 
 
 
 
 ## Apply bandpass and recompute+apply multi-band delays:
- print("\nPlotting!")
- fig = pl.figure(figsize=(12,4)); sub = fig.add_subplot(121); sub2 = fig.add_subplot(122)
+   print("\nPlotting!")
+   fig = pl.figure(figsize=(12,4)); sub = fig.add_subplot(121); sub2 = fig.add_subplot(122)
 
- for average in AVERAGES:
-  scanName = average['scanName']
-  for BAS in average['vis'].keys():
+   for average in AVERAGES:
+    scanName = average['scanName']
+    for BAS in average['vis'].keys():
       sub.cla() ; sub2.cla()
       VIS2PLOT_RR = np.array([average['vis'][BAS][i][0] for i in range(NIF)])/BPASS[BAS][0]
       VIS2PLOT_LL = np.array([average['vis'][BAS][i][1] for i in range(NIF)])/BPASS[BAS][1]
@@ -642,7 +811,6 @@ for BAND in BANDS:
       sub.set_xlabel("IF")
       sub.set_ylabel("Amp")
       sub.legend(ncol=2)
-      R2P = 180./np.pi
       #NIF = len(ALLIFS); 
       zPAD = 11 # Larger zero-padding for the MBD
       MBD = np.zeros(NIF*zPAD,dtype=np.complex128)
@@ -683,10 +851,11 @@ for BAND in BANDS:
       fig.suptitle(BAS)
       pl.savefig(os.path.join(PLOTDIR,"%s_%s_%s_b%s_CALIB.png"%(BAS,average["source"],scanName,BAND)))
 
- del MBD,FRINGE,FRINGE2
- SCANS.clear()
- gc.collect() 
+   del MBD,FRINGE,FRINGE2
+   SCANS.clear()
+   gc.collect() 
+
+
 
 tac = time.time()
-
 print("\n Script took %.1f seconds."%(tac-tic))
