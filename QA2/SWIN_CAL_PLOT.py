@@ -85,6 +85,10 @@ Argument list:
               When provided, it will only plot between frequency channels i1-i2, 
               using a spectral boxcar smoothing of width 2*i3.
 
+--linefreq :: Only when using spectral-line mode, if this keyword is set, 
+              the script will select the IF that covers this frequency (in GHz).
+              If the frequency cannot be covered by the frequency setup, 
+              the program will crash.
 
 EXAMPLE:
 
@@ -108,7 +112,7 @@ if len(sys.argv)==1:
    print(helptxt)
    os._exit(0)
 
-allOptions = ['--nproc','--datadir','--plotdir','--source','--bands','--refant','--antennas','--noEHT','--specline','--doIF','--channels']
+allOptions = ['--nproc','--datadir','--plotdir','--source','--bands','--refant','--antennas','--noEHT','--specline','--doIF','--channels','--linefreq']
 for arg in sys.argv:
     if arg.startswith('-') and arg not in allOptions:
         raise Exception("Unknown argument %s"%arg)
@@ -220,6 +224,14 @@ else:
 
 
 
+linefreq = 0.0
+if '--linefreq' in sys.argv:
+    linefreq = float(sys.argv[sys.argv.index('--linefreq')+1])
+
+
+
+
+
 
 ######################
 ### SCRIPT STARTS: ###
@@ -270,6 +282,34 @@ for BAND in BANDS:
  for scnum,scan in enumerate(SCAN):
   print("\n Reading scan %s [%i of %i]"%(scan,scnum+1,len(SCAN)))
      
+
+
+## Figure out the frequencies of the IFs:
+  nuf = open(SCANNAMES[scnum]+'.input','r')
+  VLBI_NUs = {}
+  lines = nuf.readlines()
+  for li,line in enumerate(lines):
+    if "FREQ (MHZ) " in line:     
+      idx = int(line.split(":")[0].split()[-1])
+      Nui = float(line.split()[-1])/1.e3
+      BWi = float(lines[li+1].split()[-1])/1.e3
+      sb = {True: 1.0, False:-1}['U' in lines[li+2].split()[-1]]
+      VLBI_NUs[idx] = [Nui, Nui + sb*BWi]
+  nuf.close()
+
+  #print("VLBI_NUs:",VLBI_NUs)
+
+## Get IFs to read:
+  readIFs = []
+  if linefreq == 0.0:
+      readIFs = doIF
+  else:
+      for IF in VLBI_NUs.keys():
+          if linefreq > VLBI_NUs[IF][0] and linefreq < VLBI_NUs[IF][1]:
+              readIFs.append(IF)
+     
+  #print("readIFs: ",readIFs)
+
   #imf = open(os.path.join(DIR,'*-b%i_%s.im'%(BAND,scan)),"r")
   imf = open(SCANNAMES[scnum]+'.im','r')
 
@@ -342,7 +382,7 @@ for BAND in BANDS:
       STRPOL = str(P1.decode('utf-8')+P2.decode('utf-8'))
 
 ## Only read the requested IFs:
-      if len(doIF)==0 or SPI in doIF:
+      if len(readIFs)==0 or SPI in readIFs:
 # Autocorrelations:
        if A1 == A2 and A1 in TOPLOT:
         POLCOPY = ''
@@ -453,9 +493,9 @@ for BAND in BANDS:
  RLPHAS = []
  ALLIFS = [np.unique(SCANS[i]['IF']) for i in range(len(SCANS))]
 
-## Which IFs to plot (in specline mode):
- if specline and len(doIF)==0:
-     doIF = [i for i in ALLIFS[0]]
+## Which IFs to plot:
+# if len(readIFs)==0:
+ readIFs = [i for i in ALLIFS[0]]
 
 
  for i,scan in enumerate(SCANS):
@@ -636,7 +676,7 @@ for BAND in BANDS:
 
        if np.sum(maskRR)>0 and np.sum(maskLL)>0:
          thisWgtR = []; thisWgtL = []
-         for ki,k in enumerate(doIF):
+         for ki,k in enumerate(readIFs):
            sub.cla(); sub2.cla()         
            RR = np.copy(scan['VIS'][np.logical_and(maskRR,IFMASK[k]),:])
            SHAPE = np.shape(RR)
