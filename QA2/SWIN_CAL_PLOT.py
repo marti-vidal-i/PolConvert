@@ -118,8 +118,22 @@ for arg in sys.argv:
         raise Exception("Unknown argument %s"%arg)
 
 
+
+
 ##################################
 ## Read command-line arguments:
+
+
+# Sanity checks:
+for option in allOptions:
+    if sys.argv.count(option)>1:
+        raise Exception("Keyword %s is repeated!"%option)
+    if sys.argv.count(option)==1 and option not in ['--noEHT','--specline']:
+        idx = sys.argv.index(option)
+        if idx==len(sys.argv)-1 or sys.argv[sys.argv.index(option)+1] in allOptions:
+            raise Exception("Missing definition for keyword %s"%option)
+        
+
 
 
 if '--datadir' in sys.argv:

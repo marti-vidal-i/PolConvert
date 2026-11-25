@@ -83,9 +83,22 @@ if len(sys.argv)==1:
 
 
 allOptions = ['--nproc','--origdata','--destdata','--qa2dir','--track','--jobs','--bands','--source','--separateXY0Kcrs','--useGpol2','--noEHT','--DPFU']
+
+
+## Sanity checks:
+
 for arg in sys.argv:
     if arg.startswith('-') and arg not in allOptions:
         raise Exception("Unknown argument %s"%arg)
+
+for option in allOptions:
+    if sys.argv.count(option)>1:
+        raise Exception("Keyword %s is repeated!"%option)
+    if sys.argv.count(option)==1 and option not in ['--separateXY0Kcrs','--useGpol2','--noEHT']:
+        idx = sys.argv.index(option)
+        if idx==len(sys.argv)-1 or sys.argv[sys.argv.index(option)+1] in allOptions:
+            raise Exception("Missing definition for keyword %s"%option)
+        
 
 
 
